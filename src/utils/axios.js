@@ -1,30 +1,45 @@
-import axios from 'axios';
+import axios from "axios";
 
-// Create an Axios instance
+const API_URL =
+    process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.strongg.us";
+
 const axiosInstance = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:4000', // Use your API base URL
-    timeout: 10000, // Optional timeout
+    baseURL: API_URL,
+    timeout: 10 * 60 * 1000,
+    headers: {
+        "Content-Type": "application/json",
+    },
 });
 
-// Interceptors for requests
+// 🔹 Request interceptor — добавляем Bearer token
 axiosInstance.interceptors.request.use(
     (config) => {
-        // Add authentication tokens or custom headers here if needed
-        const token = localStorage.getItem('authToken');
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
+        if (typeof window !== "undefined") {
+            const token = localStorage.getItem("authToken");
+            if (token) {
+                config.headers.Authorization = `Bearer ${token}`;
+            }
         }
         return config;
     },
     (error) => Promise.reject(error)
 );
 
-// Interceptors for responses
+// 🔹 Response interceptor — 401 = logout + redirect
 axiosInstance.interceptors.response.use(
     (response) => response,
     (error) => {
-        // Handle errors globally
-        console.error(error);
+        if (
+            error?.response?.status === 401 &&
+            typeof window !== "undefined"
+        ) {
+            localStorage.removeItem("authToken");
+            localStorage.removeItem("authTokenTimestamp");
+
+            // редирект на логин
+            window.location.href = "/login";
+        }
+
         return Promise.reject(error);
     }
 );

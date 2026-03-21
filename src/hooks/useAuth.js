@@ -1,42 +1,56 @@
-import { useMemo } from 'react';
+'use client';
+import { useState, useEffect, useMemo } from 'react';
 
-// Token expiration duration (e.g., 1 hour in milliseconds)
-const TOKEN_EXPIRATION_TIME = (60 * 60 * 1000) * 3; // 3 hours
+const TOKEN_EXPIRATION_TIME = 3 * 60 * 60 * 1000; // 3h
 
 export const useAuth = () => {
-    // Get token and its timestamp from localStorage
-    const tokenData = useMemo(() => {
-        const token = localStorage.getItem('authToken');
-        const timestamp = localStorage.getItem('authTokenTimestamp');
-        return { token, timestamp: Number(timestamp) || 0 };
+    const [token, setToken] = useState(null);
+    const [timestamp, setTimestamp] = useState(0);
+    const [ready, setReady] = useState(false); // <-- добавили
+
+    // Читаем токен только в браузере, затем помечаем ready
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const t  = window.localStorage.getItem('authToken');
+        const ts = Number(window.localStorage.getItem('authTokenTimestamp')) || 0;
+        setToken(t);
+        setTimestamp(ts);
+        setReady(true); // <-- теперь можно принимать решения
     }, []);
 
-    // Check if the token is expired
     const isTokenExpired = useMemo(() => {
-        const now = Date.now();
-        return tokenData.timestamp + TOKEN_EXPIRATION_TIME < now;
-    }, [tokenData]);
+        if (!timestamp) return false;
+        return timestamp + TOKEN_EXPIRATION_TIME < Date.now();
+    }, [timestamp]);
 
-    // Check if the user is logged in (valid token and not expired)
-    const isLoggedIn = useMemo(() => !!tokenData.token && !isTokenExpired, [tokenData, isTokenExpired]);
+    const isLoggedIn = useMemo(
+        () => Boolean(token) && !isTokenExpired,
+        [token, isTokenExpired]
+    );
 
-    // Set token and save its timestamp
-    const setToken = (newToken) => {
+    const saveToken = (newToken) => {
+        if (typeof window === 'undefined') return;
         const now = Date.now();
-        localStorage.setItem('authToken', newToken);
-        localStorage.setItem('authTokenTimestamp', now.toString());
+        window.localStorage.setItem('authToken', newToken);
+        window.localStorage.setItem('authTokenTimestamp', String(now));
+        setToken(newToken);
+        setTimestamp(now);
+        setReady(true);
     };
 
-    // Remove the token and timestamp to log out
     const logout = () => {
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('authTokenTimestamp');
+        if (typeof window === 'undefined') return;
+        window.localStorage.removeItem('authToken');
+        window.localStorage.removeItem('authTokenTimestamp');
+        setToken(null);
+        setTimestamp(0);
+        setReady(true);
     };
 
-    // Clear token if expired
-    if (isTokenExpired) {
-        logout();
-    }
+    // Авто-логаут по истечению токена после загрузки
+    useEffect(() => {
+        if (ready && isTokenExpired) logout();
+    }, [ready, isTokenExpired]);
 
-    return { isLoggedIn, setToken, token: tokenData.token, logout };
+    return { ready, isLoggedIn, token, saveToken, logout };
 };

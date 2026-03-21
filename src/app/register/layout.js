@@ -12,10 +12,10 @@ export default function AuthLayout({ children }) {
                 {/* Content */}
                 <div className="relative z-10">
                     <h1 className="text-4xl font-bold mb-4">
-                        AuctionBody
+                        AuctionEnrich
                     </h1>
                     <p className="text-lg font-light mb-8">
-                        Convert auctions CSV file to managed table.
+                        Get instant engine & transmission prices for your auction cars.
                     </p>
                 </div>
             </div>
