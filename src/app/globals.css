@@ -35,25 +35,26 @@ body {
     --radius: 0.75rem;
   }
   .dark {
-    --background: 240 10% 3.9%;
+    --background: 240 10% 2%;
     --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
+    --card: 240 10% 4%;
     --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
+    --popover: 240 10% 4%;
     --popover-foreground: 0 0% 98%;
     --primary: 0 0% 98%;
     --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
+    --secondary: 240 3.7% 10%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
+    --muted: 240 3.7% 10%;
     --muted-foreground: 240 5% 64.9%;
-    --accent: 142.1 70.6% 45.3%; /* Emerald-500 equivalent */
+    --accent: 142.1 70.6% 45.3%; /* Emerald-500 */
     --accent-foreground: 144.9 80.4% 10%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
+    --border: 240 3.7% 12%;
+    --input: 240 3.7% 12%;
     --ring: 142.1 70.6% 45.3%;
+    --radius: 1rem;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
@@ -64,13 +65,60 @@ body {
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-border selection:bg-accent/30 selection:text-accent-foreground;
   }
   body {
-    @apply bg-background text-foreground;
-
+    @apply bg-background text-foreground antialiased;
+  }
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
   }
   svg {
     margin-top: 0 !important;
   }
+}
+
+.glass-card {
+  @apply bg-white/[0.02] border border-white/[0.05] backdrop-blur-xl transition-all duration-300;
+}
+
+.glass-card:hover {
+  @apply bg-white/[0.04] border-white/[0.1];
+}
+
+.accent-glow {
+  box-shadow: 0 0 40px -10px hsla(var(--accent), 0.3);
+}
+
+.accent-glow-sm {
+  box-shadow: 0 0 20px -5px hsla(var(--accent), 0.2);
+}
+
+.animate-in-fade {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-br from-white via-white/90 to-white/40;
+}
+
+.emerald-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600;
+}
+
+.card-gradient {
+  background: radial-gradient(100% 100% at 0% 0%, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 100%);
 }

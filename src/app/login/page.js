@@ -14,11 +14,12 @@ import { Input } from "@/components/ui/input";
 
 import { Formik, Form, Field } from "formik";
 import * as Yup from "yup";
-import { Mail, Lock, Car } from "lucide-react";
+import { Mail, Lock, Car, ArrowRight } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "@/utils/axios";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { motion } from "framer-motion";
 
 const LoginSchema = Yup.object().shape({
     email: Yup.string().email("Invalid email address").required("Email is required"),
@@ -53,97 +54,107 @@ export default function Page() {
     };
 
     return (
-        <Card className="border-0 bg-transparent shadow-none backdrop-blur-0 p-0">
-            <CardHeader className="text-center p-0 mb-8">
-                <div className="flex justify-center mb-6">
-                    <div className="p-4 bg-accent/10 rounded-2xl border border-accent/20 shadow-[0_0_30px_rgba(16,185,129,0.1)]">
-                        <Car className="h-10 w-10 text-accent" />
+        <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+        >
+            <Card className="border-0 bg-transparent shadow-none p-0">
+                <CardHeader className="text-center p-0 mb-10">
+                    <div className="flex justify-center mb-8">
+                        <div className="p-5 bg-emerald-500/10 rounded-3xl border border-emerald-500/20 accent-glow-sm">
+                            <Car className="h-12 w-12 text-emerald-500" />
+                        </div>
                     </div>
-                </div>
-                <CardTitle className="text-3xl font-black tracking-tighter uppercase italic mb-2">
-                    STRONGG. <span className="text-accent">AUTO</span>
-                </CardTitle>
-                <CardDescription className="text-white/50">Next-Gen Vehicle Auction Intelligence</CardDescription>
-            </CardHeader>
+                    <CardTitle className="text-4xl font-black tracking-tighter uppercase italic mb-3 text-gradient">
+                        Welcome <span className="emerald-gradient">Back</span>
+                    </CardTitle>
+                    <CardDescription className="text-white/40 text-sm font-medium">Access your intelligent dashboard</CardDescription>
+                </CardHeader>
 
-            <CardContent className="p-0">
-                <Formik
-                    initialValues={{ email: "", password: "" }}
-                    validationSchema={LoginSchema}
-                    onSubmit={handleSubmit}
-                >
-                    {({ errors, touched, isSubmitting, status }) => (
-                        <Form className="space-y-6">
-                            <div className="space-y-4">
-                                {/* Email */}
-                                <div className="space-y-2">
-                                    <div className="relative">
-                                        <Field
-                                            as={Input}
-                                            id="email"
-                                            name="email"
-                                            placeholder="Email address"
-                                            className="pl-11"
-                                            autoComplete="email"
-                                        />
-                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+                <CardContent className="p-0">
+                    <Formik
+                        initialValues={{ email: "", password: "" }}
+                        validationSchema={LoginSchema}
+                        onSubmit={handleSubmit}
+                    >
+                        {({ errors, touched, isSubmitting, status }) => (
+                            <Form className="space-y-6">
+                                <div className="space-y-4">
+                                    {/* Email */}
+                                    <div className="space-y-2">
+                                        <div className="relative group">
+                                            <Field
+                                                as={Input}
+                                                id="email"
+                                                name="email"
+                                                placeholder="Email address"
+                                                className="pl-12 h-14 bg-white/5 border-white/10 rounded-2xl focus:border-emerald-500/50 focus:ring-emerald-500/20 transition-all"
+                                                autoComplete="email"
+                                            />
+                                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-white/20 group-focus-within:text-emerald-500 transition-colors" />
+                                        </div>
+                                        {errors.email && touched.email && (
+                                            <p className="text-red-400 text-[10px] uppercase tracking-wider font-bold ml-2">{String(errors.email)}</p>
+                                        )}
                                     </div>
-                                    {errors.email && touched.email && (
-                                        <p className="text-red-400 text-xs font-medium ml-1">{String(errors.email)}</p>
+
+                                    {/* Password */}
+                                    <div className="space-y-2">
+                                        <div className="relative group">
+                                            <Field
+                                                as={Input}
+                                                id="password"
+                                                name="password"
+                                                type="password"
+                                                placeholder="Password"
+                                                className="pl-12 h-14 bg-white/5 border-white/10 rounded-2xl focus:border-emerald-500/50 focus:ring-emerald-500/20 transition-all"
+                                                autoComplete="current-password"
+                                            />
+                                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-white/20 group-focus-within:text-emerald-500 transition-colors" />
+                                        </div>
+                                        {errors.password && touched.password && (
+                                            <p className="text-red-400 text-[10px] uppercase tracking-wider font-bold ml-2">{String(errors.password)}</p>
+                                        )}
+                                    </div>
+
+                                    {status && (
+                                        <motion.div 
+                                            initial={{ opacity: 0, scale: 0.95 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium text-center"
+                                        >
+                                            {String(status)}
+                                        </motion.div>
                                     )}
                                 </div>
 
-                                {/* Password */}
-                                <div className="space-y-2">
-                                    <div className="relative">
-                                        <Field
-                                            as={Input}
-                                            id="password"
-                                            name="password"
-                                            type="password"
-                                            placeholder="Password"
-                                            className="pl-11"
-                                            autoComplete="current-password"
-                                        />
-                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
-                                    </div>
-                                    {errors.password && touched.password && (
-                                        <p className="text-red-400 text-xs font-medium ml-1">{String(errors.password)}</p>
-                                    )}
+                                <Button
+                                    type="submit"
+                                    className="w-full h-14 text-sm font-bold uppercase tracking-widest rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-black shadow-[0_10px_20px_-10px_rgba(16,185,129,0.3)] transition-all active:scale-[0.98]"
+                                    isLoading={isSubmitting}
+                                    disabled={isSubmitting}
+                                >
+                                    Sign In <ArrowRight className="ml-2 h-4 w-4" />
+                                </Button>
+
+                                <div className="text-center pt-4">
+                                    <p className="text-sm text-white/30 font-medium">
+                                        New to Strongg?{" "}
+                                        <button
+                                            type="button"
+                                            onClick={() => router.push("/register")}
+                                            className="text-emerald-500 hover:text-emerald-400 font-bold transition-all underline underline-offset-4"
+                                        >
+                                            Create Account
+                                        </button>
+                                    </p>
                                 </div>
-
-                                {status && (
-                                    <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium">
-                                        {String(status)}
-                                    </div>
-                                )}
-                            </div>
-
-                            <Button
-                                type="submit"
-                                className="w-full h-12 text-base"
-                                isLoading={isSubmitting}
-                                disabled={isSubmitting}
-                            >
-                                Sign In
-                            </Button>
-
-                            <div className="text-center">
-                                <p className="text-sm text-white/40">
-                                    Don’t have an account?{" "}
-                                    <button
-                                        type="button"
-                                        onClick={() => router.push("/register")}
-                                        className="text-accent hover:underline font-semibold transition-all"
-                                    >
-                                        Create one
-                                    </button>
-                                </p>
-                            </div>
-                        </Form>
-                    )}
-                </Formik>
-            </CardContent>
-        </Card>
+                            </Form>
+                        )}
+                    </Formik>
+                </CardContent>
+            </Card>
+        </motion.div>
     );
 }

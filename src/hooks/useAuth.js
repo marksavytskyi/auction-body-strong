@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 
 const TOKEN_EXPIRATION_TIME = 3 * 60 * 60 * 1000; // 3h
 
@@ -38,19 +38,19 @@ export const useAuth = () => {
         setReady(true);
     };
 
-    const logout = () => {
+    const logout = useCallback(() => {
         if (typeof window === 'undefined') return;
         window.localStorage.removeItem('authToken');
         window.localStorage.removeItem('authTokenTimestamp');
         setToken(null);
         setTimestamp(0);
         setReady(true);
-    };
+    }, []);
 
     // Авто-логаут по истечению токена после загрузки
     useEffect(() => {
         if (ready && isTokenExpired) logout();
-    }, [ready, isTokenExpired]);
+    }, [ready, isTokenExpired, logout]);
 
     return { ready, isLoggedIn, token, saveToken, logout };
 };
