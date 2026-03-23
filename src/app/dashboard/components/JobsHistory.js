@@ -135,7 +135,7 @@ export default function JobsHistory({ jobs, jobError, openJob, deleteJob }) {
                                     </div>
 
                                     <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-white/55">
-                                        <div className="truncate">rows: {job.rows || 0} • cols: {job.columns || 0}</div>
+                                        <div className="truncate">rows: {job.rows ?? 0}{job.columns ? ` • cols: ${job.columns}` : ""}</div>
                                         <div className="tabular-nums">{job.status === "done" || job.status === "failed" ? fmtDurationMs(job.duration_ms) : "…"}</div>
                                     </div>
                                 </button>

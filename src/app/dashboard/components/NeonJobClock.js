@@ -105,11 +105,11 @@ export default function NeonJobClock({
                     </div>
 
                     <div className="mt-1 text-lg sm:text-xl font-black tracking-tight text-emerald-200 drop-shadow-[0_0_12px_rgba(16,185,129,0.45)]">
-                        {timerState.label}: {pretty}
+                        {pretty}
                     </div>
 
                     <div className="mt-1 text-xs text-white/65">
-                        Processed: <b className="text-white/90">{processedRows}</b> / <b>{jobRows || "—"}</b>
+                        Processed: <b className="text-white/90">{processedRows ?? "—"}</b> / <b>{jobRows != null ? jobRows : "—"}</b>
                     </div>
                 </div>
             </div>

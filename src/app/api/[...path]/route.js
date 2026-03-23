@@ -1,4 +1,11 @@
-const API_TARGET = (process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000").replace(/\/+$/, "");
+const PROD_API_TARGET = (process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
+const LOCAL_API_TARGET = "http://127.0.0.1:8000";
+
+function getApiTarget(request) {
+    const host = request.headers.get("host") || "";
+    const isLocal = host.startsWith("localhost") || host.startsWith("127.0.0.1");
+    return isLocal ? LOCAL_API_TARGET : PROD_API_TARGET;
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,9 +24,9 @@ const HOP_BY_HOP_HEADERS = new Set([
 ]);
 const RETRYABLE_STATUS = new Set([500, 502, 503, 504]);
 
-function buildTargetUrl(pathParts = [], search = "") {
+function buildTargetUrl(apiTarget, pathParts = [], search = "") {
     const joinedPath = Array.isArray(pathParts) ? pathParts.join("/") : "";
-    return `${API_TARGET}/${joinedPath}${search || ""}`;
+    return `${apiTarget}/${joinedPath}${search || ""}`;
 }
 
 function buildForwardHeaders(requestHeaders) {
@@ -88,7 +95,8 @@ async function fetchUpstream(targetUrl, method, headers, body) {
 
 async function proxyRequest(request, context) {
     const resolvedParams = await Promise.resolve(context?.params);
-    const targetUrl = buildTargetUrl(resolvedParams?.path, request.nextUrl.search);
+    const apiTarget = getApiTarget(request);
+    const targetUrl = buildTargetUrl(apiTarget, resolvedParams?.path, request.nextUrl.search);
     const headers = buildForwardHeaders(request.headers);
     const method = request.method.toUpperCase();
     const hasBody = !["GET", "HEAD"].includes(method);

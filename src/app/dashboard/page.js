@@ -325,6 +325,7 @@ export default function Page() {
         setHeaders(nextHeaders);
         setRows(nextRows);
         setTotalRows(Number(data.total_rows || 0));
+        if (nextHeaders.length) setJobCols(nextHeaders.length);
 
         return data;
     }, []);
@@ -419,6 +420,16 @@ export default function Page() {
             return;
         }
 
+        const headerRow = (csvPreviewRows[0] || []).map((h) => String(h || "").toLowerCase());
+        const required = ["make", "model", "year"];
+        const missing = required.filter((col) => !headerRow.includes(col));
+        if (missing.length) {
+            const msg = `CSV is missing required columns: ${missing.join(", ")}`;
+            setJobError(msg);
+            toast.error(msg);
+            return;
+        }
+
         setIsUploading(true);
         const uploadToast = toast.loading("Uploading and starting processing...");
 
@@ -480,7 +491,7 @@ export default function Page() {
         } finally {
             setIsUploading(false);
         }
-    }, [file, validateFile, loadJobs, fetchJobMeta, fetchPreviewPage, pageSize, startPolling]);
+    }, [file, csvPreviewRows, validateFile, loadJobs, fetchJobMeta, fetchPreviewPage, pageSize, startPolling]);
 
     const openJob = useCallback(
         async (id) => {
@@ -504,8 +515,14 @@ export default function Page() {
                 }
 
                 if (meta.status === "processing" || meta.status === "queued") {
-                    setElapsedSec(0);
-                    startMsRef.current = Date.now();
+                    const startedAt = meta.started_at ? Date.parse(meta.started_at) : null;
+                    if (startedAt && Number.isFinite(startedAt)) {
+                        startMsRef.current = startedAt;
+                        setElapsedSec(Math.floor((Date.now() - startedAt) / 1000));
+                    } else {
+                        startMsRef.current = Date.now();
+                        setElapsedSec(0);
+                    }
                     startPolling(id);
                 }
 

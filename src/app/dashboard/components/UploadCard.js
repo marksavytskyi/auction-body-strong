@@ -144,7 +144,7 @@ export default function UploadCard({
         } finally {
             setIsFullPreviewLoading(false);
         }
-    }, [file, fullPreviewRows.length, isFullPreviewLoading, parseCsvText]);
+    }, [file, isFullPreviewLoading, parseCsvText]);
 
     useEffect(() => {
         setFullPreviewRows([]);
