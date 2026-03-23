@@ -34,6 +34,7 @@ axiosInstance.interceptors.response.use(
         ) {
             localStorage.removeItem("authToken");
             localStorage.removeItem("authTokenTimestamp");
+            localStorage.removeItem("dashboard:active-job-id");
 
             // редирект на логин
             window.location.href = "/login";

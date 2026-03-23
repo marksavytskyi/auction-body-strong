@@ -5,7 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="72e7ed23-89cb-4726-bf1b-7f7803058b0d" name="Changes" comment="second commit">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/dashboard/page.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/dashboard/page.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/hooks/useAuth.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/hooks/useAuth.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/utils/axios.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/axios.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -146,7 +148,7 @@
       <workItem from="1774158504913" duration="103000" />
       <workItem from="1774158625216" duration="7000" />
       <workItem from="1774158752120" duration="1453000" />
-      <workItem from="1774160211243" duration="7435000" />
+      <workItem from="1774160211243" duration="9832000" />
     </task>
     <task id="LOCAL-00001" summary="fisrt commit">
       <option name="closed" value="true" />
@@ -164,7 +166,15 @@
       <option name="project" value="LOCAL" />
       <updated>1774200924781</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="second commit">
+      <option name="closed" value="true" />
+      <created>1774201317292</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1774201317292</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

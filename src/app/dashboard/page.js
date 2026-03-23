@@ -21,6 +21,7 @@ import DetailsModal from "./components/DetailsModal";
 const MAX_MB = 25;
 const MAX_BYTES = MAX_MB * 1024 * 1024;
 const PAGE_SIZE_STORAGE_KEY = "dashboard:page-size";
+const ACTIVE_JOB_STORAGE_KEY = "dashboard:active-job-id";
 const LIVE_PREVIEW_STATUSES = new Set(["queued", "processing", "done"]);
 
 const readPreviewFromFile = (targetFile) =>
@@ -184,6 +185,7 @@ export default function Page() {
     const resetAll = useCallback(() => {
         setFile(null);
         setJobId(null);
+        window.localStorage.removeItem(ACTIVE_JOB_STORAGE_KEY);
         setJobStatus(null);
         setJobError("");
         setIsUploading(false);
@@ -276,6 +278,14 @@ export default function Page() {
         if (!ready || !isLoggedIn) return;
         loadJobs();
     }, [ready, isLoggedIn, loadJobs]);
+
+    // Auto-restore the last active job after page refresh
+    useEffect(() => {
+        if (!ready || !isLoggedIn) return;
+        const savedId = window.localStorage.getItem(ACTIVE_JOB_STORAGE_KEY);
+        if (savedId) openJob(savedId);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ready, isLoggedIn]);
 
     const fetchJobMeta = useCallback(async (id) => {
         const res = await axiosInstance.get(`/csv-vehicle/jobs/${id}`);
@@ -437,6 +447,7 @@ export default function Page() {
             if (!id) throw new Error("No job_id returned from server");
 
             setJobId(id);
+            window.localStorage.setItem(ACTIVE_JOB_STORAGE_KEY, id);
             setJobStatus(String(res?.data?.status || "processing").toLowerCase());
             setPage(1);
             setQuery("");
@@ -476,6 +487,7 @@ export default function Page() {
             resetAll();
             const openToast = toast.loading("Opening job...");
             setJobId(id);
+            window.localStorage.setItem(ACTIVE_JOB_STORAGE_KEY, id);
             setPage(1);
             setQuery("");
             setIsModalOpen(false);

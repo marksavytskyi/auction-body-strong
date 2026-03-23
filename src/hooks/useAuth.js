@@ -42,6 +42,7 @@ export const useAuth = () => {
         if (typeof window === 'undefined') return;
         window.localStorage.removeItem('authToken');
         window.localStorage.removeItem('authTokenTimestamp');
+        window.localStorage.removeItem('dashboard:active-job-id');
         setToken(null);
         setTimestamp(0);
         setReady(true);
