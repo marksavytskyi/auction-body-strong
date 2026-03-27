@@ -1,12 +1,26 @@
 'use client';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 
-const TOKEN_EXPIRATION_TIME = 3 * 60 * 60 * 1000; // 3h
+const TOKEN_EXPIRATION_TIME = 60 * 60 * 1000; // 1h — matches backend JWT TTL
 
 export const useAuth = () => {
     const [token, setToken] = useState(null);
     const [timestamp, setTimestamp] = useState(0);
+    const [email, setEmail] = useState(null);
     const [ready, setReady] = useState(false); // <-- добавили
+
+    const parseEmail = (t) => {
+        try {
+            if (!t) return null;
+            const payload = t.split('.')[1];
+            if (!payload) return null;
+            const decoded = JSON.parse(atob(payload));
+            return decoded.sub || decoded.email || null;
+        } catch (e) {
+            console.error('Failed to parse JWT email', e);
+            return null;
+        }
+    };
 
     // Читаем токен только в браузере, затем помечаем ready
     useEffect(() => {
@@ -15,6 +29,7 @@ export const useAuth = () => {
         const ts = Number(window.localStorage.getItem('authTokenTimestamp')) || 0;
         setToken(t);
         setTimestamp(ts);
+        setEmail(parseEmail(t));
         setReady(true); // <-- теперь можно принимать решения
     }, []);
 
@@ -35,6 +50,7 @@ export const useAuth = () => {
         window.localStorage.setItem('authTokenTimestamp', String(now));
         setToken(newToken);
         setTimestamp(now);
+        setEmail(parseEmail(newToken));
         setReady(true);
     };
 
@@ -45,6 +61,7 @@ export const useAuth = () => {
         window.localStorage.removeItem('dashboard:active-job-id');
         setToken(null);
         setTimestamp(0);
+        setEmail(null);
         setReady(true);
     }, []);
 
@@ -53,5 +70,5 @@ export const useAuth = () => {
         if (ready && isTokenExpired) logout();
     }, [ready, isTokenExpired, logout]);
 
-    return { ready, isLoggedIn, token, saveToken, logout };
+    return { ready, isLoggedIn, token, email, saveToken, logout };
 };

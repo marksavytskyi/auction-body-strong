@@ -6,7 +6,12 @@
   <component name="ChangeListManager">
     <list default="true" id="72e7ed23-89cb-4726-bf1b-7f7803058b0d" name="Changes" comment="second commit">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/api/[...path]/route.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/api/[...path]/route.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/dashboard/components/NeonJobClock.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/dashboard/components/NeonJobClock.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/dashboard/components/UploadCard.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/dashboard/components/UploadCard.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/dashboard/page.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/dashboard/page.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/login/page.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/login/page.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/register/page.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/register/page.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/hooks/useAuth.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/hooks/useAuth.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -148,7 +153,8 @@
       <workItem from="1774158625216" duration="7000" />
       <workItem from="1774158752120" duration="1453000" />
       <workItem from="1774160211243" duration="9832000" />
-      <workItem from="1774283721857" duration="4147000" />
+      <workItem from="1774283721857" duration="6462000" />
+      <workItem from="1774423354152" duration="10418000" />
     </task>
     <task id="LOCAL-00001" summary="fisrt commit">
       <option name="closed" value="true" />
@@ -182,7 +188,15 @@
       <option name="project" value="LOCAL" />
       <updated>1774283770832</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="second commit">
+      <option name="closed" value="true" />
+      <created>1774291012080</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1774291012080</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useDropzone } from "react-dropzone";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { LogOut, Sparkles, UploadCloud } from "lucide-react";
+import { LogOut, Sparkles, UploadCloud, User } from "lucide-react";
 import { motion } from "framer-motion";
 
 import axiosInstance from "@/utils/axios";
@@ -53,7 +53,7 @@ const readPreviewFromFile = (targetFile) =>
 
 export default function Page() {
     const router = useRouter();
-    const { ready, isLoggedIn } = useAuth();
+    const { ready, isLoggedIn, email: userEmail } = useAuth();
 
     const [file, setFile] = useState(null);
     const [jobId, setJobId] = useState(null);
@@ -85,6 +85,7 @@ export default function Page() {
     const pollRef = useRef(null);
 
     const [elapsedSec, setElapsedSec] = useState(0);
+    const [isInitialLoading, setIsInitialLoading] = useState(false);
     const timerRef = useRef(null);
     const startMsRef = useRef(null);
     const previewPageRef = useRef(page);
@@ -188,6 +189,7 @@ export default function Page() {
         window.localStorage.removeItem(ACTIVE_JOB_STORAGE_KEY);
         setJobStatus(null);
         setJobError("");
+        setIsInitialLoading(false);
         setIsUploading(false);
 
         setHeaders([]);
@@ -279,13 +281,15 @@ export default function Page() {
         loadJobs();
     }, [ready, isLoggedIn, loadJobs]);
 
-    // Auto-restore the last active job after page refresh
+    // Auto-restore the last active job after page refresh - DISABLED as per user request
+    /*
     useEffect(() => {
         if (!ready || !isLoggedIn) return;
         const savedId = window.localStorage.getItem(ACTIVE_JOB_STORAGE_KEY);
         if (savedId) openJob(savedId);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ready, isLoggedIn]);
+    */
 
     const fetchJobMeta = useCallback(async (id) => {
         const res = await axiosInstance.get(`/csv-vehicle/jobs/${id}`);
@@ -293,11 +297,15 @@ export default function Page() {
         const status = String(data.status || "").toLowerCase() || null;
 
         setJobId(data.job_id || id);
-        setJobStatus(status);
+        if (status) setJobStatus(status);
         setJobError(data.error || "");
-        setJobRows(data.rows || 0);
-        setJobCols(data.columns || 0);
-        setProcessedRows(data.processed_rows || 0);
+        
+        // Use high-water mark to prevent flickering
+        if (data.rows) setJobRows(data.rows);
+        if (data.columns) setJobCols(prev => Math.max(prev, data.columns));
+        if (data.processed_rows !== undefined) {
+            setProcessedRows(prev => Math.max(prev, Number(data.processed_rows)));
+        }
         setDurationMs(data.duration_ms || 0);
 
         return data;
@@ -325,7 +333,22 @@ export default function Page() {
         setHeaders(nextHeaders);
         setRows(nextRows);
         setTotalRows(Number(data.total_rows || 0));
-        if (nextHeaders.length) setJobCols(nextHeaders.length);
+        
+        // Use high-water mark for columns
+        if (nextHeaders.length) {
+            setJobCols(prev => Math.max(prev, nextHeaders.length));
+        }
+
+        // Sync job metadata from preview response as well
+        if (data.status) setJobStatus(String(data.status).toLowerCase());
+        
+        if (data.processed_rows !== undefined) {
+            setProcessedRows(prev => Math.max(prev, Number(data.processed_rows)));
+        }
+        
+        if (data.total_rows_in_file !== undefined) {
+            setJobRows(data.total_rows_in_file);
+        }
 
         return data;
     }, []);
@@ -380,7 +403,7 @@ export default function Page() {
                 } finally {
                     tickInFlight = false;
                 }
-            }, 1200);
+            }, 2000);
         },
         [fetchJobMeta, loadJobs, fetchPreviewPage]
     );
@@ -496,6 +519,7 @@ export default function Page() {
     const openJob = useCallback(
         async (id) => {
             resetAll();
+            setIsInitialLoading(true);
             const openToast = toast.loading("Opening job...");
             setJobId(id);
             window.localStorage.setItem(ACTIVE_JOB_STORAGE_KEY, id);
@@ -506,6 +530,7 @@ export default function Page() {
 
             try {
                 const meta = await fetchJobMeta(id);
+                setIsInitialLoading(false);
                 if (LIVE_PREVIEW_STATUSES.has(String(meta?.status || "").toLowerCase())) {
                     try {
                         await fetchPreviewPage(id, 1, pageSize, "");
@@ -528,6 +553,7 @@ export default function Page() {
 
                 toast.success(`Job #${id} opened`, { id: openToast });
             } catch (error) {
+                setIsInitialLoading(false);
                 const status = error?.response?.status;
                 const transient = !status || status >= 500;
                 if (transient) {
@@ -620,10 +646,22 @@ export default function Page() {
                         </div>
                     </div>
 
-                    <Button variant="outline" className="rounded-2xl border-white/15 h-11 px-5" onClick={() => router.push("/logout")}>
-                        <LogOut className="mr-1.5 h-4 w-4" />
-                        Logout
-                    </Button>
+                    <div className="flex items-center gap-3">
+                        {userEmail && (
+                            <div className="hidden md:flex items-center gap-2.5 px-4 py-2 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md">
+                                <div className="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                                    <User className="h-3.5 w-3.5 text-emerald-400" />
+                                </div>
+                                <span className="text-xs font-bold text-white/70 tracking-wide select-none">
+                                    {userEmail}
+                                </span>
+                            </div>
+                        )}
+                        <Button variant="outline" className="rounded-2xl border-white/15 h-11 px-5" onClick={() => router.push("/logout")}>
+                            <LogOut className="mr-1.5 h-4 w-4" />
+                            Logout
+                        </Button>
+                    </div>
                 </motion.div>
 
                 <div className="flex flex-col gap-6">
@@ -648,6 +686,7 @@ export default function Page() {
                                 jobRows={jobRows}
                                 durationMs={durationMs}
                                 csvPreviewRows={csvPreviewRows}
+                                isInitialLoading={isInitialLoading}
                             />
 
                             <JobsHistory jobs={jobs} jobError={jobError} openJob={openJob} deleteJob={deleteJob} />

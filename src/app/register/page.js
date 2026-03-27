@@ -13,10 +13,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Formik, Form, Field } from "formik";
 import * as Yup from "yup";
-import { Mail, Lock, KeyRound, Car, ArrowRight } from "lucide-react";
+import { Mail, Lock, KeyRound, Car, ArrowRight, Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "@/utils/axios";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
 import { motion } from "framer-motion";
 
 const VALID_INVITE_CODE = process.env.NEXT_PUBLIC_REGISTRATION_INVITE_CODE || "";
@@ -29,6 +30,9 @@ const RegisterSchema = Yup.object().shape({
 
 export default function Page() {
     const router = useRouter();
+    const { saveToken } = useAuth();
+    const [showInviteCode, setShowInviteCode] = React.useState(false);
+    const [showPassword, setShowPassword] = React.useState(false);
 
     const handleSubmit = async (values, { setSubmitting, resetForm, setStatus }) => {
         setSubmitting(true);
@@ -41,11 +45,17 @@ export default function Page() {
         }
 
         try {
-            await axiosInstance.post("/auth/register", values);
+            const response = await axiosInstance.post("/auth/register", values);
+            const accessToken = response?.data?.access_token;
 
             resetForm();
-            toast.success("Registered successfully! Now login.");
-            router.push("/login");
+            toast.success("Registered successfully!");
+            if (accessToken) {
+                saveToken(accessToken);
+                router.push("/dashboard");
+            } else {
+                router.push("/login");
+            }
         } catch (error) {
             const msg =
                 error?.response?.data?.detail ||
@@ -110,12 +120,23 @@ export default function Page() {
                                                 as={Input}
                                                 id="password"
                                                 name="password"
-                                                type="password"
+                                                type={showPassword ? "text" : "password"}
                                                 placeholder="Password"
-                                                className="pl-12 h-14 bg-white/5 border-white/10 rounded-2xl focus:border-emerald-500/50 focus:ring-emerald-500/20 transition-all"
+                                                className="pl-12 pr-12 h-14 bg-white/5 border-white/10 rounded-2xl focus:border-emerald-500/50 focus:ring-emerald-500/20 transition-all"
                                                 autoComplete="new-password"
                                             />
                                             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-white/20 group-focus-within:text-emerald-500 transition-colors" />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-emerald-500 transition-colors focus:outline-none"
+                                            >
+                                                {showPassword ? (
+                                                    <EyeOff className="h-5 w-5" />
+                                                ) : (
+                                                    <Eye className="h-5 w-5" />
+                                                )}
+                                            </button>
                                         </div>
                                         {errors.password && touched.password && (
                                             <p className="text-red-400 text-[10px] uppercase tracking-wider font-bold ml-2">{String(errors.password)}</p>
@@ -129,11 +150,23 @@ export default function Page() {
                                                 as={Input}
                                                 id="invite_code"
                                                 name="invite_code"
+                                                type={showInviteCode ? "text" : "password"}
                                                 placeholder="Invite code"
-                                                className="pl-12 h-14 bg-white/5 border-white/10 rounded-2xl focus:border-emerald-500/50 focus:ring-emerald-500/20 transition-all"
+                                                className="pl-12 pr-12 h-14 bg-white/5 border-white/10 rounded-2xl focus:border-emerald-500/50 focus:ring-emerald-500/20 transition-all"
                                                 autoComplete="off"
                                             />
                                             <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-white/20 group-focus-within:text-emerald-500 transition-colors" />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowInviteCode(!showInviteCode)}
+                                                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-emerald-500 transition-colors focus:outline-none"
+                                            >
+                                                {showInviteCode ? (
+                                                    <EyeOff className="h-5 w-5" />
+                                                ) : (
+                                                    <Eye className="h-5 w-5" />
+                                                )}
+                                            </button>
                                         </div>
                                         {errors.invite_code && touched.invite_code && (
                                             <p className="text-red-400 text-[10px] uppercase tracking-wider font-bold ml-2">{String(errors.invite_code)}</p>

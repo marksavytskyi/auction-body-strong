@@ -30,6 +30,7 @@ export default function UploadCard({
     jobRows,
     durationMs,
     csvPreviewRows,
+    isInitialLoading,
 }) {
     const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
     const [fullPreviewRows, setFullPreviewRows] = useState([]);
@@ -278,7 +279,7 @@ export default function UploadCard({
                 </div>
             )}
 
-            {jobStatus ? (
+            {jobStatus || isInitialLoading ? (
                 <NeonJobClock
                     jobStatus={jobStatus}
                     isProcessing={isProcessing}
@@ -286,6 +287,7 @@ export default function UploadCard({
                     durationMs={durationMs}
                     processedRows={processedRows}
                     jobRows={jobRows}
+                    isInitialLoading={isInitialLoading}
                 />
             ) : null}
 

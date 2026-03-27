@@ -48,6 +48,7 @@ export default function NeonJobClock({
     durationMs,
     processedRows,
     jobRows,
+    isInitialLoading,
 }) {
     const fixedSeconds = useMemo(() => {
         const realtime = Math.max(0, Number(elapsedSec || 0));
@@ -58,7 +59,7 @@ export default function NeonJobClock({
     }, [durationMs, elapsedSec, isProcessing]);
 
     const timerState = getTimerState(jobStatus, isProcessing);
-    const pretty = formatDuration(fixedSeconds);
+    const pretty = isInitialLoading ? "Restoring..." : formatDuration(fixedSeconds);
     const ringRotation = (fixedSeconds % 60) * 6;
 
     return (
@@ -75,10 +76,10 @@ export default function NeonJobClock({
                 <div className="relative h-20 w-20 shrink-0">
                     <motion.div
                         className="absolute inset-0 rounded-full border border-emerald-400/50"
-                        animate={isProcessing ? { rotate: 360 } : { rotate: ringRotation }}
+                        animate={(isProcessing || isInitialLoading) ? { rotate: 360 } : { rotate: ringRotation }}
                         transition={
-                            isProcessing
-                                ? { duration: 7, ease: "linear", repeat: Infinity }
+                            (isProcessing || isInitialLoading)
+                                ? { duration: 2, ease: "linear", repeat: Infinity }
                                 : { duration: 0.45, ease: "easeOut" }
                         }
                     >
@@ -91,17 +92,27 @@ export default function NeonJobClock({
                         <div className="text-center">
                             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">Clock</div>
                             <div className="mt-0.5 font-mono text-sm font-bold text-emerald-200">
-                                {String(Math.floor(fixedSeconds / 60)).padStart(2, "0")}:
-                                {String(fixedSeconds % 60).padStart(2, "0")}
+                                {isInitialLoading ? (
+                                    "--:--"
+                                ) : (
+                                    <>
+                                        {String(Math.floor(fixedSeconds / 60)).padStart(2, "0")}:
+                                        {String(fixedSeconds % 60).padStart(2, "0")}
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <div className="min-w-0 flex-1">
-                    <div className={`inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-bold ${timerState.tone}`}>
-                        <timerState.Icon className={`h-3.5 w-3.5 ${timerState.iconClass}`} />
-                        {timerState.label}
+                    <div className={`inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-bold ${isInitialLoading ? "text-blue-300" : timerState.tone}`}>
+                        {isInitialLoading ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                            <timerState.Icon className={`h-3.5 w-3.5 ${timerState.iconClass}`} />
+                        )}
+                        {isInitialLoading ? "Syncing..." : timerState.label}
                     </div>
 
                     <div className="mt-1 text-lg sm:text-xl font-black tracking-tight text-emerald-200 drop-shadow-[0_0_12px_rgba(16,185,129,0.45)]">
@@ -109,18 +120,18 @@ export default function NeonJobClock({
                     </div>
 
                     <div className="mt-1 text-xs text-white/65">
-                        Processed: <b className="text-white/90">{processedRows ?? "—"}</b> / <b>{jobRows != null ? jobRows : "—"}</b>
+                        Processed: <b className="text-white/90">{isInitialLoading ? "—" : (processedRows ?? "—")}</b> / <b>{isInitialLoading ? "—" : (jobRows != null ? jobRows : "—")}</b>
                     </div>
                 </div>
             </div>
 
-            {isProcessing && jobRows > 0 && (
+            {(isProcessing || isInitialLoading) && (
                 <div className="relative mt-3 h-1.5 overflow-hidden rounded-full border border-white/10 bg-black/45">
                     <motion.div
                         className="h-full bg-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.65)]"
                         initial={{ width: 0 }}
-                        animate={{ width: `${Math.min(100, (processedRows / (jobRows || 1)) * 100)}%` }}
-                        transition={{ duration: 0.45 }}
+                        animate={{ width: isInitialLoading ? "35%" : `${Math.min(100, (processedRows / (jobRows || 1)) * 100)}%` }}
+                        transition={isInitialLoading ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" } : { duration: 0.45 }}
                     />
                 </div>
             )}
