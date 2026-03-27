@@ -1,4 +1,4 @@
-const API_TARGET = (process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.strongg.us").replace(/\/+$/, "");
+const API_TARGET = (process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.strongg.us").trim().replace(/\/+$/, "");
 
 function getApiTarget() {
     return API_TARGET;
