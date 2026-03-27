@@ -1,10 +1,7 @@
-const PROD_API_TARGET = (process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
-const LOCAL_API_TARGET = "http://127.0.0.1:8000";
+const API_TARGET = (process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
 
-function getApiTarget(request) {
-    const host = request.headers.get("host") || "";
-    const isLocal = host.startsWith("localhost") || host.startsWith("127.0.0.1");
-    return isLocal ? LOCAL_API_TARGET : PROD_API_TARGET;
+function getApiTarget() {
+    return API_TARGET;
 }
 
 export const runtime = "nodejs";
@@ -95,7 +92,7 @@ async function fetchUpstream(targetUrl, method, headers, body) {
 
 async function proxyRequest(request, context) {
     const resolvedParams = await Promise.resolve(context?.params);
-    const apiTarget = getApiTarget(request);
+    const apiTarget = getApiTarget();
     const targetUrl = buildTargetUrl(apiTarget, resolvedParams?.path, request.nextUrl.search);
     const headers = buildForwardHeaders(request.headers);
     const method = request.method.toUpperCase();
