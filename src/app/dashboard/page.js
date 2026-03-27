@@ -271,8 +271,9 @@ export default function Page() {
             });
 
             setJobs(sorted);
-        } catch {
-            // ignore
+        } catch (e) {
+            const msg = e?.response?.data?.detail || e?.message || "Failed to load jobs history";
+            setJobError(String(msg));
         }
     }, []);
 
@@ -281,15 +282,13 @@ export default function Page() {
         loadJobs();
     }, [ready, isLoggedIn, loadJobs]);
 
-    // Auto-restore the last active job after page refresh - DISABLED as per user request
-    /*
+    // Auto-restore the last active job after page refresh
     useEffect(() => {
         if (!ready || !isLoggedIn) return;
         const savedId = window.localStorage.getItem(ACTIVE_JOB_STORAGE_KEY);
         if (savedId) openJob(savedId);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ready, isLoggedIn]);
-    */
 
     const fetchJobMeta = useCallback(async (id) => {
         const res = await axiosInstance.get(`/csv-vehicle/jobs/${id}`);
