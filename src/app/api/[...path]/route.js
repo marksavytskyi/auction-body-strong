@@ -18,6 +18,7 @@ const HOP_BY_HOP_HEADERS = new Set([
     "upgrade",
     "host",
     "content-length",
+    "content-encoding",
 ]);
 const RETRYABLE_STATUS = new Set([500, 502, 503, 504]);
 
