@@ -20,6 +20,7 @@ import axiosInstance from "@/utils/axios";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { motion } from "framer-motion";
+import { getLastModule } from "@/lib/moduleStorage";
 
 const LoginSchema = Yup.object().shape({
     email: Yup.string().email("Invalid email address").required("Email is required"),
@@ -42,7 +43,7 @@ export default function Page() {
             if (!accessToken) throw new Error("No access_token in response");
 
             saveToken(accessToken);
-            router.push("/dashboard");
+            router.push(getLastModule() === "cats" ? "/cats" : "/dashboard");
         } catch (error) {
             const msg =
                 error?.response?.data?.detail ||

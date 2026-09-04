@@ -19,6 +19,7 @@ import axiosInstance from "@/utils/axios";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { motion } from "framer-motion";
+import { getLastModule } from "@/lib/moduleStorage";
 
 const VALID_INVITE_CODE = process.env.NEXT_PUBLIC_REGISTRATION_INVITE_CODE || "";
 
@@ -52,7 +53,7 @@ export default function Page() {
             toast.success("Registered successfully!");
             if (accessToken) {
                 saveToken(accessToken);
-                router.push("/dashboard");
+                router.push(getLastModule() === "cats" ? "/cats" : "/dashboard");
             } else {
                 router.push("/login");
             }

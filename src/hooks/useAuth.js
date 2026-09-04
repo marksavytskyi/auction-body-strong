@@ -1,42 +1,53 @@
 'use client';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 
-const TOKEN_EXPIRATION_TIME = 60 * 60 * 1000; // 1h — matches backend JWT TTL
+// Fallback only — used if a token can't be decoded for some reason.
+// Verified live against production: real backend JWTs are valid for ~7
+// days, not 1 hour. Prefer the token's own `exp` claim (see decodeToken)
+// over this constant so the frontend never logs a user out while their
+// token is still genuinely valid.
+const FALLBACK_TOKEN_EXPIRATION_TIME = 60 * 60 * 1000;
+
+const decodeToken = (t) => {
+    try {
+        if (!t) return null;
+        const payload = t.split('.')[1];
+        if (!payload) return null;
+        const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+        return JSON.parse(atob(base64));
+    } catch (e) {
+        console.error('Failed to decode JWT', e);
+        return null;
+    }
+};
 
 export const useAuth = () => {
     const [token, setToken] = useState(null);
-    const [timestamp, setTimestamp] = useState(0);
+    const [expiresAt, setExpiresAt] = useState(0);
     const [email, setEmail] = useState(null);
-    const [ready, setReady] = useState(false); // <-- добавили
+    const [ready, setReady] = useState(false);
 
-    const parseEmail = (t) => {
-        try {
-            if (!t) return null;
-            const payload = t.split('.')[1];
-            if (!payload) return null;
-            const decoded = JSON.parse(atob(payload));
-            return decoded.sub || decoded.email || null;
-        } catch (e) {
-            console.error('Failed to parse JWT email', e);
-            return null;
-        }
+    const computeExpiry = (t, fallbackTimestamp) => {
+        const decoded = decodeToken(t);
+        if (decoded?.exp) return decoded.exp * 1000;
+        return fallbackTimestamp + FALLBACK_TOKEN_EXPIRATION_TIME;
     };
 
     // Читаем токен только в браузере, затем помечаем ready
     useEffect(() => {
         if (typeof window === 'undefined') return;
-        const t  = window.localStorage.getItem('authToken');
+        const t = window.localStorage.getItem('authToken');
         const ts = Number(window.localStorage.getItem('authTokenTimestamp')) || 0;
         setToken(t);
-        setTimestamp(ts);
-        setEmail(parseEmail(t));
-        setReady(true); // <-- теперь можно принимать решения
+        setExpiresAt(t ? computeExpiry(t, ts) : 0);
+        setEmail(decodeToken(t)?.sub || decodeToken(t)?.email || null);
+        setReady(true);
     }, []);
 
     const isTokenExpired = useMemo(() => {
-        if (!timestamp) return false;
-        return timestamp + TOKEN_EXPIRATION_TIME < Date.now();
-    }, [timestamp]);
+        if (!expiresAt) return false;
+        return expiresAt < Date.now();
+    }, [expiresAt]);
 
     const isLoggedIn = useMemo(
         () => Boolean(token) && !isTokenExpired,
@@ -49,8 +60,9 @@ export const useAuth = () => {
         window.localStorage.setItem('authToken', newToken);
         window.localStorage.setItem('authTokenTimestamp', String(now));
         setToken(newToken);
-        setTimestamp(now);
-        setEmail(parseEmail(newToken));
+        setExpiresAt(computeExpiry(newToken, now));
+        const decoded = decodeToken(newToken);
+        setEmail(decoded?.sub || decoded?.email || null);
         setReady(true);
     };
 
@@ -60,7 +72,7 @@ export const useAuth = () => {
         window.localStorage.removeItem('authTokenTimestamp');
         window.localStorage.removeItem('dashboard:active-job-id');
         setToken(null);
-        setTimestamp(0);
+        setExpiresAt(0);
         setEmail(null);
         setReady(true);
     }, []);
