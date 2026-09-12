@@ -10,10 +10,13 @@ import { normalizeLookupResult } from "@/lib/catalytic/normalize";
 import { setLastLookup } from "@/lib/catalytic/session";
 import VehicleLookupForm from "@/components/catalytic/VehicleLookupForm";
 import LookupResult from "@/components/catalytic/LookupResult";
+import { useAdminTierGate } from "@/hooks/useRoleGate";
 
 export default function CatsLookupPage() {
+    const { ready } = useAdminTierGate();
     const router = useRouter();
     const [result, setResult] = useState(null);
+    const [vin, setVin] = useState("");
     const [error, setError] = useState("");
 
     const handleSubmit = useCallback(async (values, { setSubmitting }) => {
@@ -29,6 +32,7 @@ export default function CatsLookupPage() {
             };
             const raw = await lookupVehicle(payload);
             setResult(normalizeLookupResult(raw));
+            setVin(payload.vin || "");
             setLastLookup(payload, raw);
             toast.success("Lookup complete");
         } catch (e) {
@@ -41,15 +45,22 @@ export default function CatsLookupPage() {
         }
     }, []);
 
+    // Direct entry lives under Admin Corrections (elevated-only, same as the
+    // raw /catalytic/observations endpoint it calls) rather than a
+    // worker-facing route — workers use /worker's draft/submit/review
+    // capture flow instead, which goes through moderation.
     const handleRecordObservation = useCallback(
         (position, candidate) => {
             const params = new URLSearchParams();
+            params.set("tab", "direct-entry");
             if (position?.code) params.set("position", String(position.code));
             if (candidate?.code) params.set("code", String(candidate.code));
-            router.push(`/cats/observations?${params.toString()}`);
+            router.push(`/cats/admin/corrections?${params.toString()}`);
         },
         [router]
     );
+
+    if (!ready) return null;
 
     return (
         <div className="space-y-6">
@@ -67,7 +78,7 @@ export default function CatsLookupPage() {
             </div>
 
             {result ? (
-                <LookupResult result={result} onRecordObservation={handleRecordObservation} />
+                <LookupResult result={result} vin={vin} onRecordObservation={handleRecordObservation} />
             ) : (
                 !error && (
                     <div className="rounded-2xl border border-white/10 bg-black/20 p-8 text-sm text-white/45 text-center">

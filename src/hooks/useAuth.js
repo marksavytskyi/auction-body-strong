@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import axiosInstance from '@/utils/axios';
 
 // Fallback only — used if a token can't be decoded for some reason.
 // Verified live against production: real backend JWTs are valid for ~7
@@ -26,6 +27,11 @@ export const useAuth = () => {
     const [expiresAt, setExpiresAt] = useState(0);
     const [email, setEmail] = useState(null);
     const [ready, setReady] = useState(false);
+    // Role is NOT embedded in the JWT (verified live) — it must be fetched
+    // from GET /auth/me. roleReady lets RBAC-gated UI avoid a flash of the
+    // wrong content while that request is in flight.
+    const [role, setRole] = useState(null);
+    const [roleReady, setRoleReady] = useState(false);
 
     const computeExpiry = (t, fallbackTimestamp) => {
         const decoded = decodeToken(t);
@@ -54,6 +60,35 @@ export const useAuth = () => {
         [token, isTokenExpired]
     );
 
+    useEffect(() => {
+        if (!isLoggedIn) {
+            setRole(null);
+            setRoleReady(!token); // no token at all -> nothing to wait for
+            return;
+        }
+
+        let cancelled = false;
+        setRoleReady(false);
+
+        axiosInstance
+            .get('/auth/me')
+            .then((res) => {
+                if (cancelled) return;
+                setRole(res?.data?.role || null);
+                if (res?.data?.email) setEmail(res.data.email);
+            })
+            .catch(() => {
+                if (!cancelled) setRole(null);
+            })
+            .finally(() => {
+                if (!cancelled) setRoleReady(true);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isLoggedIn, token]);
+
     const saveToken = (newToken) => {
         if (typeof window === 'undefined') return;
         const now = Date.now();
@@ -74,6 +109,7 @@ export const useAuth = () => {
         setToken(null);
         setExpiresAt(0);
         setEmail(null);
+        setRole(null);
         setReady(true);
     }, []);
 
@@ -82,5 +118,5 @@ export const useAuth = () => {
         if (ready && isTokenExpired) logout();
     }, [ready, isTokenExpired, logout]);
 
-    return { ready, isLoggedIn, token, email, saveToken, logout };
+    return { ready, isLoggedIn, token, email, role, roleReady, saveToken, logout };
 };

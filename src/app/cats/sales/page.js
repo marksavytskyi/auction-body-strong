@@ -8,6 +8,7 @@ import { createSale, listSales, CatalyticApiError } from "@/lib/catalytic/api";
 import { pick } from "@/lib/catalytic/normalize";
 import SaleForm from "@/components/catalytic/SaleForm";
 import { SourceBadge } from "@/components/catalytic/badges";
+import { useAdminTierGate } from "@/hooks/useRoleGate";
 
 function fmtMoney(n, currency) {
     if (n === null || n === undefined || !Number.isFinite(Number(n))) return "—";
@@ -25,6 +26,7 @@ function fmtDate(s) {
 }
 
 export default function SalesPage() {
+    const { ready } = useAdminTierGate();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [sales, setSales] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -64,6 +66,8 @@ export default function SalesPage() {
         },
         [loadSales]
     );
+
+    if (!ready) return null;
 
     return (
         <div className="grid gap-6 lg:grid-cols-[420px_1fr]">

@@ -6,6 +6,7 @@ import { LogOut, Sparkles, FlaskConical, User } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { useAuth } from "@/hooks/useAuth";
+import { isWorkerRole } from "@/lib/rbac";
 import { Button } from "@/components/ui/button";
 import ModuleSwitcher from "@/components/shell/ModuleSwitcher";
 import CatsNav from "@/components/catalytic/CatsNav";
@@ -13,7 +14,7 @@ import { setLastModule } from "@/lib/moduleStorage";
 
 export default function CatsLayout({ children }) {
     const router = useRouter();
-    const { ready, isLoggedIn, email: userEmail } = useAuth();
+    const { ready, isLoggedIn, email: userEmail, role, roleReady } = useAuth();
 
     useEffect(() => {
         if (!ready) return;
@@ -24,7 +25,18 @@ export default function CatsLayout({ children }) {
         setLastModule("cats");
     }, []);
 
-    if (!ready) {
+    // A WORKER account only has backend permission for /worker/captures/* —
+    // verified live, every other /catalytic/* and /moderation/* endpoint
+    // 403s for that role. The whole worker experience lives outside /cats
+    // (see src/app/worker/*, its own minimal layout) — a WORKER should
+    // never even reach this admin-chrome layout in the first place, but
+    // guard against a manually-typed /cats/* URL anyway.
+    useEffect(() => {
+        if (!roleReady || !isWorkerRole(role)) return;
+        router.replace("/worker");
+    }, [roleReady, role, router]);
+
+    if (!ready || !roleReady) {
         return (
             <div className="min-h-screen w-full flex items-center justify-center bg-[#020202]">
                 <div className="text-white/70 text-sm uppercase tracking-[0.2em]">Loading Cats module...</div>
@@ -85,7 +97,7 @@ export default function CatsLayout({ children }) {
                     transition={{ duration: 0.4, delay: 0.05 }}
                     className="mb-6 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-2"
                 >
-                    <CatsNav />
+                    <CatsNav role={role} />
                 </motion.div>
 
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }}>

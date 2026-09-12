@@ -9,6 +9,7 @@ import { normalizePriceEstimate, normalizeSource } from "@/lib/catalytic/normali
 import { SourceBadge } from "@/components/catalytic/badges";
 import PriceRange from "@/components/catalytic/PriceRange";
 import { Button } from "@/components/ui/button";
+import { useAdminTierGate } from "@/hooks/useRoleGate";
 
 function Section({ icon: Icon, title, children }) {
     return (
@@ -31,6 +32,7 @@ function fmtDate(s) {
 // Matches the real ConverterDetail schema exactly. There is no
 // vehicle-association field on this endpoint — do not fabricate one.
 export default function ConverterDetailPage() {
+    const { ready } = useAdminTierGate();
     const params = useParams();
     const router = useRouter();
     const id = params?.id;
@@ -52,6 +54,8 @@ export default function ConverterDetailPage() {
             cancelled = true;
         };
     }, [id]);
+
+    if (!ready) return null;
 
     if (isLoading) {
         return (

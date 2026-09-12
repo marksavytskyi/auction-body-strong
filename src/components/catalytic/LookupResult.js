@@ -2,10 +2,12 @@
 
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Gauge, Layers, Code2, ClipboardPlus, ChevronDown, ChevronUp } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Car, Hash, Layers, Code2, ClipboardPlus, ChevronDown, ChevronUp, SlidersHorizontal } from "lucide-react";
+import { normalizeCatdbSnapshot } from "@/lib/catalytic/catdb";
 import { ConfidenceBadge, SourceBadge } from "./badges";
 import PriceRange from "./PriceRange";
+import CatdbCard from "./CatdbCard";
+import OurDbCard from "./OurDbCard";
 
 function CandidateRow({ candidate, onRecordObservation }) {
     const pct = candidate.probability !== null ? Math.round(candidate.probability * 100) : null;
@@ -95,68 +97,88 @@ function PositionCard({ position, onRecordObservation }) {
     );
 }
 
-export default function LookupResult({ result, onRecordObservation }) {
+export default function LookupResult({ result, vin, onRecordObservation }) {
+    const [showAdvanced, setShowAdvanced] = useState(false);
     const [showRaw, setShowRaw] = useState(false);
 
     if (!result) return null;
 
+    // No backend contract for CatDB exists yet — this always resolves to
+    // the honest NO_DATA/contractMissing state (see lib/catalytic/catdb.js).
+    const catdbSnapshot = normalizeCatdbSnapshot(result.raw);
+
     return (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="space-y-5">
+            {/* Vehicle identity */}
             <div className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-5 sm:p-6">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                        <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-white/40 font-bold">
-                            <Gauge className="h-3.5 w-3.5 text-sky-400" />
-                            Vehicle Configuration
-                        </div>
-                        <h2 className="mt-1 text-xl sm:text-2xl font-black text-white">
-                            {result.vehicleLabel || "Lookup Result"}
+                <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-white/5 border border-white/10 shrink-0">
+                        <Car className="h-5 w-5 text-white/60" />
+                    </div>
+                    <div className="min-w-0">
+                        <h2 className="text-xl sm:text-2xl font-black text-white truncate">
+                            {[result.year, result.make, result.model].filter(Boolean).join(" ") || "Vehicle"}
                         </h2>
-                        <div className="mt-1 text-sm text-white/45">
-                            Expected catalysts: <b className="text-white/80">{result.catalystCount ?? "—"}</b>
-                            {result.isEstimate && (
-                                <span className="ml-2 text-amber-300/80 text-xs font-semibold">· Estimate, not yet verified</span>
+                        <div className="flex items-center gap-3 mt-0.5 text-sm text-white/45 flex-wrap">
+                            {result.engine && <span>{result.engine}</span>}
+                            {vin && (
+                                <span className="inline-flex items-center gap-1 font-mono text-xs">
+                                    <Hash className="h-3 w-3" /> {vin}
+                                </span>
                             )}
                         </div>
-                        {result.sourcesUsed.length > 0 && (
-                            <div className="mt-1.5 text-[11px] text-white/35">
-                                Sources: {result.sourcesUsed.map((s) => s.replace(/_/g, " ")).join(", ")}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="flex flex-col items-start sm:items-end gap-2">
-                        <ConfidenceBadge confidence={result.confidence} />
-                        <PriceRange pricing={result.totalPricing} size="lg" />
                     </div>
                 </div>
             </div>
 
-            <div className="space-y-3">
-                {result.positions.length ? (
-                    result.positions.map((p, idx) => (
-                        <PositionCard key={p.id ?? idx} position={p} onRecordObservation={onRecordObservation} />
-                    ))
-                ) : (
-                    <div className="rounded-2xl border border-white/10 bg-black/30 p-8 text-sm text-white/55 text-center">
-                        No catalyst positions were returned for this vehicle configuration.
-                    </div>
-                )}
+            {/* CatDB vs Our Database — always independent, never blended */}
+            <div className="grid gap-4 sm:grid-cols-2">
+                <CatdbCard snapshot={catdbSnapshot} />
+                <OurDbCard result={result} />
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-black/20">
+            {/* Advanced / technical details, collapsed by default */}
+            <div className="rounded-2xl border border-white/10 bg-black/20 overflow-hidden">
                 <button
                     type="button"
-                    onClick={() => setShowRaw((s) => !s)}
-                    className="w-full flex items-center justify-between px-4 py-2.5 text-[10px] uppercase tracking-wider font-bold text-white/40 hover:text-white/70 transition-colors"
+                    onClick={() => setShowAdvanced((s) => !s)}
+                    className="w-full flex items-center justify-between px-4 py-3 text-xs uppercase tracking-wider font-bold text-white/50 hover:text-white/80 transition-colors"
                 >
-                    Raw backend response
-                    {showRaw ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                    <span className="inline-flex items-center gap-2">
+                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                        Advanced Details (positions, candidates, probabilities)
+                    </span>
+                    {showAdvanced ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                 </button>
-                {showRaw && (
-                    <pre className="px-4 pb-4 text-[10px] leading-relaxed text-white/50 overflow-auto max-h-64 whitespace-pre-wrap break-all">
-                        {JSON.stringify(result.raw, null, 2)}
-                    </pre>
+
+                {showAdvanced && (
+                    <div className="p-4 pt-0 space-y-3">
+                        {result.positions.length ? (
+                            result.positions.map((p, idx) => (
+                                <PositionCard key={p.id ?? idx} position={p} onRecordObservation={onRecordObservation} />
+                            ))
+                        ) : (
+                            <div className="rounded-2xl border border-white/10 bg-black/30 p-8 text-sm text-white/55 text-center">
+                                No catalyst positions were returned for this vehicle configuration.
+                            </div>
+                        )}
+
+                        <div className="rounded-2xl border border-white/10 bg-black/20">
+                            <button
+                                type="button"
+                                onClick={() => setShowRaw((s) => !s)}
+                                className="w-full flex items-center justify-between px-4 py-2.5 text-[10px] uppercase tracking-wider font-bold text-white/40 hover:text-white/70 transition-colors"
+                            >
+                                Raw backend response
+                                {showRaw ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                            </button>
+                            {showRaw && (
+                                <pre className="px-4 pb-4 text-[10px] leading-relaxed text-white/50 overflow-auto max-h-64 whitespace-pre-wrap break-all">
+                                    {JSON.stringify(result.raw, null, 2)}
+                                </pre>
+                            )}
+                        </div>
+                    </div>
                 )}
             </div>
         </motion.div>

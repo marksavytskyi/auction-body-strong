@@ -7,11 +7,13 @@ import { Search, Loader2, Code2, ArrowRight, Scale } from "lucide-react";
 import { searchConverters, CatalyticApiError } from "@/lib/catalytic/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useAdminTierGate } from "@/hooks/useRoleGate";
 
 // ConverterSummary from the real backend only carries
 // { id, canonical_code, weight_kg, material } — no pricing/CatDB id here,
 // that detail lives on GET /catalytic/converters/{id}.
 export default function ConvertersSearchPage() {
+    const { ready } = useAdminTierGate();
     const [code, setCode] = useState("");
     const [results, setResults] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -35,6 +37,8 @@ export default function ConvertersSearchPage() {
             setIsLoading(false);
         }
     }, [code]);
+
+    if (!ready) return null;
 
     return (
         <div className="space-y-6">

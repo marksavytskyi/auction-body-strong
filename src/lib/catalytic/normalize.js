@@ -167,6 +167,13 @@ export function normalizeLookupResult(raw) {
         raw,
         vehicleKeyId: vehicle.vehicle_key_id ?? null,
         vehicleKeyStatus: vehicle.vehicle_key_status ?? null,
+        // The lookup response never echoes VIN back (VehicleResult has no
+        // vin field) — callers that have a VIN should display it from
+        // their own submitted query, not from this result.
+        year: vehicle.year ?? null,
+        make: vehicle.make ?? null,
+        model: vehicle.model ?? null,
+        engine: vehicle.engine ?? null,
         vehicleLabel: [vehicle.year, vehicle.make, vehicle.model, vehicle.engine].filter(Boolean).join(" "),
         catalystCount: raw.catalyst_count ?? null,
         confidence: normalizeConfidence(raw.confidence_label ?? raw.confidence),
@@ -177,4 +184,16 @@ export function normalizeLookupResult(raw) {
         totalPricing: normalizePricing(raw.total),
         positions,
     };
+}
+
+// How much real internal evidence backs "Our Database" for this vehicle —
+// sum of observed_count across every candidate. Used to show a plain
+// "verified from N observations" vs "estimate only" indicator without
+// implying CatDB/Ecotrade reference data is internally verified.
+export function countObservedEvidence(result) {
+    if (!result?.positions) return 0;
+    return result.positions.reduce(
+        (sum, p) => sum + p.candidates.reduce((s, c) => s + (Number(c.observedCount) || 0), 0),
+        0
+    );
 }

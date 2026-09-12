@@ -4,37 +4,11 @@
 // the Bearer token + handles 401 redirects. Do not call fetch() directly
 // from page components — extend this file instead.
 
-import axiosInstance from "@/utils/axios";
+import { axiosInstance, request, CatalyticApiError } from "./http";
 
 const BASE = "/catalytic";
 
-function extractErrorMessage(error, fallback) {
-    return (
-        error?.response?.data?.detail ||
-        error?.response?.data?.message ||
-        error?.message ||
-        fallback
-    );
-}
-
-export class CatalyticApiError extends Error {
-    constructor(message, { status, cause } = {}) {
-        super(message);
-        this.name = "CatalyticApiError";
-        this.status = status;
-        this.cause = cause;
-    }
-}
-
-async function request(fn, fallbackMessage) {
-    try {
-        const res = await fn();
-        return res.data;
-    } catch (error) {
-        const status = error?.response?.status;
-        throw new CatalyticApiError(extractErrorMessage(error, fallbackMessage), { status, cause: error });
-    }
-}
+export { CatalyticApiError };
 
 // ---- Vehicle lookup ---------------------------------------------------
 

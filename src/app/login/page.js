@@ -21,6 +21,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { motion } from "framer-motion";
 import { getLastModule } from "@/lib/moduleStorage";
+import { homeRouteForRole } from "@/lib/rbac";
 
 const LoginSchema = Yup.object().shape({
     email: Yup.string().email("Invalid email address").required("Email is required"),
@@ -43,7 +44,19 @@ export default function Page() {
             if (!accessToken) throw new Error("No access_token in response");
 
             saveToken(accessToken);
-            router.push(getLastModule() === "cats" ? "/cats" : "/dashboard");
+
+            if (getLastModule() === "cats") {
+                // Role-aware Cats redirect — a WORKER must never land on
+                // the admin lookup/dashboard and bounce off a 403.
+                try {
+                    const me = await axiosInstance.get("/auth/me");
+                    router.push(homeRouteForRole(me?.data?.role));
+                } catch {
+                    router.push("/cats");
+                }
+            } else {
+                router.push("/dashboard");
+            }
         } catch (error) {
             const msg =
                 error?.response?.data?.detail ||
