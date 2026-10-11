@@ -80,32 +80,58 @@ function SnapshotPanel({ snapshotId }) {
             )}
 
             {snapshot.items?.length > 0 ? (
-                <div className="overflow-x-auto rounded-lg border border-white/10">
-                    <table className="w-full text-[11px]">
-                        <thead className="bg-black/40">
-                            <tr>
-                                {["Code", "Position", "Label", "Price"].map((h) => (
-                                    <th key={h} className="px-2 py-1.5 text-left uppercase tracking-wider text-white/40 font-bold whitespace-nowrap">{h}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {snapshot.items.map((it) => (
-                                <tr key={it.id} className="odd:bg-white/[0.02]">
-                                    <td className="px-2 py-1.5 text-white/70 font-mono whitespace-nowrap">{it.catalyst_code || "—"}</td>
-                                    <td className="px-2 py-1.5 text-white/60 whitespace-nowrap">{it.position || "—"}</td>
-                                    <td className="px-2 py-1.5 text-white/60">{it.catalyst_label || "—"}</td>
-                                    <td className="px-2 py-1.5 text-white/90 font-bold whitespace-nowrap">
-                                        {formatCatdbPriceRange(it)}
-                                        {it.price_warning && (
-                                            <span title={it.price_warning} className="inline-block ml-1 text-amber-400"><CircleHelp className="h-3 w-3 inline" /></span>
-                                        )}
-                                    </td>
+                <>
+                    {/* Desktop/tablet table */}
+                    <div className="hidden sm:block overflow-x-auto rounded-lg border border-white/10">
+                        <table className="w-full text-[11px]">
+                            <thead className="bg-black/40">
+                                <tr>
+                                    {["Code", "Quantity", "Position", "Label", "Price"].map((h) => (
+                                        <th key={h} className="px-2 py-1.5 text-left uppercase tracking-wider text-white/40 font-bold whitespace-nowrap">{h}</th>
+                                    ))}
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                            </thead>
+                            <tbody>
+                                {snapshot.items.map((it) => (
+                                    <tr key={it.id} className="odd:bg-white/[0.02]">
+                                        <td className="px-2 py-1.5 text-white/70 font-mono whitespace-nowrap">{it.catalyst_code || "—"}</td>
+                                        {/* quantity is always a real, meaningful integer (default 1) —
+                                            never hidden, since one structured row can represent more
+                                            than one physical catalyst (see CatDBSnapshotItem docstring). */}
+                                        <td className="px-2 py-1.5 text-white/80 font-bold whitespace-nowrap">{it.quantity ?? 1}</td>
+                                        <td className="px-2 py-1.5 text-white/60 whitespace-nowrap">{it.position || "—"}</td>
+                                        <td className="px-2 py-1.5 text-white/60">{it.catalyst_label || "—"}</td>
+                                        <td className="px-2 py-1.5 text-white/90 font-bold whitespace-nowrap">
+                                            {formatCatdbPriceRange(it)}
+                                            {it.price_warning && (
+                                                <span title={it.price_warning} className="inline-block ml-1 text-amber-400"><CircleHelp className="h-3 w-3 inline" /></span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Mobile cards */}
+                    <div className="sm:hidden space-y-1.5">
+                        {snapshot.items.map((it) => (
+                            <div key={it.id} className="rounded-lg border border-white/10 bg-black/25 p-2.5 space-y-1">
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="font-mono text-white/80 text-xs font-bold">{it.catalyst_code || "—"}</span>
+                                    <span className="text-[10px] uppercase tracking-wider text-white/40 font-bold">Qty {it.quantity ?? 1}</span>
+                                </div>
+                                <div className="text-[11px] text-white/60">{it.catalyst_label || "—"}{it.position ? ` · ${it.position}` : ""}</div>
+                                <div className="text-sm font-bold text-white/90 flex items-center gap-1.5">
+                                    {formatCatdbPriceRange(it)}
+                                    {it.price_warning && (
+                                        <span title={it.price_warning} className="text-amber-400"><CircleHelp className="h-3.5 w-3.5" /></span>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </>
             ) : (
                 <div className="text-[11px] text-white/35 italic">No catalyst line items on this snapshot.</div>
             )}
