@@ -15,6 +15,8 @@ import {
     Wrench,
     Users,
     Cpu,
+    FileSpreadsheet,
+    ListChecks,
 } from "lucide-react";
 import { isModeratorRole, isAdminTierRole, isOwnerRole } from "@/lib/rbac";
 
@@ -35,6 +37,8 @@ const ADMIN_TIER_ITEMS = [
     { href: "/cats/moderation", label: "Moderation", icon: ShieldCheck },
     { href: "/cats/admin/workers", label: "Workers", icon: Wrench },
     { href: "/cats/admin/catdb", label: "CatDB", icon: Cpu },
+    { href: "/cats/admin/copart", label: "Copart Imports", icon: FileSpreadsheet },
+    { href: "/cats/admin/catdb-batches", label: "CatDB Batches", icon: ListChecks },
     { href: "/cats/admin/corrections", label: "Corrections", icon: ShieldAlert },
 ];
 
