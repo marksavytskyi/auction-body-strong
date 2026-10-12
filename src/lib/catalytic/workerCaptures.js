@@ -127,6 +127,47 @@ export function deletePhoto(captureId, catalystId, photoId) {
     );
 }
 
+// Mirrors the backend's own submit-time rule (app/catalytic/worker/
+// services.py::submit_capture, added for production readiness): a
+// catalyst must have EITHER a non-blank stamped code OR an explicit
+// code_unreadable=true. Kept as a pure function so both the catalyst card
+// (per-catalyst warning) and the submit checklist (capture-wide gate) use
+// the exact same rule instead of two definitions drifting apart.
+export function catalystHasCodeInfo(catalyst) {
+    return Boolean(catalyst?.code_unreadable) || Boolean((catalyst?.physical_code_raw || "").trim());
+}
+
+// This UI's own operational policy (not a backend rule): every catalyst
+// needs at least one successfully uploaded photo before the capture can
+// be submitted — true even when code_unreadable is set. `pendingPhotosByCatalystId`
+// covers photos that finished uploading in this session but haven't
+// round-tripped into the capture object yet (see the capture detail
+// page's local pending-upload state).
+export function catalystHasPhoto(catalyst, pendingPhotos = []) {
+    return (catalyst?.photos || []).length > 0 || pendingPhotos.some((p) => p.status === "done");
+}
+
+export function catalystIsReady(catalyst, pendingPhotos = []) {
+    return catalystHasCodeInfo(catalyst) && catalystHasPhoto(catalyst, pendingPhotos);
+}
+
+// The full submit checklist for a capture: at least one catalyst, and
+// every catalyst individually ready. Never calls the submit endpoint by
+// itself — callers check this first and only call submitCapture() when
+// it's true.
+export function captureIsReadyToSubmit(capture, pendingPhotosByCatalystId = {}) {
+    const catalysts = capture?.catalysts || [];
+    if (catalysts.length === 0) return false;
+    return catalysts.every((c) => catalystIsReady(c, pendingPhotosByCatalystId[c.id] || []));
+}
+
+// First catalyst (in display order) that's missing something, for
+// scrolling/focusing the worker to it when a submit attempt is blocked.
+export function firstIncompleteCatalyst(capture, pendingPhotosByCatalystId = {}) {
+    const catalysts = capture?.catalysts || [];
+    return catalysts.find((c) => !catalystIsReady(c, pendingPhotosByCatalystId[c.id] || [])) || null;
+}
+
 export function submitCapture(id) {
     return request(() => axiosInstance.post(`${BASE}/${encodeURIComponent(id)}/submit`), "Failed to submit capture");
 }

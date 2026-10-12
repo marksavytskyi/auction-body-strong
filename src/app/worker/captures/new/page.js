@@ -22,6 +22,11 @@ export default function NewCapturePage() {
 
     const canSubmit = vin.trim().length === 17 || (year && make.trim() && model.trim());
 
+    // Auto-uppercase as the worker types — trimmed again on submit. VINs are
+    // never lowercase in practice; doing this live (not just on submit)
+    // avoids a worker having to re-check casing before moving on.
+    const handleVinChange = (e) => setVin(e.target.value.toUpperCase());
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!canSubmit) return;
@@ -60,12 +65,15 @@ export default function NewCapturePage() {
                     </Label>
                     <Input
                         value={vin}
-                        onChange={(e) => setVin(e.target.value)}
+                        onChange={handleVinChange}
                         maxLength={17}
                         placeholder="Scan or type VIN"
                         className="h-14 rounded-xl bg-white/5 border-white/10 font-mono uppercase text-base"
                         autoFocus
                     />
+                    {vin.length > 0 && vin.length !== 17 && (
+                        <p className="text-[11px] text-white/35">{vin.length}/17 characters</p>
+                    )}
                 </div>
 
                 <div className="text-center text-[11px] text-white/30 uppercase tracking-wider">— or enter manually —</div>
@@ -90,7 +98,7 @@ export default function NewCapturePage() {
                 </div>
 
                 <Button type="submit" className="w-full h-14 rounded-2xl text-base" isLoading={isSubmitting} disabled={isSubmitting || !canSubmit}>
-                    Continue <ArrowRight className="ml-1.5 h-4 w-4" />
+                    Continue to Catalysts <ArrowRight className="ml-1.5 h-4 w-4" />
                 </Button>
                 {!canSubmit && <p className="text-[11px] text-white/30 text-center">Enter a VIN, or year + make + model.</p>}
             </form>

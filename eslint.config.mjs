@@ -10,6 +10,10 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+  // `next lint` (removed in Next 16 — this flat config is now run directly
+  // via `eslint .`) used to apply these ignores implicitly; without them
+  // every build artifact under .next gets linted as if it were source.
+  { ignores: [".next/**", "node_modules/**", "public/**"] },
   ...compat.extends("next/core-web-vitals"),
 ].map((config) => {
   if (config.languageOptions && config.languageOptions.parser) {
