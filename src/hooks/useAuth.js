@@ -61,9 +61,20 @@ export const useAuth = () => {
     );
 
     useEffect(() => {
+        // `ready` means the token-read effect above has actually run. Before
+        // that, `token` is still its initial `null` and `isLoggedIn` is
+        // therefore false regardless of whether a token really exists in
+        // localStorage — concluding "not logged in" at that point (as this
+        // effect used to) sets roleReady=true with role=null for one tick,
+        // which is enough for a role-gated page (useAdminTierGate,
+        // useOwnerOnlyGate, CatsAdminSectionLayout) to redirect away before
+        // the real role ever loads. Waiting for `ready` avoids that false
+        // "logged out" conclusion.
+        if (!ready) return;
+
         if (!isLoggedIn) {
             setRole(null);
-            setRoleReady(!token); // no token at all -> nothing to wait for
+            setRoleReady(true);
             return;
         }
 
@@ -87,7 +98,7 @@ export const useAuth = () => {
         return () => {
             cancelled = true;
         };
-    }, [isLoggedIn, token]);
+    }, [ready, isLoggedIn, token]);
 
     const saveToken = (newToken) => {
         if (typeof window === 'undefined') return;
