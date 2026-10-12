@@ -255,7 +255,7 @@ export default function WorkerCaptureBuilderPage() {
                             onClick={() => setShowAddForm(true)}
                             className="w-full mt-3 h-12 rounded-2xl border border-dashed border-white/20 text-white/60 text-sm font-bold uppercase tracking-wider inline-flex items-center justify-center gap-1.5"
                         >
-                            <Plus className="h-4 w-4" /> Add Another Catalyst
+                            <Plus className="h-4 w-4" /> {capture.catalysts?.length ? "Add Another Catalyst" : "Add Catalyst"}
                         </button>
                     )
                 )}
@@ -266,7 +266,6 @@ export default function WorkerCaptureBuilderPage() {
                     <Button
                         className={`w-full h-14 rounded-2xl text-base ${!readyToSubmit ? "opacity-60" : ""}`}
                         onClick={handleSubmitTap}
-                        aria-disabled={!readyToSubmit}
                     >
                         <Send className="h-4 w-4 mr-1.5" /> Submit for Review
                     </Button>

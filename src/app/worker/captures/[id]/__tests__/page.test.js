@@ -121,7 +121,7 @@ describe("WorkerCaptureBuilderPage — code / unreadable validation", () => {
         render(<WorkerCaptureBuilderPage />);
 
         await waitFor(() => screen.getByText("Catalysts (0)"));
-        fireEvent.click(screen.getByRole("button", { name: /add another catalyst/i }));
+        fireEvent.click(screen.getByRole("button", { name: /^add catalyst$/i }));
 
         const addButton = screen.getByRole("button", { name: /add catalyst/i });
         expect(addButton).toBeDisabled();
@@ -135,7 +135,7 @@ describe("WorkerCaptureBuilderPage — code / unreadable validation", () => {
         render(<WorkerCaptureBuilderPage />);
 
         await waitFor(() => screen.getByText("Catalysts (0)"));
-        fireEvent.click(screen.getByRole("button", { name: /add another catalyst/i }));
+        fireEvent.click(screen.getByRole("button", { name: /^add catalyst$/i }));
         fireEvent.click(screen.getByLabelText(/code unreadable/i));
         fireEvent.click(screen.getByRole("button", { name: /add catalyst/i }));
 
@@ -316,7 +316,7 @@ describe("WorkerCaptureBuilderPage — network failure retains input", () => {
         render(<WorkerCaptureBuilderPage />);
 
         await waitFor(() => screen.getByText("Catalysts (0)"));
-        fireEvent.click(screen.getByRole("button", { name: /add another catalyst/i }));
+        fireEvent.click(screen.getByRole("button", { name: /^add catalyst$/i }));
         fireEvent.change(screen.getByPlaceholderText(/stamped code/i), { target: { value: "abc123" } });
         fireEvent.click(screen.getByRole("button", { name: /add catalyst/i }));
 
