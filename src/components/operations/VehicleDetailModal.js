@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import StatusPill from "@/components/catalytic/StatusPill";
 import { LEG_STATUS_TONE, CATS_SOURCE_LABEL } from "@/lib/operations/constants";
-import { formatMoney, formatWeight, formatDate, completenessMeta, componentLabel } from "@/lib/operations/format";
+import { formatMoney, formatWeight, formatDate, completenessMeta, componentLabel, deriveWeightStatus } from "@/lib/operations/format";
 
 function Row({ label, value, tone }) {
     return (
@@ -145,12 +145,20 @@ export default function VehicleDetailModal({ vehicle, onClose, onUpdated }) {
                 </div>
 
                 <div className="rounded-xl border border-white/10 bg-black/25 p-4 mb-4">
-                    <div className="text-[11px] uppercase tracking-wider text-white/40 font-bold mb-2 inline-flex items-center gap-1.5">
-                        <Gauge className="h-3 w-3" /> Curb Weight
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-[11px] uppercase tracking-wider text-white/40 font-bold inline-flex items-center gap-1.5">
+                            <Gauge className="h-3 w-3" /> Curb Weight
+                        </span>
+                        <StatusPill label={deriveWeightStatus(vehicle).label} tone={deriveWeightStatus(vehicle).tone} />
                     </div>
                     <Row label="Value" value={formatWeight(vehicle.curb_weight_lb)} />
                     <Row label="Source" value={vehicle.weight_source} />
                     <Row label="Resolved" value={formatDate(vehicle.weight_resolved_at)} />
+                    {vehicle.weight_resolved_at && vehicle.curb_weight_lb == null && (
+                        <div className="text-[11px] text-white/35 mt-1">
+                            Weight resolution finished without a usable result — this is terminal, not pending.
+                        </div>
+                    )}
                     {vehicle.weight_nhtsa_error_code && <Row label="NHTSA error" value={vehicle.weight_nhtsa_error_code} tone="text-rose-300" />}
 
                     {editingWeight ? (

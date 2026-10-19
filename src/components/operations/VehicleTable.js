@@ -8,7 +8,7 @@ import { CatalyticApiError } from "@/lib/catalytic/http";
 import { Input } from "@/components/ui/input";
 import StatusPill from "@/components/catalytic/StatusPill";
 import { OVERALL_STATUS, OVERALL_STATUS_TONE, LEG_STATUS_TONE, VEHICLE_SORT_FIELDS } from "@/lib/operations/constants";
-import { formatMoney, completenessMeta } from "@/lib/operations/format";
+import { formatMoney, completenessMeta, deriveWeightStatus } from "@/lib/operations/format";
 
 const PAGE_SIZE = 25;
 
@@ -31,23 +31,24 @@ const COLUMNS = [
     { id: "transmission_value", label: "Transmission", sortable: false },
     { id: "cats_value", label: "Catalytic", sortable: true },
     { id: "scrap_value", label: "Scrap", sortable: true },
-    { id: "total_expected_recovery", label: "Total / Known", sortable: true },
+    // Two distinct, separately-sortable columns — never one combined
+    // "Total / Known" column. complete_recovery_total and
+    // partial_known_components_subtotal are different financial
+    // categories at the batch level (see FinancialSummaryCards), and the
+    // same distinction holds per-vehicle: total_expected_recovery is only
+    // set for COMPLETE/COMPLETE_WITH_ESTIMATES vehicles, while
+    // known_components_subtotal is the partial figure for everyone else.
+    // Both are real backend sort fields (app.operations.finance.FINANCIAL_SORT_FIELDS),
+    // so each column sorts by exactly the value it displays — no
+    // misleading "sorts by A, displays A-or-B" behavior.
+    { id: "total_expected_recovery", label: "Complete Recovery", sortable: true },
+    { id: "known_components_subtotal", label: "Known Subtotal", sortable: true },
     { id: "completeness", label: "Estimate", sortable: false },
     { id: "parts_status", label: "Parts", sortable: false },
     { id: "ourdb_status", label: "OurDB", sortable: false },
     { id: "weight", label: "Weight", sortable: false },
     { id: "warnings", label: "Warnings", sortable: false },
 ];
-
-function weightStatusTone(v) {
-    if (v.weight_source === "UNKNOWN" || !v.weight_resolved_at) return "neutral";
-    return "success";
-}
-
-function weightStatusLabel(v) {
-    if (v.weight_source === "UNKNOWN" || !v.weight_resolved_at) return "Pending";
-    return v.weight_source === "MANUAL" ? "Manual" : "NHTSA";
-}
 
 function useDebounced(value, delayMs) {
     const [debounced, setDebounced] = useState(value);
@@ -112,8 +113,7 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
     const headerCell = (col) => {
-        const sortField = col.id === "cats_value" || col.id === "scrap_value" || col.id === "total_expected_recovery"
-            ? col.id : (VEHICLE_SORT_FIELDS.has(col.id) ? col.id : null);
+        const sortField = VEHICLE_SORT_FIELDS.has(col.id) ? col.id : null;
         const active = sortField && sortBy === sortField;
         return (
             <th
@@ -213,14 +213,24 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(fin.cats_value)}</td>
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(fin.scrap_value)}</td>
                                             <td className="px-3 py-2 border-b border-white/5 whitespace-nowrap">
-                                                <span className={fin.total_expected_recovery != null ? "text-emerald-300 font-bold" : "text-amber-300/90"}>
-                                                    {formatMoney(fin.total_expected_recovery ?? fin.known_components_subtotal)}
+                                                <span className={fin.total_expected_recovery != null ? "text-emerald-300 font-bold" : "text-white/30"}>
+                                                    {formatMoney(fin.total_expected_recovery)}
+                                                </span>
+                                            </td>
+                                            <td className="px-3 py-2 border-b border-white/5 whitespace-nowrap">
+                                                <span className={fin.known_components_subtotal != null ? "text-amber-300/90" : "text-white/30"}>
+                                                    {formatMoney(fin.known_components_subtotal)}
                                                 </span>
                                             </td>
                                             <td className="px-3 py-2 border-b border-white/5"><StatusPill label={cm.label} tone={cm.tone} /></td>
                                             <td className="px-3 py-2 border-b border-white/5"><StatusPill label={v.parts_status} tone={LEG_STATUS_TONE[v.parts_status] || "neutral"} /></td>
                                             <td className="px-3 py-2 border-b border-white/5"><StatusPill label={v.ourdb_status} tone={LEG_STATUS_TONE[v.ourdb_status] || "neutral"} /></td>
-                                            <td className="px-3 py-2 border-b border-white/5"><StatusPill label={weightStatusLabel(v)} tone={weightStatusTone(v)} /></td>
+                                            <td className="px-3 py-2 border-b border-white/5">
+                                                {(() => {
+                                                    const ws = deriveWeightStatus(v);
+                                                    return <StatusPill label={ws.label} tone={ws.tone} />;
+                                                })()}
+                                            </td>
                                             <td className="px-3 py-2 border-b border-white/5 text-amber-300/80 max-w-[160px] truncate">
                                                 {warnings.length ? warnings.join("; ") : "—"}
                                             </td>
@@ -250,9 +260,15 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
                                     </div>
                                     <div className="text-[11px] text-white/40 font-mono truncate">{v.full_vin || "—"}</div>
                                     <div className="text-[11px] text-white/35">Lot {v.lot_number || "—"}</div>
-                                    <div className="text-sm font-bold text-emerald-300">
-                                        {formatMoney(fin.total_expected_recovery ?? fin.known_components_subtotal)}
-                                    </div>
+                                    {fin.total_expected_recovery != null ? (
+                                        <div className="text-sm font-bold text-emerald-300">
+                                            {formatMoney(fin.total_expected_recovery)} <span className="text-[10px] font-normal text-white/30">complete recovery</span>
+                                        </div>
+                                    ) : (
+                                        <div className="text-sm font-bold text-amber-300/90">
+                                            {formatMoney(fin.known_components_subtotal)} <span className="text-[10px] font-normal text-white/30">known subtotal (partial)</span>
+                                        </div>
+                                    )}
                                 </button>
                             );
                         })}

@@ -17,7 +17,9 @@ vi.mock("@/lib/operations/api", () => ({
 // Isolate the page's own polling/loading/error behavior from the heavy
 // child components (each has its own dedicated test file already).
 vi.mock("@/components/operations/ProcessingControls", () => ({ default: () => <div data-testid="processing-controls" /> }));
-vi.mock("@/components/operations/BatchStatusSummary", () => ({ default: () => <div data-testid="status-summary" /> }));
+vi.mock("@/components/operations/FinancialSummaryCards", () => ({ default: () => <div data-testid="financial-summary" /> }));
+vi.mock("@/components/operations/ProcessingProgress", () => ({ default: () => <div data-testid="processing-progress" /> }));
+vi.mock("@/components/operations/ExportCsvButton", () => ({ default: () => <div data-testid="export-csv-button" /> }));
 vi.mock("@/components/operations/VehicleTable", () => ({ default: () => <div data-testid="vehicle-table" /> }));
 vi.mock("@/components/operations/VehicleDetailModal", () => ({ default: () => null }));
 
@@ -41,7 +43,9 @@ describe("OperationsBatchDetailPage", () => {
 
         expect(await screen.findByText("Batch #7")).toBeInTheDocument();
         expect(screen.getByTestId("processing-controls")).toBeInTheDocument();
-        expect(screen.getByTestId("status-summary")).toBeInTheDocument();
+        expect(screen.getByTestId("financial-summary")).toBeInTheDocument();
+        expect(screen.getByTestId("processing-progress")).toBeInTheDocument();
+        expect(screen.getByTestId("export-csv-button")).toBeInTheDocument();
         expect(screen.getByTestId("vehicle-table")).toBeInTheDocument();
     });
 

@@ -1,28 +1,25 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Wrench, Database, Gauge, PlayCircle, AlertTriangle } from "lucide-react";
 
-import { startOperationsParts, startOperationsOurDb, startOperationsWeight } from "@/lib/operations/api";
+import { startOperationsParts, startOperationsOurDb, startOperationsWeight, getOperationsBatchProgress } from "@/lib/operations/api";
 import { CatalyticApiError } from "@/lib/catalytic/http";
-import { PARTS_JOB_STATUS_TONE } from "@/lib/operations/constants";
 import { Button } from "@/components/ui/button";
 import StatusPill from "@/components/catalytic/StatusPill";
+import { summarizeLegProgress } from "@/lib/operations/format";
 
 // Three independent, explicitly-invoked processing legs — never chained
 // or auto-triggered (see spec Section 8). None of these ever touches
 // CatDB; Our Database here means the catalytic-converter lookup table,
 // never a paid CatDB Android VIN search (that's UI-2's approval flow).
 //
-// Missing backend contract (see UI-1 report): there is no per-leg
-// progress/completed-count/failed-count endpoint. Parts exposes a
-// single live status string (parts_job_status); Our Database and
-// Weight expose none at the batch level at all — only per-vehicle
-// ourdb_status/weight fields, visible in the vehicle table below. This
-// component never fabricates counts the backend doesn't provide; it
-// shows the one real signal that exists per leg, plus a transient,
-// client-only "start requested" confirmation that disappears on reload.
+// The compact summary next to each Start button comes from the real
+// GET .../progress endpoint (see summarizeLegProgress) — never from
+// client-only "start requested" state. The full per-bucket breakdown
+// lives in ProcessingProgress below this component; this one only shows
+// a one-line summary per leg so the Start buttons stay scannable.
 function LegCard({ icon: Icon, title, description, enabled, busy, onStart, children }) {
     return (
         <div className="rounded-2xl border border-white/10 bg-black/25 p-4 flex flex-col gap-3">
@@ -47,22 +44,48 @@ function LegCard({ icon: Icon, title, description, enabled, busy, onStart, child
     );
 }
 
-export default function ProcessingControls({ batch, onBatchUpdated }) {
+export default function ProcessingControls({ batch, progress, onBatchUpdated }) {
     const [busyLeg, setBusyLeg] = useState(null);
-    const [startedLegs, setStartedLegs] = useState({});
+    const [ownProgress, setOwnProgress] = useState(progress || null);
+
+    // Progress can either be passed down by a parent that already fetched
+    // it (avoids a duplicate request), or fetched here directly when no
+    // `progress` prop is given — this component must never show fabricated
+    // status if left to run standalone.
+    const loadProgress = useCallback(async () => {
+        try {
+            const data = await getOperationsBatchProgress(batch.id);
+            setOwnProgress(data);
+        } catch {
+            // Non-critical here — ProcessingProgress below is the dedicated
+            // error-surfacing view for this same endpoint.
+        }
+    }, [batch.id]);
+
+    useEffect(() => {
+        if (progress) { setOwnProgress(progress); return; }
+        loadProgress();
+    }, [progress, loadProgress]);
+
+    const effectiveProgress = progress || ownProgress;
 
     const run = async (leg, fn, label) => {
         setBusyLeg(leg);
         try {
             const updated = await fn(batch.id);
             toast.success(`${label} started`);
-            setStartedLegs((s) => ({ ...s, [leg]: true }));
             onBatchUpdated?.(updated);
+            if (!progress) loadProgress();
         } catch (e) {
             toast.error(e instanceof CatalyticApiError ? e.message : `Failed to start ${label}`);
         } finally {
             setBusyLeg(null);
         }
+    };
+
+    const legSummary = (legKey) => {
+        const summary = summarizeLegProgress(effectiveProgress?.[legKey]);
+        return <StatusPill label={summary.label} tone={summary.tone} />;
     };
 
     return (
@@ -75,13 +98,7 @@ export default function ProcessingControls({ batch, onBatchUpdated }) {
                 busy={busyLeg === "parts"}
                 onStart={() => run("parts", startOperationsParts, "Parts analysis")}
             >
-                {batch.parts_job_status ? (
-                    <StatusPill label={batch.parts_job_status} tone={PARTS_JOB_STATUS_TONE[batch.parts_job_status] || "neutral"} />
-                ) : startedLegs.parts ? (
-                    <StatusPill label="Start requested" tone="info" />
-                ) : (
-                    <StatusPill label="Not started" tone="neutral" />
-                )}
+                {legSummary("parts")}
                 {!batch.run_parts && (
                     <span className="text-[11px] text-white/35 inline-flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> disabled for this batch</span>
                 )}
@@ -95,11 +112,7 @@ export default function ProcessingControls({ batch, onBatchUpdated }) {
                 busy={busyLeg === "ourdb"}
                 onStart={() => run("ourdb", startOperationsOurDb, "Our Database analysis")}
             >
-                {startedLegs.ourdb ? (
-                    <StatusPill label="Start requested" tone="info" />
-                ) : (
-                    <StatusPill label="Not started" tone="neutral" />
-                )}
+                {legSummary("ourdb")}
                 {!batch.run_ourdb && (
                     <span className="text-[11px] text-white/35 inline-flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> disabled for this batch</span>
                 )}
@@ -113,11 +126,7 @@ export default function ProcessingControls({ batch, onBatchUpdated }) {
                 busy={busyLeg === "weight"}
                 onStart={() => run("weight", startOperationsWeight, "Weight analysis")}
             >
-                {startedLegs.weight ? (
-                    <StatusPill label="Start requested" tone="info" />
-                ) : (
-                    <StatusPill label="Not started" tone="neutral" />
-                )}
+                {legSummary("weight")}
                 {!batch.run_weight && (
                     <span className="text-[11px] text-white/35 inline-flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> disabled for this batch</span>
                 )}

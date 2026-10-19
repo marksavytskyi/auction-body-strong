@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Loader2, Boxes, ArrowLeft, RefreshCw, AlertTriangle, Info } from "lucide-react";
+import { Loader2, Boxes, ArrowLeft, RefreshCw, AlertTriangle } from "lucide-react";
 
 import { getOperationsBatch } from "@/lib/operations/api";
 import { CatalyticApiError } from "@/lib/catalytic/http";
@@ -10,7 +10,9 @@ import { BATCH_STATUS, BATCH_STATUS_TONE } from "@/lib/operations/constants";
 import { formatDate } from "@/lib/operations/format";
 import StatusPill from "@/components/catalytic/StatusPill";
 import ProcessingControls from "@/components/operations/ProcessingControls";
-import BatchStatusSummary from "@/components/operations/BatchStatusSummary";
+import FinancialSummaryCards from "@/components/operations/FinancialSummaryCards";
+import ProcessingProgress from "@/components/operations/ProcessingProgress";
+import ExportCsvButton from "@/components/operations/ExportCsvButton";
 import VehicleTable from "@/components/operations/VehicleTable";
 import VehicleDetailModal from "@/components/operations/VehicleDetailModal";
 
@@ -59,6 +61,10 @@ export default function OperationsBatchDetailPage() {
             const data = await load();
             if (cancelled) return;
             if (data?.status === BATCH_STATUS.PROCESSING) {
+                // Refresh financial summary/progress/vehicle table in
+                // lockstep with the batch poll itself — one shared cadence,
+                // never a second independent timer.
+                setRefreshKey((k) => k + 1);
                 pollRef.current = setTimeout(tick, POLL_MS);
             }
         };
@@ -78,6 +84,7 @@ export default function OperationsBatchDetailPage() {
             pollRef.current = setTimeout(async function tick() {
                 const data = await load();
                 if (data?.status === BATCH_STATUS.PROCESSING && mountedRef.current) {
+                    setRefreshKey((k) => k + 1);
                     pollRef.current = setTimeout(tick, POLL_MS);
                 } else {
                     pollRef.current = null;
@@ -120,21 +127,21 @@ export default function OperationsBatchDetailPage() {
                         {formatDate(batch.created_at)} · {batch.total_vehicles ?? 0} vehicles · <StatusPill label={batch.status} tone={BATCH_STATUS_TONE[batch.status] || "neutral"} />
                     </p>
                 </div>
-                <button type="button" onClick={handleManualRefresh} className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white" title="Refresh">
-                    <RefreshCw className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                    <ExportCsvButton batchId={batch.id} />
+                    <button type="button" onClick={handleManualRefresh} className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white" title="Refresh">
+                        <RefreshCw className="h-4 w-4" />
+                    </button>
+                </div>
             </div>
 
             {batch.error_message && (
                 <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">{batch.error_message}</div>
             )}
 
-            <BatchStatusSummary batchId={batch.id} refreshKey={refreshKey} />
+            <FinancialSummaryCards batchId={batch.id} refreshKey={refreshKey} />
 
-            <div className="rounded-xl border border-sky-500/20 bg-sky-500/[0.04] p-3 text-[11px] text-sky-200/70 inline-flex items-start gap-2">
-                <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                Batch-wide financial totals aren&apos;t available from the backend yet — every recovery figure below is per vehicle. CSV export isn&apos;t available either; see the vehicle table for current results.
-            </div>
+            <ProcessingProgress batchId={batch.id} refreshKey={refreshKey} />
 
             <ProcessingControls batch={batch} onBatchUpdated={handleBatchUpdated} />
 

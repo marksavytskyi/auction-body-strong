@@ -2,12 +2,13 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import ProcessingControls from "../ProcessingControls";
-import { startOperationsParts, startOperationsOurDb, startOperationsWeight } from "@/lib/operations/api";
+import { startOperationsParts, startOperationsOurDb, startOperationsWeight, getOperationsBatchProgress } from "@/lib/operations/api";
 
 vi.mock("@/lib/operations/api", () => ({
     startOperationsParts: vi.fn(),
     startOperationsOurDb: vi.fn(),
     startOperationsWeight: vi.fn(),
+    getOperationsBatchProgress: vi.fn(),
 }));
 
 vi.mock("react-hot-toast", () => ({
@@ -16,11 +17,16 @@ vi.mock("react-hot-toast", () => ({
 
 const baseBatch = { id: 1, run_parts: true, run_ourdb: true, run_weight: true, parts_job_status: null };
 
+const emptyLeg = { not_requested_count: 0, queued_count: 0, processing_count: 0, done_count: 0, failed_count: 0, no_data_count: 0, total: 0 };
+const baseProgress = { parts: { ...emptyLeg }, ourdb: { ...emptyLeg }, weight: { ...emptyLeg } };
+
 describe("ProcessingControls", () => {
     beforeEach(() => {
         startOperationsParts.mockReset();
         startOperationsOurDb.mockReset();
         startOperationsWeight.mockReset();
+        getOperationsBatchProgress.mockReset();
+        getOperationsBatchProgress.mockResolvedValue(baseProgress);
     });
 
     it("starting Parts only calls the Parts endpoint, never OurDB or Weight", async () => {
@@ -56,15 +62,39 @@ describe("ProcessingControls", () => {
         expect(startOperationsOurDb).not.toHaveBeenCalled();
     });
 
-    it("disables Start for a leg the batch has disabled", () => {
+    it("disables Start for a leg the batch has disabled", async () => {
         render(<ProcessingControls batch={{ ...baseBatch, run_weight: false }} onBatchUpdated={vi.fn()} />);
+        await waitFor(() => expect(getOperationsBatchProgress).toHaveBeenCalled());
         const buttons = screen.getAllByRole("button", { name: /^start$/i });
         expect(buttons[2]).toBeDisabled();
         expect(screen.getByText(/disabled for this batch/i)).toBeInTheDocument();
     });
 
-    it("shows the real backend parts_job_status rather than a fabricated progress count", () => {
-        render(<ProcessingControls batch={{ ...baseBatch, parts_job_status: "done" }} onBatchUpdated={vi.fn()} />);
-        expect(screen.getByText(/^done$/i)).toBeInTheDocument();
+    it("shows the real backend progress counts rather than fabricated client-only status", async () => {
+        getOperationsBatchProgress.mockResolvedValue({
+            ...baseProgress,
+            parts: { not_requested_count: 0, queued_count: 0, processing_count: 0, done_count: 10, failed_count: 0, no_data_count: 0, total: 10 },
+        });
+        render(<ProcessingControls batch={baseBatch} onBatchUpdated={vi.fn()} />);
+        expect(await screen.findByText(/done \(10\/10\)/i)).toBeInTheDocument();
+    });
+
+    it("shows 'Not started' when the backend progress says every vehicle is still not_requested", async () => {
+        getOperationsBatchProgress.mockResolvedValue({
+            ...baseProgress,
+            weight: { ...emptyLeg, not_requested_count: 5, total: 5 },
+        });
+        render(<ProcessingControls batch={baseBatch} onBatchUpdated={vi.fn()} />);
+        expect(await screen.findAllByText(/not started/i)).not.toHaveLength(0);
+    });
+
+    it("uses a progress prop when the parent already fetched it, avoiding a duplicate request", async () => {
+        const progress = {
+            ...baseProgress,
+            parts: { ...emptyLeg, processing_count: 3, done_count: 2, total: 5 },
+        };
+        render(<ProcessingControls batch={baseBatch} progress={progress} onBatchUpdated={vi.fn()} />);
+        expect(await screen.findByText(/processing \(2\/5 done\)/i)).toBeInTheDocument();
+        expect(getOperationsBatchProgress).not.toHaveBeenCalled();
     });
 });

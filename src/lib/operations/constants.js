@@ -117,3 +117,43 @@ export const PARTS_JOB_STATUS_TONE = {
     done: "success",
     failed: "danger",
 };
+
+// Field names on LegProgressResponse (app/operations/schemas.py), per leg,
+// in display order. Parts and OurDb use the real LEG_STATUS enum end to
+// end; Weight has no discrete status column — "no_data_count" is a
+// terminal bucket computed server-side (curb_weight_lb never resolved),
+// distinct from "not_requested_count" (never asked). Each leg's own list
+// below is the "only display categories that make sense" whitelist —
+// e.g. Weight is never shown a "queued"/"processing" split as confidently
+// as Parts/OurDb since weight_worker_id isn't exposed to this client, but
+// the /progress endpoint computes those counts correctly server-side, so
+// they are shown here too.
+export const PROGRESS_FIELDS = {
+    parts: ["not_requested_count", "queued_count", "processing_count", "done_count", "failed_count"],
+    ourdb: ["not_requested_count", "queued_count", "processing_count", "done_count", "failed_count"],
+    weight: ["not_requested_count", "queued_count", "processing_count", "done_count", "no_data_count"],
+};
+
+export const PROGRESS_BUCKET_LABEL = {
+    not_requested_count: "Not requested",
+    queued_count: "Queued",
+    processing_count: "Processing",
+    done_count: "Done",
+    failed_count: "Failed",
+    no_data_count: "No data",
+};
+
+export const PROGRESS_BUCKET_TONE = {
+    not_requested_count: "neutral",
+    queued_count: "info",
+    processing_count: "progress",
+    done_count: "success",
+    failed_count: "danger",
+    no_data_count: "neutral",
+};
+
+export const PROGRESS_LEG_LABEL = {
+    parts: "Parts",
+    ourdb: "Our Database",
+    weight: "Weight",
+};

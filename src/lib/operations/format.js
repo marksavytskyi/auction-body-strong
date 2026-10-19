@@ -7,7 +7,7 @@
 // rendered as an em dash, never "$0" — $0 is a real, distinct fact (a
 // component priced at zero) that must never be confused with "unknown".
 
-import { COMPLETENESS } from "./constants";
+import { COMPLETENESS, WEIGHT_SOURCE } from "./constants";
 
 export function formatMoney(value) {
     if (value === null || value === undefined || value === "") return "—";
@@ -67,4 +67,51 @@ const COMPONENT_LABEL = {
 
 export function componentLabel(name) {
     return COMPONENT_LABEL[name] || name;
+}
+
+// Shared weight-status derivation for a single vehicle row — used by both
+// VehicleTable and VehicleDetailModal so they never disagree.
+//
+// weight_resolved_at is the one field that tells us whether Weight has
+// finished attempting this vehicle at all (set exactly once, when the
+// backend either resolves a real curb weight or gives up and marks it
+// NO_DATA — see app.operations.weight). Until it is set, the vehicle is
+// still pending (not yet requested, or queued/processing — this client
+// cannot distinguish those two for a single row without weight_worker_id,
+// which the backend deliberately does not expose per-vehicle; that finer
+// breakdown is available in aggregate from GET .../progress instead).
+//
+// Once weight_resolved_at IS set, curb_weight_lb decides the two possible
+// terminal outcomes: present -> resolved successfully; absent -> NO_DATA,
+// which is itself terminal and must never be shown as "Pending".
+export function deriveWeightStatus(vehicle) {
+    if (!vehicle?.weight_resolved_at) {
+        return { key: "PENDING", label: "Pending", tone: "neutral" };
+    }
+    if (vehicle.curb_weight_lb === null || vehicle.curb_weight_lb === undefined) {
+        return { key: "NO_DATA", label: "No Data", tone: "neutral" };
+    }
+    if (vehicle.weight_source === WEIGHT_SOURCE.MANUAL) {
+        return { key: "MANUAL", label: "Manual", tone: "success" };
+    }
+    return { key: "NHTSA", label: "NHTSA", tone: "success" };
+}
+
+// One-line summary of a LegProgressResponse bucket for compact display
+// next to a Start button — never fabricates a count the backend didn't
+// return. `leg` is one of a GET .../progress response's parts/ourdb/weight
+// objects (not_requested_count/queued_count/processing_count/done_count/
+// failed_count/no_data_count/total).
+export function summarizeLegProgress(leg) {
+    if (!leg || !leg.total) return { label: "No vehicles", tone: "neutral" };
+    const { total, not_requested_count = 0, queued_count = 0, processing_count = 0, done_count = 0, failed_count = 0, no_data_count = 0 } = leg;
+    if (not_requested_count === total) return { label: "Not started", tone: "neutral" };
+    const terminal = done_count + failed_count + no_data_count;
+    if (terminal === total) {
+        if (failed_count > 0) return { label: `${failed_count} failed`, tone: "danger" };
+        return { label: `Done (${done_count}/${total})`, tone: "success" };
+    }
+    if (processing_count > 0) return { label: `Processing (${done_count}/${total} done)`, tone: "progress" };
+    if (queued_count > 0) return { label: `Queued (${done_count}/${total} done)`, tone: "info" };
+    return { label: `${done_count}/${total} done`, tone: "neutral" };
 }

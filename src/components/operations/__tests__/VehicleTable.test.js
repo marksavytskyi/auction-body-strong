@@ -138,6 +138,88 @@ describe("VehicleTable", () => {
         );
     });
 
+    // ─── Weight status fix (Section 5) ──────────────────────────────────
+
+    // Weight status pills are rendered as <span> StatusPill elements; the
+    // "Pending" overall-status filter button is a <button> and must never
+    // be mistaken for the vehicle's own weight status pill.
+    function nonButtonMatches(regex) {
+        return screen.queryAllByText(regex).filter((el) => el.tagName !== "BUTTON");
+    }
+
+    it("labels a vehicle whose weight hasn't been resolved yet as Pending, never conflating it with No Data", async () => {
+        listOperationsBatchVehicles.mockResolvedValue({
+            items: [vehicle({ weight_resolved_at: null, curb_weight_lb: null, weight_source: "UNKNOWN" })],
+            total: 1,
+        });
+        render(<VehicleTable batchId={1} onOpenVehicle={vi.fn()} />);
+        await waitFor(() => expect(listOperationsBatchVehicles).toHaveBeenCalled());
+        await screen.findAllByText(/1HGCM82633A000001/);
+        expect(nonButtonMatches(/^pending$/i).length).toBeGreaterThan(0);
+        expect(nonButtonMatches(/^no data$/i).length).toBe(0);
+    });
+
+    it("labels a vehicle whose weight resolution finished without a usable result as the terminal No Data, never Pending", async () => {
+        listOperationsBatchVehicles.mockResolvedValue({
+            items: [vehicle({ weight_resolved_at: "2026-01-01T00:00:00", curb_weight_lb: null, weight_source: "UNKNOWN" })],
+            total: 1,
+        });
+        render(<VehicleTable batchId={1} onOpenVehicle={vi.fn()} />);
+        await waitFor(() => expect(listOperationsBatchVehicles).toHaveBeenCalled());
+        await screen.findAllByText(/1HGCM82633A000001/);
+        expect(nonButtonMatches(/^no data$/i).length).toBeGreaterThan(0);
+        expect(nonButtonMatches(/^pending$/i).length).toBe(0);
+    });
+
+    it("labels a vehicle with a real resolved weight as NHTSA, not Pending", async () => {
+        listOperationsBatchVehicles.mockResolvedValue({
+            items: [vehicle({ weight_resolved_at: "2026-01-01T00:00:00", curb_weight_lb: 3500, weight_source: "NHTSA" })],
+            total: 1,
+        });
+        render(<VehicleTable batchId={1} onOpenVehicle={vi.fn()} />);
+        await waitFor(() => expect(listOperationsBatchVehicles).toHaveBeenCalled());
+        expect((await screen.findAllByText(/^nhtsa$/i)).length).toBeGreaterThan(0);
+    });
+
+    // ─── Financial sorting fix (Section 6) ──────────────────────────────
+
+    it("sorts the Complete Recovery column by total_expected_recovery, and Known Subtotal by known_components_subtotal — never a shared/misleading sort field", async () => {
+        listOperationsBatchVehicles.mockResolvedValue({ items: [vehicle()], total: 1 });
+        render(<VehicleTable batchId={1} onOpenVehicle={vi.fn()} />);
+        await waitFor(() => expect(listOperationsBatchVehicles).toHaveBeenCalledTimes(1));
+
+        fireEvent.click(screen.getByText(/^complete recovery$/i));
+        await waitFor(() =>
+            expect(listOperationsBatchVehicles).toHaveBeenLastCalledWith(1, expect.objectContaining({ sortBy: "total_expected_recovery", sortDir: "asc" }))
+        );
+
+        fireEvent.click(screen.getByText(/^known subtotal$/i));
+        await waitFor(() =>
+            expect(listOperationsBatchVehicles).toHaveBeenLastCalledWith(1, expect.objectContaining({ sortBy: "known_components_subtotal", sortDir: "asc" }))
+        );
+    });
+
+    it("displays Complete Recovery and Known Subtotal as two separate columns, never one combined value", async () => {
+        listOperationsBatchVehicles.mockResolvedValue({
+            items: [vehicle({
+                financials: {
+                    engine_value: 100, transmission_value: 50, cats_value: null, scrap_value: 20,
+                    known_components_subtotal: 170, total_expected_recovery: null,
+                    completeness_status: "PARTIAL", components_available: 3, components_expected: 4, missing_components: ["cats"],
+                },
+            })],
+            total: 1,
+        });
+        render(<VehicleTable batchId={1} onOpenVehicle={vi.fn()} />);
+        await waitFor(() => expect(listOperationsBatchVehicles).toHaveBeenCalled());
+
+        expect(screen.getByText(/^complete recovery$/i)).toBeInTheDocument();
+        expect(screen.getByText(/^known subtotal$/i)).toBeInTheDocument();
+        // Complete Recovery is null for a PARTIAL vehicle -> em dash, never $0.
+        const desktopTable = screen.getByText(/^complete recovery$/i).closest("table");
+        expect(desktopTable).toBeTruthy();
+    });
+
     it("calls onOpenVehicle with the full vehicle record when a row is clicked", async () => {
         const v = vehicle();
         listOperationsBatchVehicles.mockResolvedValue({ items: [v], total: 1 });

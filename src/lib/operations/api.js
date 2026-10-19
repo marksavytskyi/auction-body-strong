@@ -1,21 +1,18 @@
 // Typed client for /operations/* — matches app/operations/router.py
-// exactly (backend commit 50e2d2f). OWNER/ADMIN only; the backend is the
+// exactly (backend commit 78765fa). OWNER/ADMIN only; the backend is the
 // real enforcement boundary (require_roles(ADMIN_ROLES) on every route),
 // this client never decides authorization itself.
 //
 // Deliberately thin: every function maps 1:1 to one backend endpoint,
 // with the exact query/body shape that endpoint accepts. No endpoint is
-// invented — if UI-1 needs something not listed here (CSV export, a
-// batch-level financial summary, per-leg progress counts), it does not
-// exist on the backend yet; see the UI-1 final report's "missing
-// backend contracts" section.
+// invented.
 //
 // Reuses the existing generic request()/axiosInstance from
 // ./catalytic/http.js (already proxies via /api, attaches the bearer
 // token, and handles 401 — see that module) rather than building a
 // second HTTP layer.
 
-import { request, axiosInstance } from "@/lib/catalytic/http";
+import { request, axiosInstance, CatalyticApiError } from "@/lib/catalytic/http";
 
 const BASE = "/operations";
 
@@ -127,16 +124,82 @@ export function setOperationsVehicleScrapOverride(batchId, vehicleId, updates = 
     );
 }
 
-// ─── cheap, backend-aggregated status counts (no CatDB/export endpoint
-// exists — see UI-1 report) — reads `total` from a limit=1 filtered
-// query per overall_status bucket, never fetches full vehicle rows just
-// to produce a count. ──────────────────────────────────────────────────
+// ─── financial summary, progress, export (Phase G backend contracts) ───
 
-export async function getOperationsBatchOverallStatusCounts(batchId, statuses) {
-    const results = await Promise.all(
-        statuses.map((status) =>
-            listOperationsBatchVehicles(batchId, { limit: 1, offset: 0, status }).then((r) => [status, r?.total ?? 0])
-        )
+export function getOperationsBatchFinancialSummary(batchId) {
+    return request(
+        () => axiosInstance.get(`${BASE}/batches/${encodeURIComponent(batchId)}/financial-summary`),
+        "Failed to load batch financial summary"
     );
-    return Object.fromEntries(results);
+}
+
+export function getOperationsBatchProgress(batchId) {
+    return request(
+        () => axiosInstance.get(`${BASE}/batches/${encodeURIComponent(batchId)}/progress`),
+        "Failed to load batch progress"
+    );
+}
+
+// Blob.text() is the normal path, but FileReader is used instead since
+// it is universally supported (unlike Blob.prototype.text, missing in
+// some test/runtime environments) and this is the only place a Blob's
+// contents are ever read as text in this client.
+function blobToText(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(blob);
+    });
+}
+
+const CONTENT_DISPOSITION_FILENAME_RE = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i;
+
+function filenameFromContentDisposition(headerValue, fallback) {
+    if (!headerValue) return fallback;
+    const match = CONTENT_DISPOSITION_FILENAME_RE.exec(headerValue);
+    if (!match) return fallback;
+    try {
+        return decodeURIComponent(match[1]);
+    } catch {
+        return match[1];
+    }
+}
+
+// Downloads the backend-generated CSV as a Blob and returns it together
+// with the filename the backend chose (Content-Disposition), falling
+// back to a reasonable default only if that header is somehow absent.
+// Uses responseType: "blob" directly (not the generic request() helper)
+// because an error response under that responseType also arrives as a
+// Blob rather than parsed JSON — so error bodies need their own
+// extraction path below instead of the usual error.response.data.detail.
+export async function downloadOperationsBatchExportCsv(batchId) {
+    try {
+        const response = await axiosInstance.get(
+            `${BASE}/batches/${encodeURIComponent(batchId)}/export`,
+            { responseType: "blob" }
+        );
+        const filename = filenameFromContentDisposition(
+            response.headers?.["content-disposition"],
+            `operations_batch_${batchId}_export.csv`
+        );
+        return { blob: response.data, filename };
+    } catch (error) {
+        const data = error?.response?.data;
+        let message = "Failed to export batch CSV";
+        if (data instanceof Blob) {
+            try {
+                const text = await blobToText(data);
+                const parsed = JSON.parse(text);
+                if (parsed?.detail) message = parsed.detail;
+            } catch {
+                // response body wasn't JSON text; fall back to the default message
+            }
+        } else if (data?.detail) {
+            message = data.detail;
+        } else if (error?.message) {
+            message = error.message;
+        }
+        throw new CatalyticApiError(message, { status: error?.response?.status, cause: error });
+    }
 }
