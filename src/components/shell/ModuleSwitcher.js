@@ -2,16 +2,29 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import { Wrench, FlaskConical } from "lucide-react";
+import { Wrench, FlaskConical, LayoutDashboard } from "lucide-react";
 import { setLastModule } from "@/lib/moduleStorage";
+import { useAuth } from "@/hooks/useAuth";
+import { isAdminTierRole } from "@/lib/rbac";
+import { isOperationsUiEnabled } from "@/lib/operations/featureFlag";
 
-const MODULES = [
+const BASE_MODULES = [
     { id: "parts", label: "Parts", href: "/dashboard", icon: Wrench },
     { id: "cats", label: "Cats", href: "/cats", icon: FlaskConical },
 ];
 
+const OPERATIONS_MODULE = { id: "operations", label: "Operations", href: "/operations", icon: LayoutDashboard };
+
 export default function ModuleSwitcher({ active }) {
     const router = useRouter();
+    // Operations is hidden from this switcher unless ALL of: the frontend
+    // feature flag is on, the user is authenticated, and their role is
+    // OWNER/ADMIN — the backend remains the real enforcement boundary
+    // regardless (every /operations/* page/API call still handles a 403
+    // on its own), this only controls whether the entry point is shown.
+    const { isLoggedIn, roleReady, role } = useAuth();
+    const showOperations = isOperationsUiEnabled() && isLoggedIn && roleReady && isAdminTierRole(role);
+    const MODULES = showOperations ? [...BASE_MODULES, OPERATIONS_MODULE] : BASE_MODULES;
 
     return (
         <div
