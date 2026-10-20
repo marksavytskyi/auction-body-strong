@@ -20,6 +20,7 @@ vi.mock("@/components/operations/ProcessingControls", () => ({ default: () => <d
 vi.mock("@/components/operations/FinancialSummaryCards", () => ({ default: () => <div data-testid="financial-summary" /> }));
 vi.mock("@/components/operations/ProcessingProgress", () => ({ default: () => <div data-testid="processing-progress" /> }));
 vi.mock("@/components/operations/ExportCsvButton", () => ({ default: () => <div data-testid="export-csv-button" /> }));
+vi.mock("@/components/operations/CatdbSection", () => ({ default: () => <div data-testid="catdb-section" /> }));
 vi.mock("@/components/operations/VehicleTable", () => ({ default: () => <div data-testid="vehicle-table" /> }));
 vi.mock("@/components/operations/VehicleDetailModal", () => ({ default: () => null }));
 
@@ -46,6 +47,7 @@ describe("OperationsBatchDetailPage", () => {
         expect(screen.getByTestId("financial-summary")).toBeInTheDocument();
         expect(screen.getByTestId("processing-progress")).toBeInTheDocument();
         expect(screen.getByTestId("export-csv-button")).toBeInTheDocument();
+        expect(screen.getByTestId("catdb-section")).toBeInTheDocument();
         expect(screen.getByTestId("vehicle-table")).toBeInTheDocument();
     });
 

@@ -203,3 +203,57 @@ export async function downloadOperationsBatchExportCsv(batchId) {
         throw new CatalyticApiError(message, { status: error?.response?.status, cause: error });
     }
 }
+
+// ─── CatDB paid-search approval (UI-2 backend contracts — Phase F2B/F2C/F2D) ───
+//
+// Matches app/operations/catdb_approval_schemas.py and
+// app/operations/router.py's own "Operations -> CatDB approval" section
+// exactly. This is a SEPARATE, paid, subscription-backed VIN search
+// process — never to be confused with Our Database (the free local
+// lookup table). No function here ever starts a search on its own:
+// previewOperationsCatdbSearches is strictly read-only, and
+// approveOperationsCatdbSearches requires the caller to pass an
+// explicit confirm:true plus a fingerprint from a just-fetched preview
+// — there is no "default" approval this client can trigger by itself.
+
+export function previewOperationsCatdbSearches(batchId) {
+    return request(
+        () => axiosInstance.get(`${BASE}/batches/${encodeURIComponent(batchId)}/catdb/preview`),
+        "Failed to load CatDB preview"
+    );
+}
+
+// previewFingerprint/maxNewSearches/confirm map 1:1 to
+// CatDBApprovalRequest's own preview_fingerprint/max_new_searches/confirm
+// fields — never renamed, never defaulted here. confirm must be passed
+// as true explicitly by the caller; this function never supplies a
+// default for it.
+export function approveOperationsCatdbSearches(batchId, { previewFingerprint, maxNewSearches, confirm }) {
+    return request(
+        () => axiosInstance.post(`${BASE}/batches/${encodeURIComponent(batchId)}/catdb/approve`, {
+            preview_fingerprint: previewFingerprint,
+            max_new_searches: maxNewSearches,
+            confirm,
+        }),
+        "Failed to submit CatDB approval"
+    );
+}
+
+export function listOperationsCatdbApprovals(batchId, { limit = 10, offset = 0 } = {}) {
+    return request(
+        () => axiosInstance.get(`${BASE}/batches/${encodeURIComponent(batchId)}/catdb/approvals`, { params: { limit, offset } }),
+        "Failed to load CatDB approval history"
+    );
+}
+
+// Pull-based sync only — copies the CURRENT state of already-existing
+// CatDBJobs into this batch's own vehicle rows. Never creates a new
+// CatDBJob, never spends quota, never starts a worker (see
+// app.operations.catdb_approval.reconcile_catdb_results's own
+// docstring, mirrored exactly by this function's name).
+export function reconcileOperationsCatdbResults(batchId) {
+    return request(
+        () => axiosInstance.post(`${BASE}/batches/${encodeURIComponent(batchId)}/catdb/reconcile`),
+        "Failed to reconcile CatDB results"
+    );
+}

@@ -1,6 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-import { getOperationsBatchFinancialSummary, getOperationsBatchProgress, downloadOperationsBatchExportCsv } from "../api";
+import {
+    getOperationsBatchFinancialSummary, getOperationsBatchProgress, downloadOperationsBatchExportCsv,
+    previewOperationsCatdbSearches, approveOperationsCatdbSearches, listOperationsCatdbApprovals, reconcileOperationsCatdbResults,
+} from "../api";
 import { axiosInstance, CatalyticApiError } from "@/lib/catalytic/http";
 
 vi.mock("@/lib/catalytic/http", () => {
@@ -13,7 +16,7 @@ vi.mock("@/lib/catalytic/http", () => {
         }
     }
     return {
-        axiosInstance: { get: vi.fn() },
+        axiosInstance: { get: vi.fn(), post: vi.fn() },
         request: async (fn, fallbackMessage) => {
             try {
                 const res = await fn();
@@ -103,5 +106,86 @@ describe("downloadOperationsBatchExportCsv", () => {
 
         expect(logSpy).not.toHaveBeenCalled();
         logSpy.mockRestore();
+    });
+});
+
+describe("previewOperationsCatdbSearches", () => {
+    beforeEach(() => { axiosInstance.get.mockReset(); });
+
+    it("calls the exact preview endpoint via GET, never a write", async () => {
+        const body = { operations_batch_id: 7, fingerprint: "abc123", entries: [] };
+        axiosInstance.get.mockResolvedValue({ data: body });
+
+        const result = await previewOperationsCatdbSearches(7);
+
+        expect(axiosInstance.get).toHaveBeenCalledWith("/operations/batches/7/catdb/preview");
+        expect(result).toBe(body);
+    });
+});
+
+describe("approveOperationsCatdbSearches", () => {
+    beforeEach(() => { axiosInstance.post.mockReset(); });
+
+    it("forwards preview_fingerprint/max_new_searches/confirm exactly as named by the backend schema", async () => {
+        const body = { id: 1, status: "COMPLETE" };
+        axiosInstance.post.mockResolvedValue({ data: body });
+
+        const result = await approveOperationsCatdbSearches(7, { previewFingerprint: "fp-1", maxNewSearches: 5, confirm: true });
+
+        expect(axiosInstance.post).toHaveBeenCalledWith("/operations/batches/7/catdb/approve", {
+            preview_fingerprint: "fp-1", max_new_searches: 5, confirm: true,
+        });
+        expect(result).toBe(body);
+    });
+
+    it("never defaults confirm to true itself — forwards exactly what the caller passed", async () => {
+        axiosInstance.post.mockResolvedValue({ data: {} });
+
+        await approveOperationsCatdbSearches(7, { previewFingerprint: "fp-1", maxNewSearches: 5, confirm: false });
+
+        expect(axiosInstance.post).toHaveBeenCalledWith("/operations/batches/7/catdb/approve", expect.objectContaining({ confirm: false }));
+    });
+
+    it("surfaces a 409 (stale fingerprint / approval conflict) with the backend's real status", async () => {
+        axiosInstance.post.mockRejectedValue({ response: { status: 409, data: { detail: "stale preview fingerprint" } } });
+
+        await expect(approveOperationsCatdbSearches(7, { previewFingerprint: "stale", maxNewSearches: 5, confirm: true }))
+            .rejects.toMatchObject({ status: 409, message: "stale preview fingerprint" });
+    });
+});
+
+describe("listOperationsCatdbApprovals", () => {
+    beforeEach(() => { axiosInstance.get.mockReset(); });
+
+    it("calls the approvals endpoint with limit/offset params, defaulting to a page size of 10", async () => {
+        const body = { items: [], total: 0, limit: 10, offset: 0 };
+        axiosInstance.get.mockResolvedValue({ data: body });
+
+        const result = await listOperationsCatdbApprovals(7);
+
+        expect(axiosInstance.get).toHaveBeenCalledWith("/operations/batches/7/catdb/approvals", { params: { limit: 10, offset: 0 } });
+        expect(result).toBe(body);
+    });
+
+    it("forwards an explicit limit/offset for pagination", async () => {
+        axiosInstance.get.mockResolvedValue({ data: { items: [], total: 30, limit: 10, offset: 10 } });
+
+        await listOperationsCatdbApprovals(7, { limit: 10, offset: 10 });
+
+        expect(axiosInstance.get).toHaveBeenCalledWith("/operations/batches/7/catdb/approvals", { params: { limit: 10, offset: 10 } });
+    });
+});
+
+describe("reconcileOperationsCatdbResults", () => {
+    beforeEach(() => { axiosInstance.post.mockReset(); });
+
+    it("calls the exact reconcile endpoint with no body", async () => {
+        const body = { operations_batch_id: 7, vehicles_examined: 3, done_count: 1, no_result_count: 1, review_required_count: 0, still_in_flight_count: 1, unchanged_count: 0 };
+        axiosInstance.post.mockResolvedValue({ data: body });
+
+        const result = await reconcileOperationsCatdbResults(7);
+
+        expect(axiosInstance.post).toHaveBeenCalledWith("/operations/batches/7/catdb/reconcile");
+        expect(result).toBe(body);
     });
 });

@@ -13,6 +13,7 @@ import ProcessingControls from "@/components/operations/ProcessingControls";
 import FinancialSummaryCards from "@/components/operations/FinancialSummaryCards";
 import ProcessingProgress from "@/components/operations/ProcessingProgress";
 import ExportCsvButton from "@/components/operations/ExportCsvButton";
+import CatdbSection from "@/components/operations/CatdbSection";
 import VehicleTable from "@/components/operations/VehicleTable";
 import VehicleDetailModal from "@/components/operations/VehicleDetailModal";
 
@@ -144,6 +145,8 @@ export default function OperationsBatchDetailPage() {
             <ProcessingProgress batchId={batch.id} refreshKey={refreshKey} />
 
             <ProcessingControls batch={batch} onBatchUpdated={handleBatchUpdated} />
+
+            <CatdbSection batchId={batch.id} onBatchDataChanged={() => setRefreshKey((k) => k + 1)} />
 
             <div>
                 <h2 className="text-sm font-bold text-white/70 uppercase tracking-wide mb-3">Vehicles</h2>

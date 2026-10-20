@@ -157,3 +157,75 @@ export const PROGRESS_LEG_LABEL = {
     ourdb: "Our Database",
     weight: "Weight",
 };
+
+// ─── CatDB paid-search approval (UI-2) ──────────────────────────────────
+// Mirrors app/operations/catdb_approval.py's VIN_CATEGORY_* constants
+// exactly — these classify each VIN in a GET .../catdb/preview response.
+// NEVER_SEARCHED is the only category the backend will ever spend quota
+// on (approve_catdb slices preview.approvable_new_search_vins, which is
+// built only from this category); every other category already has a
+// settled or disqualifying outcome and is never a "retry" candidate.
+export const CATDB_VIN_CATEGORY = {
+    COMPLETED_REUSABLE: "COMPLETED_REUSABLE",
+    ACTIVE_EXISTING_JOB: "ACTIVE_EXISTING_JOB",
+    UNCERTAIN_SUBMISSION: "UNCERTAIN_SUBMISSION",
+    CONCLUSIVE_NO_DATA: "CONCLUSIVE_NO_DATA",
+    NEVER_SEARCHED: "NEVER_SEARCHED",
+    INELIGIBLE: "INELIGIBLE",
+};
+
+export const CATDB_VIN_CATEGORY_LABEL = {
+    [CATDB_VIN_CATEGORY.COMPLETED_REUSABLE]: "Reusable (already completed)",
+    [CATDB_VIN_CATEGORY.ACTIVE_EXISTING_JOB]: "Active existing search",
+    [CATDB_VIN_CATEGORY.UNCERTAIN_SUBMISSION]: "Uncertain — needs review",
+    [CATDB_VIN_CATEGORY.CONCLUSIVE_NO_DATA]: "No data found (conclusive)",
+    [CATDB_VIN_CATEGORY.NEVER_SEARCHED]: "New paid search needed",
+    [CATDB_VIN_CATEGORY.INELIGIBLE]: "Blocked / ineligible",
+};
+
+export const CATDB_VIN_CATEGORY_TONE = {
+    [CATDB_VIN_CATEGORY.COMPLETED_REUSABLE]: "success",
+    [CATDB_VIN_CATEGORY.ACTIVE_EXISTING_JOB]: "info",
+    [CATDB_VIN_CATEGORY.UNCERTAIN_SUBMISSION]: "warning",
+    [CATDB_VIN_CATEGORY.CONCLUSIVE_NO_DATA]: "neutral",
+    [CATDB_VIN_CATEGORY.NEVER_SEARCHED]: "progress",
+    [CATDB_VIN_CATEGORY.INELIGIBLE]: "danger",
+};
+
+// Mirrors app/operations/catdb_approval_models.py's APPROVAL_STATUS_*
+// exactly. NEEDS_RECONCILIATION is never auto-retried by the backend
+// (see _advance_approval_locked's own docstring) — the UI's "Refresh
+// CatDB Results" reconcile action is the one safe, explicit way to make
+// progress on it, and that action itself only ever reads existing
+// CatDBJob state, never creates a new search.
+export const CATDB_APPROVAL_STATUS = {
+    PREPARING: "PREPARING",
+    IN_PROGRESS: "IN_PROGRESS",
+    COMPLETE: "COMPLETE",
+    NEEDS_RECONCILIATION: "NEEDS_RECONCILIATION",
+};
+
+export const CATDB_APPROVAL_STATUS_LABEL = {
+    [CATDB_APPROVAL_STATUS.PREPARING]: "Preparing",
+    [CATDB_APPROVAL_STATUS.IN_PROGRESS]: "In Progress",
+    [CATDB_APPROVAL_STATUS.COMPLETE]: "Complete",
+    [CATDB_APPROVAL_STATUS.NEEDS_RECONCILIATION]: "Needs Reconciliation",
+};
+
+export const CATDB_APPROVAL_STATUS_TONE = {
+    [CATDB_APPROVAL_STATUS.PREPARING]: "neutral",
+    [CATDB_APPROVAL_STATUS.IN_PROGRESS]: "progress",
+    [CATDB_APPROVAL_STATUS.COMPLETE]: "success",
+    [CATDB_APPROVAL_STATUS.NEEDS_RECONCILIATION]: "warning",
+};
+
+// "RECONCILED" is the only value a successful preview can ever carry —
+// build_catdb_preview itself fails closed with a 503
+// (OperationsCatdbQuotaUnavailableError) before returning a response at
+// all when the current subscription period is still "PENDING" (not yet
+// explicitly reconciled against historical usage). Listed here only so
+// this value is never hand-typed as a magic string at the call site.
+export const CATDB_QUOTA_RECONCILIATION_STATUS = {
+    RECONCILED: "RECONCILED",
+    PENDING: "PENDING",
+};
