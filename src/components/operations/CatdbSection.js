@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { AlertTriangle, Search, RefreshCw, Info, ShieldOff, ChevronDown, ChevronUp } from "lucide-react";
 
@@ -9,7 +9,7 @@ import { CatalyticApiError } from "@/lib/catalytic/http";
 import { formatDate } from "@/lib/operations/format";
 import {
     CATDB_VIN_CATEGORY, CATDB_VIN_CATEGORY_LABEL, CATDB_VIN_CATEGORY_TONE,
-    CATDB_QUOTA_RECONCILIATION_STATUS,
+    CATDB_QUOTA_RECONCILIATION_STATUS, CATDB_APPROVAL_STATUS,
 } from "@/lib/operations/constants";
 import { Button } from "@/components/ui/button";
 import StatusPill from "@/components/catalytic/StatusPill";
@@ -44,7 +44,7 @@ const ENTRY_DETAIL_LIMIT = 50;
 // CatdbApprovalDialog's own explicit confirm step. Reconciliation here
 // only ever reads back the current state of already-existing CatDBJobs
 // — see reconcileOperationsCatdbResults's own docstring.
-export default function CatdbSection({ batchId, onBatchDataChanged }) {
+export default function CatdbSection({ batchId, refreshKey, onBatchDataChanged }) {
     const [preview, setPreview] = useState(null);
     const [previewLoading, setPreviewLoading] = useState(false);
     const [previewError, setPreviewError] = useState("");
@@ -53,6 +53,43 @@ export default function CatdbSection({ batchId, onBatchDataChanged }) {
     const [showDetails, setShowDetails] = useState(false);
     const [approvalRefreshKey, setApprovalRefreshKey] = useState(0);
     const [reconcileBusy, setReconcileBusy] = useState(false);
+    const [hasActiveApproval, setHasActiveApproval] = useState(false);
+    const previousPageRefreshKeyRef = useRef(refreshKey);
+
+    const handleApprovalsLoaded = useCallback((items) => {
+        setHasActiveApproval(
+            (items || []).some(
+                (a) => a.status === CATDB_APPROVAL_STATUS.PREPARING || a.status === CATDB_APPROVAL_STATUS.IN_PROGRESS
+            )
+        );
+    }, []);
+
+    // Phase H/I-B: piggybacks on the page's OWN existing poll tick
+    // (refreshKey, bumped every 5s while the batch is PROCESSING — see
+    // src/app/operations/[id]/page.js) to keep approval history in sync
+    // while an approval is still actively being worked on
+    // (PREPARING/IN_PROGRESS) — never a second polling interval, never
+    // an automatic reconcile/preview/approve/retry call, only the
+    // existing read-only GET .../catdb/approvals.
+    //
+    // Deliberately does NOT keep refreshing just because an approval
+    // sits in NEEDS_RECONCILIATION: that status never resolves on its
+    // own (app.operations.catdb_approval's own docstring: "Deliberately
+    // never auto-retried... A human... must look at this row directly")
+    // and the manual "Refresh CatDB Results" reconcile action only ever
+    // touches vehicle rows, never the approval row itself — polling a
+    // row that cannot change without a brand-new approval or a future
+    // dedicated reconciliation phase would be pure waste. Once no
+    // approval is PREPARING/IN_PROGRESS, further page poll ticks are
+    // simply ignored here (no request fires) until the next explicit
+    // approve/reconcile action bumps approvalRefreshKey directly.
+    useEffect(() => {
+        if (refreshKey === previousPageRefreshKeyRef.current) return;
+        previousPageRefreshKeyRef.current = refreshKey;
+        if (hasActiveApproval) {
+            setApprovalRefreshKey((k) => k + 1);
+        }
+    }, [refreshKey, hasActiveApproval]);
 
     const loadPreview = async () => {
         setPreviewLoading(true);
@@ -106,8 +143,11 @@ export default function CatdbSection({ batchId, onBatchDataChanged }) {
         }
     };
 
+    // preview.entries is a plain JSON array (CatDBPreviewResponse.entries
+    // — see app/operations/catdb_approval_schemas.py), never a dict —
+    // Phase H audit finding L1.
     const detailEntries = preview
-        ? Object.values(preview.entries || {}).filter((e) => ENTRY_DETAIL_CATEGORIES.has(e.category))
+        ? (preview.entries || []).filter((e) => ENTRY_DETAIL_CATEGORIES.has(e.category))
         : [];
 
     return (
@@ -232,7 +272,7 @@ export default function CatdbSection({ batchId, onBatchDataChanged }) {
                 />
             )}
 
-            <CatdbApprovalHistory batchId={batchId} refreshKey={approvalRefreshKey} />
+            <CatdbApprovalHistory batchId={batchId} refreshKey={approvalRefreshKey} onApprovalsLoaded={handleApprovalsLoaded} />
         </div>
     );
 }

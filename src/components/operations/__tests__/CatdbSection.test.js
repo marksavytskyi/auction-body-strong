@@ -14,7 +14,13 @@ vi.mock("react-hot-toast", () => ({
     default: { success: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock("@/components/operations/CatdbApprovalHistory", () => ({ default: () => <div data-testid="approval-history" /> }));
+let lastHistoryProps = null;
+vi.mock("@/components/operations/CatdbApprovalHistory", () => ({
+    default: (props) => {
+        lastHistoryProps = props;
+        return <div data-testid="approval-history" />;
+    },
+}));
 
 let lastDialogProps = null;
 vi.mock("@/components/operations/CatdbApprovalDialog", () => ({
@@ -32,7 +38,7 @@ function preview(overrides = {}) {
         never_searched_count: 5, ineligible_count: 0,
         available_quota: 100, max_approvable_new_searches: 5,
         quota_period_key: "2026-01-01", quota_reconciliation_status: "RECONCILED",
-        entries: {},
+        entries: [],
         ...overrides,
     };
 }
@@ -42,6 +48,7 @@ describe("CatdbSection", () => {
         previewOperationsCatdbSearches.mockReset();
         reconcileOperationsCatdbResults.mockReset();
         lastDialogProps = null;
+        lastHistoryProps = null;
     });
 
     it("never calls preview or approve automatically on mount", () => {
@@ -151,5 +158,137 @@ describe("CatdbSection", () => {
         fireEvent.click(screen.getByRole("button", { name: /refresh catdb results/i }));
 
         await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    });
+
+    // ─── preview.entries is a real array (Phase H finding L1 / Phase I-B) ──
+
+    function entry(overrides = {}) {
+        return { vin: "1HGCM82633A000001", category: "UNCERTAIN_SUBMISSION", reason: "needs review", existing_job_id: null, operations_batch_vehicle_ids: [1], ...overrides };
+    }
+
+    it("renders uncertain/ineligible entries from a real backend array, never requiring Object.values()", async () => {
+        previewOperationsCatdbSearches.mockResolvedValue(preview({
+            entries: [
+                entry({ vin: "1HGCM82633A000001", category: "UNCERTAIN_SUBMISSION", reason: "manual review pending" }),
+                entry({ vin: "1HGCM82633A000002", category: "INELIGIBLE", reason: "electric vehicle" }),
+            ],
+        }));
+        render(<CatdbSection batchId={7} />);
+        fireEvent.click(screen.getByRole("button", { name: /preview catdb searches/i }));
+
+        const toggle = await screen.findByText(/uncertain \/ blocked vins \(2\)/i);
+        fireEvent.click(toggle);
+
+        expect(await screen.findByText("1HGCM82633A000001")).toBeInTheDocument();
+        expect(screen.getByText("1HGCM82633A000002")).toBeInTheDocument();
+        expect(screen.getByText(/manual review pending/i)).toBeInTheDocument();
+        expect(screen.getByText(/electric vehicle/i)).toBeInTheDocument();
+    });
+
+    it("filters out reusable/active/no-data/never-searched entries from the uncertain/blocked detail list", async () => {
+        previewOperationsCatdbSearches.mockResolvedValue(preview({
+            entries: [
+                entry({ vin: "V-REUSABLE", category: "COMPLETED_REUSABLE" }),
+                entry({ vin: "V-ACTIVE", category: "ACTIVE_EXISTING_JOB" }),
+                entry({ vin: "V-NODATA", category: "CONCLUSIVE_NO_DATA" }),
+                entry({ vin: "V-NEVERSEARCHED", category: "NEVER_SEARCHED" }),
+                entry({ vin: "V-UNCERTAIN", category: "UNCERTAIN_SUBMISSION" }),
+            ],
+        }));
+        render(<CatdbSection batchId={7} />);
+        fireEvent.click(screen.getByRole("button", { name: /preview catdb searches/i }));
+
+        const toggle = await screen.findByText(/uncertain \/ blocked vins \(1\)/i);
+        fireEvent.click(toggle);
+
+        expect(await screen.findByText("V-UNCERTAIN")).toBeInTheDocument();
+        expect(screen.queryByText("V-REUSABLE")).not.toBeInTheDocument();
+        expect(screen.queryByText("V-ACTIVE")).not.toBeInTheDocument();
+        expect(screen.queryByText("V-NODATA")).not.toBeInTheDocument();
+        expect(screen.queryByText("V-NEVERSEARCHED")).not.toBeInTheDocument();
+    });
+
+    it("caps the rendered detail list at 50 rows and notes how many more exist", async () => {
+        const entries = Array.from({ length: 60 }, (_, i) => entry({ vin: `V${i}`, category: "INELIGIBLE" }));
+        previewOperationsCatdbSearches.mockResolvedValue(preview({ entries }));
+        render(<CatdbSection batchId={7} />);
+        fireEvent.click(screen.getByRole("button", { name: /preview catdb searches/i }));
+
+        const toggle = await screen.findByText(/uncertain \/ blocked vins \(60\)/i);
+        fireEvent.click(toggle);
+
+        expect(await screen.findByText("V0")).toBeInTheDocument();
+        expect(screen.getByText("V49")).toBeInTheDocument();
+        expect(screen.queryByText("V50")).not.toBeInTheDocument();
+        expect(screen.getByText(/\+10 more not shown/i)).toBeInTheDocument();
+    });
+
+    it("never crashes when preview.entries is missing entirely", async () => {
+        const withoutEntries = preview();
+        delete withoutEntries.entries;
+        previewOperationsCatdbSearches.mockResolvedValue(withoutEntries);
+        render(<CatdbSection batchId={7} />);
+        fireEvent.click(screen.getByRole("button", { name: /preview catdb searches/i }));
+
+        expect(await screen.findByText(/quota impact/i)).toBeInTheDocument();
+        expect(screen.queryByText(/uncertain \/ blocked vins/i)).not.toBeInTheDocument();
+    });
+
+    // ─── approval-history refresh behavior (Phase H finding L4 / Phase I-B) ──
+
+    it("refreshes approval history on the page's own poll tick while an approval is IN_PROGRESS, without a second interval", async () => {
+        const { rerender } = render(<CatdbSection batchId={7} refreshKey={0} />);
+        const initialHistoryKey = lastHistoryProps.refreshKey;
+
+        // Simulate what the real CatdbApprovalHistory reports after its
+        // own fetch resolves: one approval still IN_PROGRESS.
+        act(() => { lastHistoryProps.onApprovalsLoaded([{ id: 1, status: "IN_PROGRESS" }]); });
+
+        // The page's own poll tick bumps refreshKey — must propagate
+        // into a fresh approvalRefreshKey for CatdbApprovalHistory.
+        rerender(<CatdbSection batchId={7} refreshKey={1} />);
+        await waitFor(() => expect(lastHistoryProps.refreshKey).not.toBe(initialHistoryKey));
+    });
+
+    it("stops refreshing approval history on further poll ticks once every approval is terminal (COMPLETE)", async () => {
+        const { rerender } = render(<CatdbSection batchId={7} refreshKey={0} />);
+
+        act(() => { lastHistoryProps.onApprovalsLoaded([{ id: 1, status: "COMPLETE" }]); });
+        const settledKey = lastHistoryProps.refreshKey;
+
+        rerender(<CatdbSection batchId={7} refreshKey={1} />);
+        expect(lastHistoryProps.refreshKey).toBe(settledKey);
+
+        rerender(<CatdbSection batchId={7} refreshKey={2} />);
+        expect(lastHistoryProps.refreshKey).toBe(settledKey);
+    });
+
+    it("never keeps polling approval history indefinitely for a NEEDS_RECONCILIATION-only state — it is a stable, manual-action state", async () => {
+        const { rerender } = render(<CatdbSection batchId={7} refreshKey={0} />);
+
+        act(() => { lastHistoryProps.onApprovalsLoaded([{ id: 1, status: "NEEDS_RECONCILIATION", needs_reconciliation: true }]); });
+        const settledKey = lastHistoryProps.refreshKey;
+
+        rerender(<CatdbSection batchId={7} refreshKey={1} />);
+        expect(lastHistoryProps.refreshKey).toBe(settledKey);
+
+        rerender(<CatdbSection batchId={7} refreshKey={2} />);
+        expect(lastHistoryProps.refreshKey).toBe(settledKey);
+    });
+
+    it("never bumps the approval-history refresh key on initial mount, only on a subsequent page refreshKey change", () => {
+        render(<CatdbSection batchId={7} refreshKey={5} />);
+        expect(lastHistoryProps.refreshKey).toBe(0);
+    });
+
+    it("never calls preview, approve, or reconcile automatically as a side effect of the poll-driven approval-history refresh", async () => {
+        const { rerender } = render(<CatdbSection batchId={7} refreshKey={0} />);
+        act(() => { lastHistoryProps.onApprovalsLoaded([{ id: 1, status: "IN_PROGRESS" }]); });
+
+        rerender(<CatdbSection batchId={7} refreshKey={1} />);
+        await waitFor(() => expect(lastHistoryProps.refreshKey).toBe(1));
+
+        expect(previewOperationsCatdbSearches).not.toHaveBeenCalled();
+        expect(reconcileOperationsCatdbResults).not.toHaveBeenCalled();
     });
 });

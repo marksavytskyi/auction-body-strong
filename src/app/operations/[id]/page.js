@@ -144,9 +144,9 @@ export default function OperationsBatchDetailPage() {
 
             <ProcessingProgress batchId={batch.id} refreshKey={refreshKey} />
 
-            <ProcessingControls batch={batch} onBatchUpdated={handleBatchUpdated} />
+            <ProcessingControls batch={batch} refreshKey={refreshKey} onBatchUpdated={handleBatchUpdated} />
 
-            <CatdbSection batchId={batch.id} onBatchDataChanged={() => setRefreshKey((k) => k + 1)} />
+            <CatdbSection batchId={batch.id} refreshKey={refreshKey} onBatchDataChanged={() => setRefreshKey((k) => k + 1)} />
 
             <div>
                 <h2 className="text-sm font-bold text-white/70 uppercase tracking-wide mb-3">Vehicles</h2>

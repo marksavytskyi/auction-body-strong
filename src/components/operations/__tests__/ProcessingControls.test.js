@@ -97,4 +97,35 @@ describe("ProcessingControls", () => {
         expect(await screen.findByText(/processing \(2\/5 done\)/i)).toBeInTheDocument();
         expect(getOperationsBatchProgress).not.toHaveBeenCalled();
     });
+
+    // ─── Phase H/I-B: progress must not go stale during polling ─────────
+
+    it("refetches progress when refreshKey changes, staying in sync with the page's own poll tick (no second interval)", async () => {
+        getOperationsBatchProgress.mockResolvedValueOnce({
+            ...baseProgress,
+            parts: { ...emptyLeg, processing_count: 8, done_count: 2, total: 10 },
+        });
+        const { rerender } = render(<ProcessingControls batch={baseBatch} refreshKey={0} onBatchUpdated={vi.fn()} />);
+        expect(await screen.findByText(/processing \(2\/10 done\)/i)).toBeInTheDocument();
+        expect(getOperationsBatchProgress).toHaveBeenCalledTimes(1);
+
+        getOperationsBatchProgress.mockResolvedValueOnce({
+            ...baseProgress,
+            parts: { ...emptyLeg, done_count: 10, total: 10 },
+        });
+        rerender(<ProcessingControls batch={baseBatch} refreshKey={1} onBatchUpdated={vi.fn()} />);
+
+        expect(await screen.findByText(/done \(10\/10\)/i)).toBeInTheDocument();
+        expect(getOperationsBatchProgress).toHaveBeenCalledTimes(2);
+        expect(screen.queryByText(/processing \(2\/10 done\)/i)).not.toBeInTheDocument();
+    });
+
+    it("never refetches on a refreshKey change when a progress prop already controls it", async () => {
+        const progress = { ...baseProgress, parts: { ...emptyLeg, processing_count: 4, done_count: 4, total: 10 } };
+        const { rerender } = render(<ProcessingControls batch={baseBatch} progress={progress} refreshKey={0} onBatchUpdated={vi.fn()} />);
+        expect(await screen.findByText(/processing \(4\/10 done\)/i)).toBeInTheDocument();
+
+        rerender(<ProcessingControls batch={baseBatch} progress={progress} refreshKey={1} onBatchUpdated={vi.fn()} />);
+        expect(getOperationsBatchProgress).not.toHaveBeenCalled();
+    });
 });

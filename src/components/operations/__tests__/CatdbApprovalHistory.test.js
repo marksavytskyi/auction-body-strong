@@ -85,4 +85,23 @@ describe("CatdbApprovalHistory", () => {
         rerender(<CatdbApprovalHistory batchId={7} refreshKey={1} />);
         await waitFor(() => expect(listOperationsCatdbApprovals).toHaveBeenCalledTimes(2));
     });
+
+    it("reports the freshly-loaded items to onApprovalsLoaded after every successful fetch, so the parent can gate further polling", async () => {
+        const onApprovalsLoaded = vi.fn();
+        listOperationsCatdbApprovals.mockResolvedValue({
+            items: [approval({ id: 9, status: "IN_PROGRESS" })], total: 1, limit: 10, offset: 0,
+        });
+        render(<CatdbApprovalHistory batchId={7} refreshKey={0} onApprovalsLoaded={onApprovalsLoaded} />);
+
+        await waitFor(() => expect(onApprovalsLoaded).toHaveBeenCalledWith([expect.objectContaining({ id: 9, status: "IN_PROGRESS" })]));
+    });
+
+    it("never calls onApprovalsLoaded on a failed fetch", async () => {
+        const onApprovalsLoaded = vi.fn();
+        listOperationsCatdbApprovals.mockRejectedValue(new Error("boom"));
+        render(<CatdbApprovalHistory batchId={7} refreshKey={0} onApprovalsLoaded={onApprovalsLoaded} />);
+
+        await screen.findByText(/retry/i);
+        expect(onApprovalsLoaded).not.toHaveBeenCalled();
+    });
 });

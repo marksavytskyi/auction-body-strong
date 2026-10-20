@@ -18,7 +18,7 @@ const PAGE_SIZE = 10;
 // or statuses are invented or inferred client-side. The new/reused/
 // active/blocked/ineligible/quota-exhausted counts are shown
 // individually rather than summed into one invented "total" figure.
-export default function CatdbApprovalHistory({ batchId, refreshKey }) {
+export default function CatdbApprovalHistory({ batchId, refreshKey, onApprovalsLoaded }) {
     const [page, setPage] = useState(0);
     const [items, setItems] = useState(null);
     const [total, setTotal] = useState(0);
@@ -30,15 +30,21 @@ export default function CatdbApprovalHistory({ batchId, refreshKey }) {
         setError("");
         try {
             const data = await listOperationsCatdbApprovals(batchId, { limit: PAGE_SIZE, offset: page * PAGE_SIZE });
-            setItems(Array.isArray(data?.items) ? data.items : []);
+            const loadedItems = Array.isArray(data?.items) ? data.items : [];
+            setItems(loadedItems);
             setTotal(data?.total ?? 0);
+            // Lets the parent (CatdbSection) decide whether to keep
+            // refreshing this list on the page's own poll tick — see
+            // that component's own docstring on why NEEDS_RECONCILIATION
+            // alone must never keep that poll going indefinitely.
+            onApprovalsLoaded?.(loadedItems);
         } catch (e) {
             setError(e instanceof CatalyticApiError ? e.message : "Failed to load CatDB approval history");
             setItems(null);
         } finally {
             setLoading(false);
         }
-    }, [batchId, page]);
+    }, [batchId, page, onApprovalsLoaded]);
 
     useEffect(() => { load(); }, [load, refreshKey]);
 

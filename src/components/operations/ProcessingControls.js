@@ -44,7 +44,7 @@ function LegCard({ icon: Icon, title, description, enabled, busy, onStart, child
     );
 }
 
-export default function ProcessingControls({ batch, progress, onBatchUpdated }) {
+export default function ProcessingControls({ batch, progress, refreshKey, onBatchUpdated }) {
     const [busyLeg, setBusyLeg] = useState(null);
     const [ownProgress, setOwnProgress] = useState(progress || null);
 
@@ -52,6 +52,17 @@ export default function ProcessingControls({ batch, progress, onBatchUpdated }) 
     // it (avoids a duplicate request), or fetched here directly when no
     // `progress` prop is given — this component must never show fabricated
     // status if left to run standalone.
+    //
+    // Phase H/I-B: `refreshKey` is included here so this refetches in
+    // lockstep with the page's own poll tick, exactly like
+    // ProcessingProgress below it — previously this effect depended only
+    // on `[progress, loadProgress]`, both stable across every poll tick
+    // (the page never passed a `progress` prop, and loadProgress is
+    // memoized on batch.id alone), so this summary fetched once on mount
+    // and never again while the batch kept processing, going stale next
+    // to ProcessingProgress's own live view of the exact same data. This
+    // reuses the page's EXISTING refreshKey/poll cadence — no second
+    // interval is ever created here.
     const loadProgress = useCallback(async () => {
         try {
             const data = await getOperationsBatchProgress(batch.id);
@@ -65,7 +76,7 @@ export default function ProcessingControls({ batch, progress, onBatchUpdated }) 
     useEffect(() => {
         if (progress) { setOwnProgress(progress); return; }
         loadProgress();
-    }, [progress, loadProgress]);
+    }, [progress, loadProgress, refreshKey]);
 
     const effectiveProgress = progress || ownProgress;
 
