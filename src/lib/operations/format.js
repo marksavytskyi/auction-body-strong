@@ -102,6 +102,21 @@ export function deriveWeightStatus(vehicle) {
 // return. `leg` is one of a GET .../progress response's parts/ourdb/weight
 // objects (not_requested_count/queued_count/processing_count/done_count/
 // failed_count/no_data_count/total).
+// Phase K.9 — the one real "is this leg still working" signal, shared by
+// the page's poll loop (decides whether to keep polling and when to fire
+// a completion notification) and ProcessingControls (decides whether to
+// disable a Start button while its own leg is running). Never derived
+// from OperationsBatch.status — that field is Parts-only (set by
+// app.operations.parts's claim/reconcile functions alone; OurDB and
+// Weight never touch it), so it can never tell us whether OurDB or
+// Weight is still active. queued_count/processing_count are the only
+// backend-computed counts that are true for every one of the three legs
+// while real work remains outstanding.
+export function isLegActive(leg) {
+    if (!leg) return false;
+    return (leg.queued_count ?? 0) > 0 || (leg.processing_count ?? 0) > 0;
+}
+
 export function summarizeLegProgress(leg) {
     if (!leg || !leg.total) return { label: "No vehicles", tone: "neutral" };
     const { total, not_requested_count = 0, queued_count = 0, processing_count = 0, done_count = 0, failed_count = 0, no_data_count = 0 } = leg;

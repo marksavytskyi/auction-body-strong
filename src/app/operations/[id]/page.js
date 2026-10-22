@@ -2,12 +2,13 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import { Loader2, Boxes, ArrowLeft, RefreshCw, AlertTriangle } from "lucide-react";
 
-import { getOperationsBatch } from "@/lib/operations/api";
+import { getOperationsBatch, getOperationsBatchProgress } from "@/lib/operations/api";
 import { CatalyticApiError } from "@/lib/catalytic/http";
-import { BATCH_STATUS, BATCH_STATUS_TONE } from "@/lib/operations/constants";
-import { formatDate } from "@/lib/operations/format";
+import { BATCH_STATUS_TONE, PROGRESS_LEG_LABEL } from "@/lib/operations/constants";
+import { formatDate, isLegActive } from "@/lib/operations/format";
 import StatusPill from "@/components/catalytic/StatusPill";
 import ProcessingControls from "@/components/operations/ProcessingControls";
 import FinancialSummaryCards from "@/components/operations/FinancialSummaryCards";
@@ -17,7 +18,8 @@ import CatdbSection from "@/components/operations/CatdbSection";
 import VehicleTable from "@/components/operations/VehicleTable";
 import VehicleDetailModal from "@/components/operations/VehicleDetailModal";
 
-const POLL_MS = 5000;
+const POLL_MS = 4000;
+const EMPTY_LEG_ACTIVE = { parts: false, ourdb: false, weight: false };
 
 export default function OperationsBatchDetailPage() {
     const params = useParams();
@@ -30,8 +32,16 @@ export default function OperationsBatchDetailPage() {
     const [refreshKey, setRefreshKey] = useState(0);
     const [selectedVehicle, setSelectedVehicle] = useState(null);
 
+    // pollRef holds the pending setTimeout handle; pollingRef is the
+    // single source of truth for "is a poll chain currently running" —
+    // every entry point (mount, a Start click, manual refresh) goes
+    // through ensurePolling(), which is a no-op if pollingRef is already
+    // true, so this page can never end up with two concurrent timer
+    // chains racing each other.
     const pollRef = useRef(null);
+    const pollingRef = useRef(false);
     const mountedRef = useRef(true);
+    const legActiveRef = useRef(EMPTY_LEG_ACTIVE);
 
     const load = useCallback(async () => {
         try {
@@ -49,54 +59,91 @@ export default function OperationsBatchDetailPage() {
         }
     }, [batchId]);
 
-    // Controlled polling: only while the batch is actively PROCESSING,
-    // stopped the instant it leaves that state, stopped on unmount, and
-    // never more than one request in flight at a time (setTimeout
-    // re-armed only after the previous call resolves — never setInterval
-    // stacking requests under load).
+    // Single shared poll tick: fetches the batch AND its real per-leg
+    // progress together, then ALWAYS bumps refreshKey — including on the
+    // very tick that discovers a leg just finished. That "always" is the
+    // actual fix: the previous version only bumped refreshKey while a
+    // leg was STILL processing, so the tick that detected completion
+    // updated `batch` but never told ProcessingProgress/FinancialSummary
+    // Cards/VehicleTable to refetch — only a full page reload (a fresh
+    // mount) ever showed the finished result.
+    //
+    // Whether to schedule another tick is decided from the real per-leg
+    // progress counts (isLegActive), never from OperationsBatch.status —
+    // that field only ever reflects Parts (see app/operations/parts.py);
+    // OurDB and Weight each run and finish independently without ever
+    // touching it, so a status-only check could never have polled for
+    // them in the first place, regardless of this bug.
+    const tick = useCallback(async () => {
+        const [batchData, progressData] = await Promise.all([
+            load(),
+            getOperationsBatchProgress(batchId).catch(() => null),
+        ]);
+        if (!mountedRef.current) { pollingRef.current = false; return; }
+
+        setRefreshKey((k) => k + 1);
+
+        const nowActive = {
+            parts: isLegActive(progressData?.parts),
+            ourdb: isLegActive(progressData?.ourdb),
+            weight: isLegActive(progressData?.weight),
+        };
+        for (const legKey of Object.keys(nowActive)) {
+            if (legActiveRef.current[legKey] && !nowActive[legKey]) {
+                const leg = progressData?.[legKey];
+                const legLabel = PROGRESS_LEG_LABEL[legKey] || legKey;
+                const failedCount = leg?.failed_count || 0;
+                if (failedCount > 0) {
+                    toast.error(`${legLabel} analysis finished — ${failedCount} vehicle(s) failed`);
+                } else {
+                    toast.success(`${legLabel} analysis completed — ${leg?.done_count ?? leg?.total ?? 0} vehicles processed`);
+                }
+            }
+        }
+        legActiveRef.current = nowActive;
+
+        if ((nowActive.parts || nowActive.ourdb || nowActive.weight) && mountedRef.current) {
+            pollRef.current = setTimeout(tick, POLL_MS);
+        } else {
+            pollRef.current = null;
+            pollingRef.current = false;
+        }
+        return batchData;
+    }, [batchId, load]);
+
+    const ensurePolling = useCallback(() => {
+        if (pollingRef.current) return;
+        pollingRef.current = true;
+        tick();
+    }, [tick]);
+
     useEffect(() => {
         mountedRef.current = true;
-        let cancelled = false;
-
-        const tick = async () => {
-            const data = await load();
-            if (cancelled) return;
-            if (data?.status === BATCH_STATUS.PROCESSING) {
-                // Refresh financial summary/progress/vehicle table in
-                // lockstep with the batch poll itself — one shared cadence,
-                // never a second independent timer.
-                setRefreshKey((k) => k + 1);
-                pollRef.current = setTimeout(tick, POLL_MS);
-            }
-        };
-        tick();
-
+        ensurePolling();
         return () => {
-            cancelled = true;
             mountedRef.current = false;
+            pollingRef.current = false;
             if (pollRef.current) clearTimeout(pollRef.current);
         };
-    }, [load]);
+    }, [ensurePolling]);
 
-    const handleBatchUpdated = (updated) => {
+    // Called with the batch the /parts|ourdb|weight/start endpoint just
+    // returned, and which leg was started. Marking that leg active in
+    // legActiveRef BEFORE the next tick runs is what lets a genuinely
+    // fast backend completion (done before the first poll even fires)
+    // still show its completion notification, instead of looking like it
+    // was "always done" and never actually transitioned.
+    const handleBatchUpdated = (updated, startedLeg) => {
         setBatch(updated);
+        if (startedLeg) legActiveRef.current = { ...legActiveRef.current, [startedLeg]: true };
         setRefreshKey((k) => k + 1);
-        if (updated?.status === BATCH_STATUS.PROCESSING && !pollRef.current) {
-            pollRef.current = setTimeout(async function tick() {
-                const data = await load();
-                if (data?.status === BATCH_STATUS.PROCESSING && mountedRef.current) {
-                    setRefreshKey((k) => k + 1);
-                    pollRef.current = setTimeout(tick, POLL_MS);
-                } else {
-                    pollRef.current = null;
-                }
-            }, POLL_MS);
-        }
+        ensurePolling();
     };
 
     const handleManualRefresh = () => {
         load();
         setRefreshKey((k) => k + 1);
+        ensurePolling();
     };
 
     if (loading) {

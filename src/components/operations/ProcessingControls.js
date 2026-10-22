@@ -8,7 +8,7 @@ import { startOperationsParts, startOperationsOurDb, startOperationsWeight, getO
 import { CatalyticApiError } from "@/lib/catalytic/http";
 import { Button } from "@/components/ui/button";
 import StatusPill from "@/components/catalytic/StatusPill";
-import { summarizeLegProgress } from "@/lib/operations/format";
+import { summarizeLegProgress, isLegActive } from "@/lib/operations/format";
 
 // Three independent, explicitly-invoked processing legs — never chained
 // or auto-triggered (see spec Section 8). None of these ever touches
@@ -85,7 +85,10 @@ export default function ProcessingControls({ batch, progress, refreshKey, onBatc
         try {
             const updated = await fn(batch.id);
             toast.success(`${label} started`);
-            onBatchUpdated?.(updated);
+            // Phase K.9 — tells the page which leg just started so its
+            // poll loop can mark it active immediately, before the next
+            // tick even runs (see page.js's own handleBatchUpdated).
+            onBatchUpdated?.(updated, leg);
             if (!progress) loadProgress();
         } catch (e) {
             toast.error(e instanceof CatalyticApiError ? e.message : `Failed to start ${label}`);
@@ -105,7 +108,7 @@ export default function ProcessingControls({ batch, progress, refreshKey, onBatc
                 icon={Wrench}
                 title="Parts Analysis"
                 description="Engine & transmission pricing"
-                enabled={batch.run_parts}
+                enabled={batch.run_parts && !isLegActive(effectiveProgress?.parts)}
                 busy={busyLeg === "parts"}
                 onStart={() => run("parts", startOperationsParts, "Parts analysis")}
             >
@@ -119,7 +122,7 @@ export default function ProcessingControls({ batch, progress, refreshKey, onBatc
                 icon={Database}
                 title="Our Database Analysis"
                 description="Catalytic converter lookup (never a paid CatDB search)"
-                enabled={batch.run_ourdb}
+                enabled={batch.run_ourdb && !isLegActive(effectiveProgress?.ourdb)}
                 busy={busyLeg === "ourdb"}
                 onStart={() => run("ourdb", startOperationsOurDb, "Our Database analysis")}
             >
@@ -133,7 +136,7 @@ export default function ProcessingControls({ batch, progress, refreshKey, onBatc
                 icon={Gauge}
                 title="Weight Analysis"
                 description="NHTSA curb weight lookup"
-                enabled={batch.run_weight}
+                enabled={batch.run_weight && !isLegActive(effectiveProgress?.weight)}
                 busy={busyLeg === "weight"}
                 onStart={() => run("weight", startOperationsWeight, "Weight analysis")}
             >

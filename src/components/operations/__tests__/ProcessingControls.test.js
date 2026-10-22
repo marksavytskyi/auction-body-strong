@@ -128,4 +128,29 @@ describe("ProcessingControls", () => {
         rerender(<ProcessingControls batch={baseBatch} progress={progress} refreshKey={1} onBatchUpdated={vi.fn()} />);
         expect(getOperationsBatchProgress).not.toHaveBeenCalled();
     });
+
+    // ─── Phase K.9: Start stays disabled while genuinely running ────────
+
+    it("disables Start for a leg that is actively queued or processing, even though the batch allows it", async () => {
+        const progress = { ...baseProgress, parts: { ...emptyLeg, processing_count: 3, done_count: 2, total: 5 } };
+        render(<ProcessingControls batch={baseBatch} progress={progress} onBatchUpdated={vi.fn()} />);
+        const buttons = await screen.findAllByRole("button", { name: /^start$/i });
+        expect(buttons[0]).toBeDisabled(); // Parts
+        expect(buttons[1]).not.toBeDisabled(); // OurDB — untouched by Parts' own activity
+    });
+
+    it("re-enables Start (allowing a rerun) once a DONE/FAILED leg is no longer active", async () => {
+        const progress = { ...baseProgress, parts: { ...emptyLeg, done_count: 5, total: 5 } };
+        render(<ProcessingControls batch={baseBatch} progress={progress} onBatchUpdated={vi.fn()} />);
+        const buttons = await screen.findAllByRole("button", { name: /^start$/i });
+        expect(buttons[0]).not.toBeDisabled();
+    });
+
+    it("tells the parent which leg was started, so its poll loop can mark it active immediately", async () => {
+        startOperationsParts.mockResolvedValue({ id: 1, status: "PROCESSING" });
+        const onBatchUpdated = vi.fn();
+        render(<ProcessingControls batch={baseBatch} progress={baseProgress} onBatchUpdated={onBatchUpdated} />);
+        fireEvent.click(screen.getAllByRole("button", { name: /^start$/i })[0]);
+        await waitFor(() => expect(onBatchUpdated).toHaveBeenCalledWith({ id: 1, status: "PROCESSING" }, "parts"));
+    });
 });
