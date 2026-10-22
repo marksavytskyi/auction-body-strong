@@ -85,6 +85,14 @@ export default function FinancialSummaryCards({ batchId, refreshKey }) {
 
     if (!summary) return null;
 
+    // Phase K.10 — present only when the batch has BOTH run_catdb and
+    // run_ourdb selected (see app.operations.services.get_batch_financial_summary_dual).
+    // Shown INSTEAD of the single Complete Recovery Total card — the two
+    // numbers are independent alternatives and must never be added
+    // together or displayed as if one "the" total existed.
+    const isDualSource = summary.catdb_recovery_total !== null && summary.catdb_recovery_total !== undefined
+        && summary.ourdb_recovery_total !== null && summary.ourdb_recovery_total !== undefined;
+
     return (
         <div className="space-y-3">
             <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-white/40 font-bold">
@@ -92,12 +100,29 @@ export default function FinancialSummaryCards({ batchId, refreshKey }) {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-                <MoneyCard
-                    label="Complete Recovery Total"
-                    value={summary.complete_recovery_total}
-                    hint="Sum of fully-estimated vehicles only (Complete / Complete with Estimates)"
-                    emphasis
-                />
+                {isDualSource ? (
+                    <>
+                        <MoneyCard
+                            label="Recovery Total — CatDB"
+                            value={summary.catdb_recovery_total}
+                            hint="Fully-estimated vehicles using the CatDB catalytic value"
+                            emphasis
+                        />
+                        <MoneyCard
+                            label="Recovery Total — Our Database"
+                            value={summary.ourdb_recovery_total}
+                            hint="Fully-estimated vehicles using the Our Database catalytic value — never added to the CatDB total"
+                            emphasis
+                        />
+                    </>
+                ) : (
+                    <MoneyCard
+                        label="Complete Recovery Total"
+                        value={summary.complete_recovery_total}
+                        hint="Sum of fully-estimated vehicles only (Complete / Complete with Estimates)"
+                        emphasis
+                    />
+                )}
                 <MoneyCard
                     label="Partial Known Components Subtotal"
                     value={summary.partial_known_components_subtotal}

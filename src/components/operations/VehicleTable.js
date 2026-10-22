@@ -30,6 +30,15 @@ const COLUMNS = [
     { id: "engine_value", label: "Engine", sortable: false },
     { id: "transmission_value", label: "Transmission", sortable: false },
     { id: "cats_value", label: "Catalytic", sortable: true },
+    // Phase K.10 — the two independent catalytic sources, shown as
+    // their own separate columns (never combined into cats_value above,
+    // which stays whichever one the batch's/vehicle's own precedence or
+    // override selects — see app.operations.finance.select_cats_value).
+    // Both read directly off the vehicle response regardless of this
+    // batch's run_catdb/run_ourdb selection, so a null cell here always
+    // just means "no result for this source", never "hidden".
+    { id: "catdb_total_price", label: "CatDB VIN Price", sortable: false },
+    { id: "ourdb_total_expected", label: "Our Database Price", sortable: false },
     { id: "scrap_value", label: "Scrap", sortable: true },
     // Two distinct, separately-sortable columns — never one combined
     // "Total / Known" column. complete_recovery_total and
@@ -211,6 +220,8 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(fin.engine_value)}</td>
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(fin.transmission_value)}</td>
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(fin.cats_value)}</td>
+                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(v.catdb_total_price)}</td>
+                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(v.ourdb_total_expected)}</td>
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(fin.scrap_value)}</td>
                                             <td className="px-3 py-2 border-b border-white/5 whitespace-nowrap">
                                                 <span className={fin.total_expected_recovery != null ? "text-emerald-300 font-bold" : "text-white/30"}>

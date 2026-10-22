@@ -33,6 +33,21 @@ function summary(overrides = {}) {
 describe("FinancialSummaryCards", () => {
     beforeEach(() => { getOperationsBatchFinancialSummary.mockReset(); });
 
+    it("shows two separate alternative recovery totals for a dual-source batch, never combined", async () => {
+        getOperationsBatchFinancialSummary.mockResolvedValue(summary({
+            catdb_recovery_total: "950.00", ourdb_recovery_total: "820.00",
+        }));
+        render(<FinancialSummaryCards batchId={7} refreshKey={0} />);
+
+        expect(await screen.findByText(/recovery total.*catdb/i)).toBeInTheDocument();
+        expect(await screen.findByText(/recovery total.*our database/i)).toBeInTheDocument();
+        expect(screen.getByText("$950.00")).toBeInTheDocument();
+        expect(screen.getByText("$820.00")).toBeInTheDocument();
+        // The single-source "Complete Recovery Total" label must not
+        // appear alongside the dual-source cards.
+        expect(screen.queryByText(/^complete recovery total$/i)).not.toBeInTheDocument();
+    });
+
     it("renders Complete Recovery Total and Partial Known Components Subtotal as two separate figures, never combined", async () => {
         getOperationsBatchFinancialSummary.mockResolvedValue(summary());
         render(<FinancialSummaryCards batchId={7} refreshKey={0} />);

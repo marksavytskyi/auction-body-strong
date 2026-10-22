@@ -63,4 +63,52 @@ describe("UploadBatchFlow", () => {
         await waitFor(() => expect(toastError).toHaveBeenCalled());
         expect(uploadOperationsBatch).not.toHaveBeenCalled();
     });
+
+    // ─── Phase K.10: catalytic source checkboxes ────────────────────────
+
+    it("defaults to CatDB checked and Our Database unchecked, and sends that selection", async () => {
+        uploadOperationsBatch.mockResolvedValue({ id: 1, total_vehicles: 1 });
+        render(<UploadBatchFlow onUploaded={vi.fn()} />);
+
+        expect(screen.getByLabelText(/catdb vin search/i)).toBeChecked();
+        expect(screen.getByLabelText(/our database/i)).not.toBeChecked();
+
+        const input = document.querySelector('input[type="file"]');
+        fireEvent.change(input, { target: { files: [makeFile()] } });
+        await screen.findByText("batch.csv");
+        fireEvent.click(screen.getByRole("button", { name: /upload/i }));
+
+        await waitFor(() => expect(uploadOperationsBatch).toHaveBeenCalledWith(
+            expect.anything(), { runCatdb: true, runOurdb: false },
+        ));
+    });
+
+    it("allows selecting both sources and sends both as true", async () => {
+        uploadOperationsBatch.mockResolvedValue({ id: 1, total_vehicles: 1 });
+        render(<UploadBatchFlow onUploaded={vi.fn()} />);
+
+        fireEvent.click(screen.getByLabelText(/our database/i));
+        expect(screen.getByLabelText(/catdb vin search/i)).toBeChecked();
+        expect(screen.getByLabelText(/our database/i)).toBeChecked();
+
+        const input = document.querySelector('input[type="file"]');
+        fireEvent.change(input, { target: { files: [makeFile()] } });
+        await screen.findByText("batch.csv");
+        fireEvent.click(screen.getByRole("button", { name: /upload/i }));
+
+        await waitFor(() => expect(uploadOperationsBatch).toHaveBeenCalledWith(
+            expect.anything(), { runCatdb: true, runOurdb: true },
+        ));
+    });
+
+    it("never allows unchecking the last remaining catalytic source", async () => {
+        render(<UploadBatchFlow onUploaded={vi.fn()} />);
+        // CatDB is checked by default, OurDB unchecked -- unchecking CatDB
+        // (the only one checked) must flip OurDB on instead of leaving
+        // neither selected.
+        fireEvent.click(screen.getByLabelText(/catdb vin search/i));
+        expect(screen.getByLabelText(/our database/i)).toBeChecked();
+        expect(screen.getByLabelText(/catdb vin search/i)).not.toBeChecked();
+        expect(screen.queryByText(/at least one catalytic source/i)).not.toBeInTheDocument();
+    });
 });

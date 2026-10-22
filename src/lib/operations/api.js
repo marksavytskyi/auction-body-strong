@@ -25,6 +25,8 @@ export function uploadOperationsBatch(file, options = {}) {
     if (options.defaultScrapPercentage !== undefined) params.default_scrap_percentage = options.defaultScrapPercentage;
     if (options.defaultScrapRateUsdPerLb !== undefined) params.default_scrap_rate_usd_per_lb = options.defaultScrapRateUsdPerLb;
     if (options.defaultCatsSourcePolicy !== undefined) params.default_cats_source_policy = options.defaultCatsSourcePolicy;
+    if (options.runCatdb !== undefined) params.run_catdb = options.runCatdb;
+    if (options.runOurdb !== undefined) params.run_ourdb = options.runOurdb;
     return request(
         () => axiosInstance.post(`${BASE}/batches`, form, { headers: { "Content-Type": "multipart/form-data" }, params }),
         "Failed to upload Operations batch CSV"

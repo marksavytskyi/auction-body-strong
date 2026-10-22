@@ -13,11 +13,29 @@ const MAX_MB = 25;
 const MAX_BYTES = MAX_MB * 1024 * 1024;
 
 // Upload only — never parses the CSV itself (the backend is the sole
-// source of truth for every row), and never triggers Parts/OurDB/Weight
-// automatically after a successful upload (see spec Section 6/8).
+// source of truth for every row). Parts/Weight stay manual (existing
+// Start buttons, unchanged) — Phase K.10: the two catalytic sources
+// below DO auto-start right after a successful upload, driven entirely
+// by the backend (app.operations.router.upload_batch), never by a
+// second client-side call here.
 export default function UploadBatchFlow({ onUploaded }) {
     const [file, setFile] = useState(null);
     const [uploading, setUploading] = useState(false);
+    // Phase K.10 — defaults match the spec exactly: CatDB checked,
+    // Our Database unchecked. At least one must stay checked; unchecking
+    // the only remaining one re-checks the other rather than allowing
+    // an invalid "neither" state the backend would reject anyway.
+    const [runCatdb, setRunCatdb] = useState(true);
+    const [runOurdb, setRunOurdb] = useState(false);
+
+    const toggleCatdb = (checked) => {
+        if (!checked && !runOurdb) { setRunOurdb(true); setRunCatdb(false); return; }
+        setRunCatdb(checked);
+    };
+    const toggleOurdb = (checked) => {
+        if (!checked && !runCatdb) { setRunCatdb(true); setRunOurdb(false); return; }
+        setRunOurdb(checked);
+    };
 
     const onDrop = useCallback((accepted, rejected) => {
         if (rejected?.length) {
@@ -51,7 +69,7 @@ export default function UploadBatchFlow({ onUploaded }) {
         setUploading(true);
         const t = toast.loading("Uploading batch…");
         try {
-            const batch = await uploadOperationsBatch(file);
+            const batch = await uploadOperationsBatch(file, { runCatdb, runOurdb });
             toast.success(`Batch #${batch.id} created — ${batch.total_vehicles ?? 0} vehicles`, { id: t });
             setFile(null);
             onUploaded?.(batch);
@@ -89,13 +107,41 @@ export default function UploadBatchFlow({ onUploaded }) {
                     <Button
                         type="button"
                         className="rounded-xl"
-                        disabled={!file || uploading}
+                        disabled={!file || uploading || (!runCatdb && !runOurdb)}
                         onClick={(e) => { e.stopPropagation(); handleUpload(); }}
                     >
                         {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
                         Upload
                     </Button>
                 </div>
+            </div>
+
+            <div
+                className="mt-4 flex flex-wrap items-center gap-4 border-t border-white/10 pt-3"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <span className="text-[11px] uppercase tracking-wider text-white/40 font-bold">Catalytic sources</span>
+                <label className="inline-flex items-center gap-1.5 text-xs text-white/70 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={runCatdb}
+                        onChange={(e) => toggleCatdb(e.target.checked)}
+                        className="rounded border-white/20 bg-black/40"
+                    />
+                    CatDB VIN Search
+                </label>
+                <label className="inline-flex items-center gap-1.5 text-xs text-white/70 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={runOurdb}
+                        onChange={(e) => toggleOurdb(e.target.checked)}
+                        className="rounded border-white/20 bg-black/40"
+                    />
+                    Our Database
+                </label>
+                {!runCatdb && !runOurdb && (
+                    <span className="text-[11px] text-rose-300">At least one catalytic source must be selected.</span>
+                )}
             </div>
         </div>
     );
