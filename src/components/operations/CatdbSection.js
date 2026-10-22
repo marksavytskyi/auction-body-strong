@@ -10,6 +10,7 @@ import { formatDate } from "@/lib/operations/format";
 import {
     CATDB_VIN_CATEGORY, CATDB_VIN_CATEGORY_LABEL, CATDB_VIN_CATEGORY_TONE,
     CATDB_QUOTA_RECONCILIATION_STATUS, CATDB_APPROVAL_STATUS,
+    OPERATIONS_CATDB_DISABLED_ERROR_CODE,
 } from "@/lib/operations/constants";
 import { Button } from "@/components/ui/button";
 import StatusPill from "@/components/catalytic/StatusPill";
@@ -176,7 +177,11 @@ export default function CatdbSection({ batchId, refreshKey, onBatchDataChanged }
                 <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-medium flex items-start gap-2">
                     {previewErrorStatus === 503 ? <ShieldOff className="h-4 w-4 shrink-0 mt-0.5" /> : <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />}
                     <span>
-                        {previewErrorStatus === 503 ? (
+                        {previewErrorStatus === 503 && previewError.startsWith(OPERATIONS_CATDB_DISABLED_ERROR_CODE) ? (
+                            <>
+                                <strong>CatDB paid search is not enabled on this server.</strong> Ask an administrator to enable it before previewing or approving new searches.
+                            </>
+                        ) : previewErrorStatus === 503 ? (
                             <>
                                 <strong>Quota status unknown — blocked.</strong> {previewError}
                             </>

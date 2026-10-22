@@ -229,3 +229,10 @@ export const CATDB_QUOTA_RECONCILIATION_STATUS = {
     RECONCILED: "RECONCILED",
     PENDING: "PENDING",
 };
+
+// Phase K.5 — app.operations.catdb_approval.OPERATIONS_CATDB_DISABLED_ERROR_CODE's
+// own value, prefixed onto that error's message (see its docstring) so a
+// 503 caused by the server-side OPERATIONS_CATDB_ENABLED flag being off
+// can be told apart from a 503 caused by quota exhaustion/misconfiguration
+// (QuotaUnavailableError) — same HTTP status, different real cause.
+export const OPERATIONS_CATDB_DISABLED_ERROR_CODE = "OPERATIONS_CATDB_DISABLED";
