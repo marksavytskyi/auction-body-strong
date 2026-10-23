@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Boxes, ArrowRight, RefreshCw, AlertTriangle } from "lucide-react";
+import { Loader2, Boxes, ArrowRight, RefreshCw, AlertTriangle, Settings2 } from "lucide-react";
 
 import { listOperationsBatches } from "@/lib/operations/api";
 import { CatalyticApiError } from "@/lib/catalytic/http";
@@ -73,9 +73,17 @@ export default function OperationsOverviewPage() {
                     </h1>
                     <p className="text-xs text-white/40 mt-1">Upload a Copart CSV to create a batch, then run vehicle analysis.</p>
                 </div>
-                <button type="button" onClick={load} className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white self-start" title="Refresh">
-                    <RefreshCw className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-1 self-start">
+                    <Link
+                        href="/operations/settings/catdb"
+                        className="inline-flex items-center gap-1.5 px-3 h-9 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-xs font-bold uppercase tracking-wide"
+                    >
+                        <Settings2 className="h-3.5 w-3.5" /> CatDB Devices &amp; Subscriptions
+                    </Link>
+                    <button type="button" onClick={load} className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white" title="Refresh">
+                        <RefreshCw className="h-4 w-4" />
+                    </button>
+                </div>
             </div>
 
             <UploadBatchFlow onUploaded={(batch) => router.push(`/operations/${batch.id}`)} />

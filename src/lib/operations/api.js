@@ -259,3 +259,99 @@ export function reconcileOperationsCatdbResults(batchId) {
         "Failed to reconcile CatDB results"
     );
 }
+
+// ─── CatDB subscription & device management — Phase K.11 ───────────────
+// Matches app/operations/catdb_subscription_schemas.py and
+// app/operations/router.py's own "CatDB subscription & device
+// management" section exactly. OWNER/ADMIN only — enforced server-side;
+// this client never decides authorization itself.
+
+export function listOperationsCatdbSubscriptions() {
+    return request(
+        () => axiosInstance.get(`${BASE}/catdb/subscriptions`),
+        "Failed to load CatDB subscriptions"
+    );
+}
+
+export function createOperationsCatdbSubscription({ displayName, accountEmail, resetDay, monthlyLimit }) {
+    return request(
+        () => axiosInstance.post(`${BASE}/catdb/subscriptions`, {
+            display_name: displayName, account_email: accountEmail, reset_day: resetDay, monthly_limit: monthlyLimit,
+        }),
+        "Failed to create CatDB subscription"
+    );
+}
+
+export function updateOperationsCatdbSubscription(subscriptionId, { displayName, accountEmail, resetDay, monthlyLimit, enabled } = {}) {
+    const body = {};
+    if (displayName !== undefined) body.display_name = displayName;
+    if (accountEmail !== undefined) body.account_email = accountEmail;
+    if (resetDay !== undefined) body.reset_day = resetDay;
+    if (monthlyLimit !== undefined) body.monthly_limit = monthlyLimit;
+    if (enabled !== undefined) body.enabled = enabled;
+    return request(
+        () => axiosInstance.patch(`${BASE}/catdb/subscriptions/${encodeURIComponent(subscriptionId)}`, body),
+        "Failed to update CatDB subscription"
+    );
+}
+
+export function listOperationsCatdbBalanceAdjustments(subscriptionId) {
+    return request(
+        () => axiosInstance.get(`${BASE}/catdb/subscriptions/${encodeURIComponent(subscriptionId)}/adjustments`),
+        "Failed to load CatDB balance adjustment history"
+    );
+}
+
+// Section 3's own "Adjust Search Balance" action — the admin supplies
+// the actual remaining searches on the real external account, and the
+// backend computes and records whatever adjustment is required against
+// existing usage/reservations (app.operations.catdb_subscriptions.
+// adjust_search_balance). Never overwrites immutable search history.
+export function adjustOperationsCatdbSearchBalance(subscriptionId, { actualRemaining, reason }) {
+    return request(
+        () => axiosInstance.post(`${BASE}/catdb/subscriptions/${encodeURIComponent(subscriptionId)}/adjust-balance`, {
+            actual_remaining: actualRemaining, reason,
+        }),
+        "Failed to adjust CatDB search balance"
+    );
+}
+
+export function listOperationsCatdbSubscriptionRenewals(subscriptionId) {
+    return request(
+        () => axiosInstance.get(`${BASE}/catdb/subscriptions/${encodeURIComponent(subscriptionId)}/renewals`),
+        "Failed to load CatDB subscription renewal history"
+    );
+}
+
+// Section 6's own "Confirm Subscription Renewal" action — never assumed
+// automatically just because the reset date arrived (see
+// app.operations.catdb_subscriptions.confirm_subscription_renewal).
+export function confirmOperationsCatdbSubscriptionRenewal(subscriptionId) {
+    return request(
+        () => axiosInstance.post(`${BASE}/catdb/subscriptions/${encodeURIComponent(subscriptionId)}/confirm-renewal`, {}),
+        "Failed to confirm CatDB subscription renewal"
+    );
+}
+
+// Section 2's own admin table — one row per existing CatDB device
+// (Android worker), joined with its assigned subscription's live
+// used/reserved/remaining counts. null fields mean "no subscription
+// assigned" or "not yet reconciled" — never a fabricated 0.
+export function listOperationsCatdbDevices() {
+    return request(
+        () => axiosInstance.get(`${BASE}/catdb/devices`),
+        "Failed to load CatDB devices"
+    );
+}
+
+export function updateOperationsCatdbDevice(deviceId, { displayName, subscriptionId, unassignSubscription, enabled } = {}) {
+    const body = {};
+    if (displayName !== undefined) body.display_name = displayName;
+    if (subscriptionId !== undefined) body.subscription_id = subscriptionId;
+    if (unassignSubscription !== undefined) body.unassign_subscription = unassignSubscription;
+    if (enabled !== undefined) body.enabled = enabled;
+    return request(
+        () => axiosInstance.patch(`${BASE}/catdb/devices/${encodeURIComponent(deviceId)}`, body),
+        "Failed to update CatDB device"
+    );
+}
