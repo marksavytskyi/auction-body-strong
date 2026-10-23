@@ -41,6 +41,7 @@ function subscription(overrides = {}) {
 function device(overrides = {}) {
     return {
         device_id: 10, device_name: "android-1", device_identifier: "pixel-7",
+        device_display_name: "android-1", device_manufacturer: null, device_model: null,
         device_status: "ONLINE", device_enabled: true, last_activity: "2026-10-22T00:00:00",
         subscription_id: 1, subscription_display_name: "Device 1", account_email: "account1@gmail.com",
         subscription_enabled: true, reset_day: 5, monthly_limit: 300,
@@ -74,6 +75,30 @@ describe("CatdbSettingsPage", () => {
         expect(screen.getByText("174")).toBeTruthy();   // remaining
     });
 
+    it("shows the resolved marketing name as the primary device label, with name · model as secondary (Phase K.13)", async () => {
+        listOperationsCatdbDevices.mockResolvedValue({
+            items: [device({
+                device_id: 11, device_name: "phone-01", device_identifier: "729fe8dd (DE2118)",
+                device_display_name: "OnePlus Nord N200 5G", device_manufacturer: "OnePlus", device_model: "DE2118",
+            })],
+        });
+        render(<CatdbSettingsPage />);
+        await flush();
+
+        expect(await screen.findByText("OnePlus Nord N200 5G")).toBeTruthy();
+        expect(screen.getByText("phone-01 · DE2118")).toBeTruthy();
+    });
+
+    it("falls back to the worker's own name when no device model is known yet", async () => {
+        listOperationsCatdbDevices.mockResolvedValue({
+            items: [device({ device_id: 12, device_name: "vm-1", device_display_name: "vm-1", device_manufacturer: null, device_model: null })],
+        });
+        render(<CatdbSettingsPage />);
+        await flush();
+
+        expect((await screen.findAllByText("vm-1")).length).toBeGreaterThan(0);
+    });
+
     it("shows em-dash (never a fabricated 0) for a device with no subscription assigned", async () => {
         listOperationsCatdbDevices.mockResolvedValue({
             items: [device({ device_id: 11, subscription_id: null, account_email: null, searches_used: null, searches_reserved: null, searches_remaining: null, reset_day: null, monthly_limit: null })],
@@ -81,7 +106,7 @@ describe("CatdbSettingsPage", () => {
         render(<CatdbSettingsPage />);
         await flush();
 
-        expect(await screen.findByText("android-1")).toBeTruthy();
+        expect((await screen.findAllByText("android-1")).length).toBeGreaterThan(0);
         // every quota-derived cell for this unassigned device renders "—"
         expect(screen.getAllByText("—").length).toBeGreaterThan(0);
     });

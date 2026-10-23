@@ -430,8 +430,10 @@ function DeviceRow({ device, subscriptions, onChanged }) {
     return (
         <tr className="odd:bg-white/[0.02]">
             <td className="px-3 py-2 border-b border-white/5 whitespace-nowrap">
-                <div className="font-bold text-white/85">{device.device_name}</div>
-                <div className="text-white/35">{device.device_identifier || "—"}</div>
+                <div className="font-bold text-white/85">{device.device_display_name || device.device_name}</div>
+                <div className="text-white/35">
+                    {device.device_name}{device.device_model ? ` · ${device.device_model}` : ""}
+                </div>
             </td>
             <td className="px-3 py-2 border-b border-white/5 whitespace-nowrap">
                 <select
