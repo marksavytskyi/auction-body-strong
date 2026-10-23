@@ -198,4 +198,78 @@ describe("CatdbSettingsPage", () => {
 
         expect(await screen.findByText(/failed to load/i)).toBeTruthy();
     });
+
+    // Regression coverage for the reported bug: every dialog on this
+    // page must escape ANY ancestor that establishes a containing block
+    // for `position: fixed` (a CSS transform, same as framer-motion
+    // leaves on src/app/operations/layout.js's own wrapper) — rendering
+    // in place would otherwise clip/mis-position the modal exactly as
+    // the bug report described. A React Portal to document.body is the
+    // fix; these tests assert the portal actually happened.
+    describe("modal stacking (bug regression)", () => {
+        function renderInsideTransformedClippedAncestor() {
+            // Mirrors the real bug condition: an ancestor with both a
+            // CSS transform (framer-motion's motion.div, which keeps a
+            // `transform` in its inline style even at rest) AND
+            // overflow-hidden (src/app/operations/layout.js's outermost
+            // wrapper) — together these make `position: fixed`
+            // descendants containing-block-relative to THIS element
+            // instead of the viewport, unless the dialog escapes via a
+            // portal.
+            const wrapper = document.createElement("div");
+            wrapper.setAttribute("data-testid", "transformed-clipped-ancestor");
+            wrapper.style.transform = "translateY(0px)";
+            wrapper.style.overflow = "hidden";
+            document.body.appendChild(wrapper);
+            render(<CatdbSettingsPage />, { container: wrapper });
+            return wrapper;
+        }
+
+        it("renders the Adjust Balance dialog's backdrop as a portal outside the transformed/clipped ancestor", async () => {
+            const ancestor = renderInsideTransformedClippedAncestor();
+            await flush();
+
+            fireEvent.click(await screen.findByRole("button", { name: /adjust balance/i }));
+            const backdrop = (await screen.findByText(/adjust search balance/i)).closest(".fixed");
+
+            expect(backdrop).toBeTruthy();
+            expect(ancestor.contains(backdrop)).toBe(false);
+            expect(document.body.contains(backdrop)).toBe(true);
+            expect(backdrop.parentElement).toBe(document.body);
+
+            document.body.removeChild(ancestor);
+        });
+
+        it("renders the Adjustment History dialog's backdrop as a portal outside the transformed/clipped ancestor", async () => {
+            listOperationsCatdbBalanceAdjustments.mockResolvedValue({ items: [] });
+            const ancestor = renderInsideTransformedClippedAncestor();
+            await flush();
+
+            fireEvent.click((await screen.findAllByRole("button"))
+                .find((b) => b.querySelector("svg.lucide-history")) || screen.getByTitle(/adjustment history/i));
+            const backdrop = (await screen.findByText(/adjustment history/i)).closest(".fixed");
+
+            expect(backdrop).toBeTruthy();
+            expect(ancestor.contains(backdrop)).toBe(false);
+            expect(document.body.contains(backdrop)).toBe(true);
+
+            document.body.removeChild(ancestor);
+        });
+
+        it("keeps the Adjust Balance dialog's action buttons reachable (panel scrolls, not clipped) on a short viewport", async () => {
+            render(<CatdbSettingsPage />);
+            await flush();
+
+            fireEvent.click(await screen.findByRole("button", { name: /adjust balance/i }));
+            const recordButton = await screen.findByRole("button", { name: /record adjustment/i });
+            const panel = recordButton.closest(".overflow-y-auto");
+
+            expect(panel).toBeTruthy();
+            expect(panel.className).toMatch(/max-h-\[90vh\]/);
+            // The panel scrolls internally rather than letting the browser
+            // clip it — this is what keeps Save/Cancel reachable
+            // regardless of viewport height.
+            expect(panel.contains(recordButton)).toBe(true);
+        });
+    });
 });

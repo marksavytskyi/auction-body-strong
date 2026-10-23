@@ -14,6 +14,7 @@
 // is ever computed client-side.
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { ArrowLeft, Loader2, Plus, RefreshCw, Settings2, Smartphone, History, X } from "lucide-react";
@@ -47,6 +48,59 @@ function fmtCount(n) {
 
 function apiErrorMessage(e, fallback) {
     return e instanceof CatalyticApiError ? e.message : fallback;
+}
+
+// ─── modal portal ───────────────────────────────────────────────────────
+//
+// Root cause of the "Adjust Search Balance" modal rendering behind/
+// clipped by the CatDB Devices section: this page's dialogs were plain
+// `position: fixed` <div>s rendered IN PLACE in the component tree,
+// nested under src/app/operations/layout.js's `<motion.div ... >{children}
+// </motion.div>` wrapper. Framer Motion keeps a `transform` value in
+// that element's inline style even once its enter animation settles —
+// and per the CSS spec, ANY ancestor with a `transform` (or filter/
+// perspective/contain) becomes the containing block for `position:
+// fixed` descendants instead of the viewport. Combined with
+// `overflow-hidden` on that same layout's outermost div, the dialog's
+// "fixed inset-0" was being sized/clipped against that transformed
+// ancestor's box, not the real viewport — exactly the "modal appears
+// behind page content, lower fields and buttons obscured" symptom.
+//
+// Fix: render every dialog on this page through a React Portal straight
+// onto document.body (same established pattern as
+// src/components/dashboard/TableFullscreenModal.js), which escapes
+// every ancestor stacking/containing-block context unconditionally —
+// no CSS workaround can out-fix a transformed ancestor as reliably.
+function ModalPortal({ children }) {
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => {
+        setMounted(true);
+        return () => setMounted(false);
+    }, []);
+    if (!mounted || typeof document === "undefined") return null;
+    return createPortal(children, document.body);
+}
+
+// Shared backdrop/panel shell for every dialog on this page — centers
+// on desktop, and on short/mobile viewports the PANEL itself scrolls
+// (max-h-[90vh] overflow-y-auto) so Save/Cancel stay reachable without
+// relying on backdrop scroll fighting flex centering.
+function ModalShell({ onClose, widthClassName = "max-w-md", children }) {
+    return (
+        <ModalPortal>
+            <div
+                className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto"
+                onClick={onClose}
+            >
+                <div
+                    className={`${widthClassName} w-full my-8 max-h-[90vh] overflow-y-auto rounded-2xl border border-white/10 bg-[#0b0d12] p-5 space-y-4`}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {children}
+                </div>
+            </div>
+        </ModalPortal>
+    );
 }
 
 // ─── create subscription ────────────────────────────────────────────────
@@ -161,32 +215,30 @@ function AdjustBalanceDialog({ subscription, onClose, onAdjusted }) {
     };
 
     return (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={onClose}>
-            <div className="max-w-md w-full rounded-2xl border border-white/10 bg-[#0b0d12] p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-between">
-                    <div className="text-sm font-bold text-white/90">Adjust Search Balance — {subscription.display_name}</div>
-                    <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 text-white/50"><X className="h-4 w-4" /></button>
-                </div>
-                <p className="text-xs text-white/50">
-                    Enter the ACTUAL remaining searches shown on the real CatDB account dashboard. The backend
-                    computes and records whatever correction is required against what it already knows — it never
-                    overwrites existing search history, and never removes previously-recorded usage.
-                </p>
-                <div className="space-y-1.5">
-                    <Label htmlFor="catdb-adjust-actual-remaining" className="text-[10px] uppercase text-white/40">Actual remaining searches</Label>
-                    <Input id="catdb-adjust-actual-remaining" type="number" min={0} value={actualRemaining} onChange={(e) => setActualRemaining(e.target.value)} className="h-10 rounded-xl bg-white/5 border-white/10" />
-                </div>
-                <div className="space-y-1.5">
-                    <Label htmlFor="catdb-adjust-reason" className="text-[10px] uppercase text-white/40">Reason (required)</Label>
-                    <Input id="catdb-adjust-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reconciled against CatDB account dashboard on 2026-10-22" className="h-10 rounded-xl bg-white/5 border-white/10" />
-                </div>
-                {error && <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">{error}</div>}
-                <div className="flex items-center justify-end gap-2">
-                    <button type="button" onClick={onClose} className="text-xs text-white/40 hover:text-white/70 px-2">Cancel</button>
-                    <Button type="button" onClick={submit} disabled={!valid} isLoading={busy} className="h-9 rounded-xl px-4">Record adjustment</Button>
-                </div>
+        <ModalShell onClose={onClose}>
+            <div className="flex items-center justify-between">
+                <div className="text-sm font-bold text-white/90">Adjust Search Balance — {subscription.display_name}</div>
+                <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 text-white/50"><X className="h-4 w-4" /></button>
             </div>
-        </div>
+            <p className="text-xs text-white/50">
+                Enter the ACTUAL remaining searches shown on the real CatDB account dashboard. The backend
+                computes and records whatever correction is required against what it already knows — it never
+                overwrites existing search history, and never removes previously-recorded usage.
+            </p>
+            <div className="space-y-1.5">
+                <Label htmlFor="catdb-adjust-actual-remaining" className="text-[10px] uppercase text-white/40">Actual remaining searches</Label>
+                <Input id="catdb-adjust-actual-remaining" type="number" min={0} value={actualRemaining} onChange={(e) => setActualRemaining(e.target.value)} className="h-10 rounded-xl bg-white/5 border-white/10" />
+            </div>
+            <div className="space-y-1.5">
+                <Label htmlFor="catdb-adjust-reason" className="text-[10px] uppercase text-white/40">Reason (required)</Label>
+                <Input id="catdb-adjust-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reconciled against CatDB account dashboard on 2026-10-22" className="h-10 rounded-xl bg-white/5 border-white/10" />
+            </div>
+            {error && <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">{error}</div>}
+            <div className="flex items-center justify-end gap-2">
+                <button type="button" onClick={onClose} className="text-xs text-white/40 hover:text-white/70 px-2">Cancel</button>
+                <Button type="button" onClick={submit} disabled={!valid} isLoading={busy} className="h-9 rounded-xl px-4">Record adjustment</Button>
+            </div>
+        </ModalShell>
     );
 }
 
@@ -203,34 +255,32 @@ function AdjustmentHistoryDialog({ subscription, onClose }) {
     }, [subscription.id]);
 
     return (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={onClose}>
-            <div className="max-w-xl w-full rounded-2xl border border-white/10 bg-[#0b0d12] p-5 space-y-3 max-h-[80vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-between">
-                    <div className="text-sm font-bold text-white/90">Adjustment History — {subscription.display_name}</div>
-                    <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 text-white/50"><X className="h-4 w-4" /></button>
-                </div>
-                {error ? (
-                    <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">{error}</div>
-                ) : items === null ? (
-                    <div className="flex items-center gap-2 text-white/40 text-sm py-6 justify-center"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
-                ) : !items.length ? (
-                    <div className="text-xs text-white/35 italic">No adjustments recorded yet.</div>
-                ) : (
-                    <div className="space-y-2">
-                        {items.map((a) => (
-                            <div key={a.id} className="rounded-xl border border-white/10 bg-black/25 p-3 text-xs space-y-1">
-                                <div className="flex items-center justify-between">
-                                    <span className="font-bold text-white/85">{a.previous_available} → {a.new_available}</span>
-                                    <span className="text-white/40">{fmtDate(a.created_at)}</span>
-                                </div>
-                                <div className="text-white/60">{a.reason}</div>
-                                <div className="text-white/35">Amount recorded: +{a.adjustment_amount} · period {a.period_key} · user #{a.created_by_user_id}</div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+        <ModalShell onClose={onClose} widthClassName="max-w-xl">
+            <div className="flex items-center justify-between">
+                <div className="text-sm font-bold text-white/90">Adjustment History — {subscription.display_name}</div>
+                <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 text-white/50"><X className="h-4 w-4" /></button>
             </div>
-        </div>
+            {error ? (
+                <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">{error}</div>
+            ) : items === null ? (
+                <div className="flex items-center gap-2 text-white/40 text-sm py-6 justify-center"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+            ) : !items.length ? (
+                <div className="text-xs text-white/35 italic">No adjustments recorded yet.</div>
+            ) : (
+                <div className="space-y-2">
+                    {items.map((a) => (
+                        <div key={a.id} className="rounded-xl border border-white/10 bg-black/25 p-3 text-xs space-y-1">
+                            <div className="flex items-center justify-between">
+                                <span className="font-bold text-white/85">{a.previous_available} → {a.new_available}</span>
+                                <span className="text-white/40">{fmtDate(a.created_at)}</span>
+                            </div>
+                            <div className="text-white/60">{a.reason}</div>
+                            <div className="text-white/35">Amount recorded: +{a.adjustment_amount} · period {a.period_key} · user #{a.created_by_user_id}</div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </ModalShell>
     );
 }
 
