@@ -8,7 +8,7 @@ import { CatalyticApiError } from "@/lib/catalytic/http";
 import { Input } from "@/components/ui/input";
 import StatusPill from "@/components/catalytic/StatusPill";
 import { OVERALL_STATUS, OVERALL_STATUS_TONE, LEG_STATUS_TONE, VEHICLE_SORT_FIELDS } from "@/lib/operations/constants";
-import { formatMoney, completenessMeta, deriveWeightStatus } from "@/lib/operations/format";
+import { formatMoney, formatCatdbPrice, completenessMeta, deriveWeightStatus } from "@/lib/operations/format";
 
 const PAGE_SIZE = 25;
 
@@ -220,7 +220,7 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(fin.engine_value)}</td>
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(fin.transmission_value)}</td>
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(fin.cats_value)}</td>
-                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(v.catdb_total_price)}</td>
+                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatCatdbPrice(v)}</td>
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(v.ourdb_total_expected)}</td>
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(fin.scrap_value)}</td>
                                             <td className="px-3 py-2 border-b border-white/5 whitespace-nowrap">

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatMoney, completenessMeta, isCompleteRecovery, deriveWeightStatus, summarizeLegProgress } from "../format";
+import { formatMoney, formatCatdbPrice, completenessMeta, isCompleteRecovery, deriveWeightStatus, summarizeLegProgress } from "../format";
 import { COMPLETENESS } from "../constants";
 
 describe("formatMoney", () => {
@@ -17,6 +17,26 @@ describe("formatMoney", () => {
     it("formats a positive decimal value with two-decimal currency precision", () => {
         expect(formatMoney(1234.5)).toBe("$1,234.50");
         expect(formatMoney("275.00")).toBe("$275.00");
+    });
+});
+
+describe("formatCatdbPrice", () => {
+    it("shows the exact total when CatDB provides one", () => {
+        expect(formatCatdbPrice({ catdb_total_price: 30, catdb_price_min: null, catdb_price_max: null })).toBe("$30.00");
+    });
+
+    it("falls back to the aggregated price range when no single total exists (Phase K.13, confirmed against a real production search)", () => {
+        expect(formatCatdbPrice({
+            catdb_total_price: null, catdb_price_min: 186, catdb_price_max: 189, catdb_catalyst_quantity: 2,
+        })).toBe("$186.00–$189.00 (2)");
+    });
+
+    it("collapses an exact-equal range to a single amount, no misleading dash", () => {
+        expect(formatCatdbPrice({ catdb_total_price: null, catdb_price_min: 159, catdb_price_max: 159, catdb_catalyst_quantity: 1 })).toBe("$159.00 (1)");
+    });
+
+    it("renders em-dash when neither a total nor a range is known, never a fabricated value", () => {
+        expect(formatCatdbPrice({ catdb_total_price: null, catdb_price_min: null, catdb_price_max: null })).toBe("—");
     });
 });
 

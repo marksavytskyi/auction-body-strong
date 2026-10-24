@@ -16,6 +16,28 @@ export function formatMoney(value) {
     return n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// Phase K.13 — real CatDB results almost never have a single total
+// price (the CatDB app itself only ever shows per-catalyst price
+// ranges, confirmed against real production searches — see
+// android-worker-app's own CatdbAutomation.extractResult, which always
+// leaves total_price null). catdb_total_price staying blank for a DONE
+// result is therefore the common case, not a missing-data bug — this
+// falls back to the backend's own aggregated catdb_price_min/
+// catdb_price_max/catdb_catalyst_quantity (summed across every
+// catalyst item CatDB actually showed) so a real result is never
+// displayed as blank just because no single total exists to show.
+export function formatCatdbPrice(vehicle) {
+    if (vehicle.catdb_total_price !== null && vehicle.catdb_total_price !== undefined) {
+        return formatMoney(vehicle.catdb_total_price);
+    }
+    const min = vehicle.catdb_price_min;
+    const max = vehicle.catdb_price_max;
+    if (min === null || min === undefined || max === null || max === undefined) return "—";
+    const qty = vehicle.catdb_catalyst_quantity;
+    const range = Number(min) === Number(max) ? formatMoney(min) : `${formatMoney(min)}–${formatMoney(max)}`;
+    return qty ? `${range} (${qty})` : range;
+}
+
 export function formatWeight(lb) {
     if (lb === null || lb === undefined || lb === "") return "—";
     const n = Number(lb);
