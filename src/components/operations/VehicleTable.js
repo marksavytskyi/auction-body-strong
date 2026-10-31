@@ -7,7 +7,7 @@ import { listOperationsBatchVehicles } from "@/lib/operations/api";
 import { CatalyticApiError } from "@/lib/catalytic/http";
 import { Input } from "@/components/ui/input";
 import StatusPill from "@/components/catalytic/StatusPill";
-import { OVERALL_STATUS, OVERALL_STATUS_TONE, LEG_STATUS_TONE, VEHICLE_SORT_FIELDS } from "@/lib/operations/constants";
+import { OVERALL_STATUS, OVERALL_STATUS_TONE, LEG_STATUS_TONE, VEHICLE_SORT_FIELDS, PARTS_CONFIDENCE_LABEL } from "@/lib/operations/constants";
 import { formatMoney, formatCatdbPrice, completenessMeta, deriveWeightStatus } from "@/lib/operations/format";
 
 const PAGE_SIZE = 25;
@@ -58,6 +58,19 @@ const COLUMNS = [
     { id: "weight", label: "Weight", sortable: false },
     { id: "warnings", label: "Warnings", sortable: false },
 ];
+
+// Only weak prices get a mark, so the table stays clean and they stand out.
+function WeakPriceTag({ level }) {
+    if (level !== "LOW" && level !== "INSUFFICIENT_DATA") return null;
+    return (
+        <div
+            className={`text-[10px] font-bold ${level === "LOW" ? "text-amber-300/80" : "text-rose-300/80"}`}
+            title="Price confidence: open the vehicle for details"
+        >
+            {level === "LOW" ? "Low confidence" : PARTS_CONFIDENCE_LABEL[level]}
+        </div>
+    );
+}
 
 function useDebounced(value, delayMs) {
     const [debounced, setDebounced] = useState(value);
@@ -217,8 +230,8 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{v.year || "—"}</td>
                                             <td className="px-3 py-2 border-b border-white/5 text-white/80 whitespace-nowrap">{v.make || "—"}</td>
                                             <td className="px-3 py-2 border-b border-white/5 text-white/80 whitespace-nowrap">{v.model || "—"}</td>
-                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(fin.engine_value)}</td>
-                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(fin.transmission_value)}</td>
+                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(fin.engine_value)}<WeakPriceTag level={v.engine_price_confidence} /></td>
+                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(fin.transmission_value)}<WeakPriceTag level={v.transmission_price_confidence} /></td>
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(fin.cats_value)}</td>
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatCatdbPrice(v)}</td>
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(v.ourdb_total_expected)}</td>

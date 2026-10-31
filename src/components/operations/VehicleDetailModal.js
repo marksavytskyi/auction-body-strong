@@ -9,7 +9,7 @@ import { CatalyticApiError } from "@/lib/catalytic/http";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import StatusPill from "@/components/catalytic/StatusPill";
-import { LEG_STATUS_TONE, CATS_SOURCE_LABEL } from "@/lib/operations/constants";
+import { LEG_STATUS_TONE, CATS_SOURCE_LABEL, PARTS_CONFIDENCE_LABEL, PARTS_CONFIDENCE_TONE } from "@/lib/operations/constants";
 import { formatMoney, formatWeight, formatDate, completenessMeta, componentLabel, deriveWeightStatus } from "@/lib/operations/format";
 
 function Row({ label, value, tone }) {
@@ -17,6 +17,60 @@ function Row({ label, value, tone }) {
         <div className="flex items-center justify-between gap-3 py-1.5 border-b border-white/5 last:border-b-0">
             <span className="text-[11px] text-white/40 uppercase tracking-wider font-bold">{label}</span>
             <span className={`text-sm font-semibold ${tone || "text-white/85"}`}>{value}</span>
+        </div>
+    );
+}
+
+function ConfidencePill({ level }) {
+    if (!level) return <span className="text-white/35">—</span>;
+    return <StatusPill label={PARTS_CONFIDENCE_LABEL[level] || level} tone={PARTS_CONFIDENCE_TONE[level] || "neutral"} />;
+}
+
+function PartEvidenceRow({ label, price, match, priceConfidence, listings }) {
+    return (
+        <tr>
+            <td className="py-1.5 pr-3 text-[11px] text-white/40 uppercase tracking-wider font-bold">{label}</td>
+            <td className="py-1.5 pr-3 font-semibold text-white/85 whitespace-nowrap">{formatMoney(price)}</td>
+            <td className="py-1.5 pr-3"><ConfidencePill level={match} /></td>
+            <td className="py-1.5 pr-3"><ConfidencePill level={priceConfidence} /></td>
+            <td className="py-1.5 text-right text-white/70">{listings ?? "—"}</td>
+        </tr>
+    );
+}
+
+// Vehicles priced before Phase K.34 have none of these fields, so they show nothing new.
+function PartsEvidence({ vehicle, fin }) {
+    if (vehicle.engine_price_confidence == null && vehicle.transmission_price_confidence == null) return null;
+    return (
+        <div className="rounded-xl border border-white/10 bg-black/25 p-4 mb-4 overflow-x-auto">
+            <div className="text-[11px] uppercase tracking-wider text-white/40 font-bold mb-2">Parts Pricing</div>
+            <table className="w-full text-sm">
+                <thead>
+                    <tr className="text-left text-[10px] uppercase tracking-wider text-white/35">
+                        <th className="pb-1 pr-3 font-bold">Part</th>
+                        <th className="pb-1 pr-3 font-bold">Price</th>
+                        <th className="pb-1 pr-3 font-bold" title="Does this part fit the vehicle?">Match</th>
+                        <th className="pb-1 pr-3 font-bold" title="Is the price backed by enough consistent listings?">Price Confidence</th>
+                        <th className="pb-1 text-right font-bold">Listings</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <PartEvidenceRow
+                        label="Engine"
+                        price={fin.engine_value}
+                        match={vehicle.engine_match_confidence}
+                        priceConfidence={vehicle.engine_price_confidence}
+                        listings={vehicle.engine_price_listing_count}
+                    />
+                    <PartEvidenceRow
+                        label="Transmission"
+                        price={fin.transmission_value}
+                        match={vehicle.transmission_match_confidence}
+                        priceConfidence={vehicle.transmission_price_confidence}
+                        listings={vehicle.transmission_price_listing_count}
+                    />
+                </tbody>
+            </table>
         </div>
     );
 }
@@ -192,6 +246,8 @@ export default function VehicleDetailModal({ vehicle, onClose, onUpdated }) {
                         <Button size="sm" variant="outline" className="rounded-xl mt-2" onClick={handleClearScrapOverrides} isLoading={busy}>Clear Overrides (use batch defaults)</Button>
                     </div>
                 )}
+
+                <PartsEvidence vehicle={vehicle} fin={fin} />
 
                 <div className="rounded-xl border border-white/10 bg-black/25 p-4 mb-4">
                     <div className="text-[11px] uppercase tracking-wider text-white/40 font-bold mb-2">Processing Status</div>

@@ -245,3 +245,31 @@ describe("VehicleTable", () => {
         expect(onOpenVehicle).toHaveBeenCalledWith(v);
     });
 });
+
+describe("VehicleTable price confidence tag (K.34)", () => {
+    beforeEach(() => {
+        listOperationsBatchVehicles.mockReset();
+    });
+
+    it("marks weak prices only", async () => {
+        listOperationsBatchVehicles.mockResolvedValue({
+            items: [vehicle({ engine_price_confidence: "LOW", transmission_price_confidence: "INSUFFICIENT_DATA" })],
+            total: 1,
+        });
+        render(<VehicleTable batchId={1} onOpenVehicle={vi.fn()} refreshKey={0} />);
+        expect(await screen.findByText("Low confidence")).toBeInTheDocument();
+        expect(screen.getByText("Too few listings")).toBeInTheDocument();
+    });
+
+    it("adds nothing for strong prices or vehicles priced before K.34", async () => {
+        listOperationsBatchVehicles.mockResolvedValue({
+            items: [vehicle({ engine_price_confidence: "HIGH", transmission_price_confidence: "MEDIUM" }), vehicle({ id: 2 })],
+            total: 2,
+        });
+        render(<VehicleTable batchId={1} onOpenVehicle={vi.fn()} refreshKey={0} />);
+        await screen.findAllByText("$100.00");
+        expect(screen.queryByText("Low confidence")).not.toBeInTheDocument();
+        expect(screen.queryByText("Too few listings")).not.toBeInTheDocument();
+    });
+});
+

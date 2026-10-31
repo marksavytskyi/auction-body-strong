@@ -236,3 +236,20 @@ export const CATDB_QUOTA_RECONCILIATION_STATUS = {
 // can be told apart from a 503 caused by quota exhaustion/misconfiguration
 // (QuotaUnavailableError) — same HTTP status, different real cause.
 export const OPERATIONS_CATDB_DISABLED_ERROR_CODE = "OPERATIONS_CATDB_DISABLED";
+
+// Parts confidence levels (app/parts_price_confidence.py, app/parts_matching.py).
+// Match confidence: does the part fit the vehicle? Price confidence: is the
+// median a reliable market price? They are independent of each other.
+export const PARTS_CONFIDENCE_LABEL = {
+    HIGH: "High",
+    MEDIUM: "Medium",
+    LOW: "Low",
+    INSUFFICIENT_DATA: "Too few listings",
+};
+
+export const PARTS_CONFIDENCE_TONE = {
+    HIGH: "success",
+    MEDIUM: "info",
+    LOW: "warning",
+    INSUFFICIENT_DATA: "danger",
+};

@@ -54,3 +54,36 @@ describe("VehicleDetailModal weight status", () => {
         expect(screen.getAllByText(/^nhtsa$/i).length).toBeGreaterThanOrEqual(2);
     });
 });
+
+describe("VehicleDetailModal parts pricing (K.34)", () => {
+    const k34 = {
+        engine_match_confidence: "HIGH",
+        transmission_match_confidence: "MEDIUM",
+        engine_price_confidence: "LOW",
+        transmission_price_confidence: "INSUFFICIENT_DATA",
+        engine_price_listing_count: 12,
+        transmission_price_listing_count: 0,
+    };
+
+    it("shows match and price confidence separately for each part", () => {
+        render(<VehicleDetailModal vehicle={vehicle(k34)} onClose={vi.fn()} />);
+        expect(screen.getByText("Parts Pricing")).toBeInTheDocument();
+        expect(screen.getByText("High")).toBeInTheDocument();
+        expect(screen.getByText("Medium")).toBeInTheDocument();
+        expect(screen.getByText("Low")).toBeInTheDocument();
+        expect(screen.getByText("Too few listings")).toBeInTheDocument();
+        expect(screen.getByText("12")).toBeInTheDocument();
+        expect(screen.getByText("0")).toBeInTheDocument();
+    });
+
+    it("shows nothing new for a vehicle priced before K.34", () => {
+        render(<VehicleDetailModal vehicle={vehicle()} onClose={vi.fn()} />);
+        expect(screen.queryByText("Parts Pricing")).not.toBeInTheDocument();
+    });
+
+    it("shows a dash for a missing match confidence", () => {
+        render(<VehicleDetailModal vehicle={vehicle({ ...k34, transmission_match_confidence: null, transmission_price_listing_count: null })} onClose={vi.fn()} />);
+        expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
+    });
+});
+
