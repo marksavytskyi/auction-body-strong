@@ -39,7 +39,7 @@ describe("CatsNav", () => {
         render(<CatsNav role="MODERATOR" />);
 
         expect(screen.getByRole("link", { name: /^moderation$/i })).toHaveAttribute("href", "/cats/moderation");
-        expect(screen.getByRole("link", { name: /worker submissions/i })).toHaveAttribute("href", "/cats/admin/workers");
+        expect(screen.getByRole("link", { name: /worker submissions/i })).toHaveAttribute("href", "/cats/moderation");
         expect(screen.queryByRole("link", { name: /users & roles/i })).not.toBeInTheDocument();
         expect(screen.queryByRole("link", { name: /^catdb$/i })).not.toBeInTheDocument();
     });

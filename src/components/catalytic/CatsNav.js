@@ -48,7 +48,7 @@ const OWNER_ONLY_ITEMS = [{ href: "/cats/admin/users", label: "Users & Roles", i
 // administration, no CatDB, no sales/pricing tools.
 const MODERATOR_ITEMS = [
     { href: "/cats/moderation", label: "Moderation", icon: ShieldCheck, exact: true },
-    { href: "/cats/admin/workers", label: "Worker Submissions", icon: Wrench },
+    { href: "/cats/moderation", label: "Worker Submissions", icon: Wrench, exact: true },
 ];
 
 export default function CatsNav({ role }) {
@@ -60,7 +60,7 @@ export default function CatsNav({ role }) {
         const Icon = item.icon;
         return (
             <Link
-                key={item.href}
+                key={item.label}
                 href={item.href}
                 className={[
                     "inline-flex items-center gap-2 px-4 h-10 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors whitespace-nowrap",
