@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, Loader2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, AlertTriangle, ListFilter } from "lucide-react";
 
 import { listOperationsBatchVehicles } from "@/lib/operations/api";
@@ -101,7 +101,11 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
 
     useEffect(() => { setPage(0); }, [debouncedSearch, status, sortBy, sortDir]);
 
+    // A slower earlier response must not overwrite the page the user asked for last.
+    const latestRequest = useRef(0);
+
     const load = useCallback(async () => {
+        const request = ++latestRequest.current;
         setLoading(true);
         setError("");
         try {
@@ -110,13 +114,15 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
                 search: debouncedSearch || undefined, status: status || undefined,
                 sortBy, sortDir,
             });
+            if (request !== latestRequest.current) return;
             setRows(Array.isArray(data?.items) ? data.items : []);
             setTotal(data?.total ?? 0);
         } catch (e) {
+            if (request !== latestRequest.current) return;
             setError(e instanceof CatalyticApiError ? e.message : "Failed to load vehicles");
             setRows(null);
         } finally {
-            setLoading(false);
+            if (request === latestRequest.current) setLoading(false);
         }
     }, [batchId, page, debouncedSearch, status, sortBy, sortDir]);
 
@@ -166,7 +172,7 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
 
     return (
         <div className="space-y-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-1.5 flex-wrap">
                     <ListFilter className="h-3.5 w-3.5 text-white/30 mr-1" />
                     {STATUS_FILTERS.map((f) => (
@@ -175,7 +181,7 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
                             type="button"
                             onClick={() => setStatus(f.id)}
                             className={[
-                                "px-3 h-8 rounded-xl text-[11px] font-bold uppercase tracking-wider border transition-all",
+                                "px-3 h-8 rounded-xl text-[11px] font-bold uppercase tracking-wider border transition-colors",
                                 status === f.id ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300" : "border-white/10 text-white/45 hover:text-white hover:bg-white/5",
                             ].join(" ")}
                         >
@@ -189,12 +195,12 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Search VIN, lot, make/model, year"
-                        className="h-9 pl-9 rounded-xl bg-white/5 border-white/10 text-xs"
+                        className="h-10 pl-9 rounded-xl bg-white/5 border-white/10 text-base sm:h-9 sm:text-xs"
                     />
                 </div>
             </div>
 
-            {loading ? (
+            {loading && !rows ? (
                 <div className="flex items-center gap-2 text-white/50 text-sm py-12 justify-center">
                     <Loader2 className="h-4 w-4 animate-spin" /> Loading vehicles…
                 </div>
@@ -208,7 +214,7 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
                     {total === 0 && !search && !status ? "This batch has no vehicles." : "No vehicles match the current filter/search."}
                 </div>
             ) : (
-                <>
+                <div className={loading ? "space-y-3 opacity-60" : "space-y-3"} aria-busy={loading}>
                     <div className="hidden lg:block overflow-x-auto rounded-2xl border border-white/10 bg-black/25">
                         <table className="w-full text-xs">
                             <thead className="bg-black/40">
@@ -282,8 +288,25 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
                                         </div>
                                         <StatusPill label={cm.label} tone={cm.tone} />
                                     </div>
-                                    <div className="text-[11px] text-white/40 font-mono truncate">{v.full_vin || "—"}</div>
-                                    <div className="text-[11px] text-white/35">Lot {v.lot_number || "—"}</div>
+                                    <div className="text-[11px] text-white/40 font-mono truncate">
+                                        {v.full_vin || "—"} · Lot {v.lot_number || "—"}
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-2 text-xs text-white/80">
+                                        <div>
+                                            <div className="text-[10px] text-white/35">Engine</div>
+                                            {formatMoney(fin.engine_value)}
+                                            <WeakPriceTag level={v.engine_price_confidence} />
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-white/35">Transmission</div>
+                                            {formatMoney(fin.transmission_value)}
+                                            <WeakPriceTag level={v.transmission_price_confidence} />
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-white/35">Cats</div>
+                                            {formatMoney(fin.cats_value)}
+                                        </div>
+                                    </div>
                                     {fin.total_expected_recovery != null ? (
                                         <div className="text-sm font-bold text-emerald-300">
                                             {formatMoney(fin.total_expected_recovery)} <span className="text-[10px] font-normal text-white/30">complete recovery</span>
@@ -305,7 +328,8 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
                                 type="button"
                                 disabled={page === 0}
                                 onClick={() => setPage((p) => Math.max(0, p - 1))}
-                                className="p-1.5 rounded-lg border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                                aria-label="Previous page"
+                                className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed sm:h-8 sm:w-8"
                             >
                                 <ChevronLeft className="h-4 w-4" />
                             </button>
@@ -313,13 +337,14 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
                                 type="button"
                                 disabled={page + 1 >= totalPages}
                                 onClick={() => setPage((p) => p + 1)}
-                                className="p-1.5 rounded-lg border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                                aria-label="Next page"
+                                className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed sm:h-8 sm:w-8"
                             >
                                 <ChevronRight className="h-4 w-4" />
                             </button>
                         </div>
                     </div>
-                </>
+                </div>
             )}
         </div>
     );

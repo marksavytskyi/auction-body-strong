@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { createPortal } from "react-dom";
 
@@ -36,21 +35,13 @@ export default function TableFullscreenModal({ isOpen, onClose, title = "Table",
     }, [isOpen]);
 
     const modalNode = useMemo(
-        () => (
-            <AnimatePresence>
-                {isOpen ? (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[9999] h-[100dvh] w-[100vw] bg-black/90 backdrop-blur-md"
+        () =>
+                isOpen ? (
+                    <div
+                        className="fixed inset-0 z-[9999] h-[100dvh] w-[100vw] bg-black/90"
                         onClick={onClose}
                     >
-                        <motion.div
-                            initial={{ opacity: 0, y: 12, scale: 0.98 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 10, scale: 0.98 }}
-                            transition={{ duration: 0.2 }}
+                        <div
                             className="h-[100dvh] w-[100vw] bg-[#090b10] overflow-hidden flex flex-col"
                             onClick={(event) => event.stopPropagation()}
                         >
@@ -67,11 +58,9 @@ export default function TableFullscreenModal({ isOpen, onClose, title = "Table",
                             </div>
 
                             <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
-                        </motion.div>
-                    </motion.div>
-                ) : null}
-            </AnimatePresence>
-        ),
+                        </div>
+                    </div>
+                ) : null,
         [children, isOpen, onClose, title]
     );
 

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { isPageHidden } from "@/lib/pageVisibility";
 import { useParams, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
@@ -213,7 +214,7 @@ export default function CatdbBatchDetailPage() {
     useEffect(() => {
         if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
         if (batch?.status === "RUNNING") {
-            pollRef.current = setInterval(() => load({ silent: true }), POLL_INTERVAL_MS);
+            pollRef.current = setInterval(() => { if (!isPageHidden()) load({ silent: true }); }, POLL_INTERVAL_MS);
         }
         return () => { if (pollRef.current) clearInterval(pollRef.current); };
     }, [batch?.status, load]);
@@ -288,7 +289,7 @@ export default function CatdbBatchDetailPage() {
             {/* Progress bar */}
             <div className="h-2 rounded-full bg-white/5 overflow-hidden">
                 <div
-                    className={`h-full rounded-full transition-all ${batch.status === "FAILED" || stats.failed > 0 ? "bg-gradient-to-r from-sky-500 to-rose-500" : "bg-sky-500"}`}
+                    className={`h-full rounded-full transition-colors ${batch.status === "FAILED" || stats.failed > 0 ? "bg-gradient-to-r from-sky-500 to-rose-500" : "bg-sky-500"}`}
                     style={{ width: total ? `${Math.min(100, (settled / total) * 100)}%` : "0%" }}
                 />
             </div>

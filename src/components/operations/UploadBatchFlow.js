@@ -84,7 +84,7 @@ export default function UploadBatchFlow({ onUploaded }) {
         <div
             {...getRootProps()}
             className={[
-                "rounded-2xl border border-dashed p-5 transition-all",
+                "rounded-2xl border border-dashed p-5 transition-colors",
                 isDragActive ? "border-emerald-400/70 bg-emerald-500/[0.08]" : "border-white/15 bg-black/25",
             ].join(" ")}
         >

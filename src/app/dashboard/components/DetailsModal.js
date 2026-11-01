@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { AlertCircle, LayoutGrid, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -17,21 +16,14 @@ export default function DetailsModal({ isOpen, data, onClose, children }) {
         return () => document.removeEventListener("keydown", onEscape);
     }, [isOpen, onClose]);
 
+    if (!isOpen) return null;
+
     return (
-        <AnimatePresence>
-            {isOpen ? (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+                <div
+                    className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80"
                     onClick={onClose}
                 >
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.96, y: 12 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.97, y: 10 }}
-                        transition={{ duration: 0.22 }}
+                    <div
                         className="relative w-full max-w-6xl max-h-[90vh] overflow-hidden bg-[#0b0d12] rounded-3xl border border-white/10 shadow-2xl flex flex-col"
                         onClick={(e) => e.stopPropagation()}
                     >
@@ -49,7 +41,7 @@ export default function DetailsModal({ isOpen, data, onClose, children }) {
                                 <button
                                     type="button"
                                     onClick={onClose}
-                                    className="absolute top-4 right-4 sm:relative sm:top-auto sm:right-auto p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white transition-all active:scale-95"
+                                    className="absolute top-4 right-4 sm:relative sm:top-auto sm:right-auto p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white transition-colors"
                                     aria-label="Close details modal"
                                 >
                                     <X className="h-6 w-6" />
@@ -73,9 +65,7 @@ export default function DetailsModal({ isOpen, data, onClose, children }) {
                                 Close
                             </Button>
                         </div>
-                    </motion.div>
-                </motion.div>
-            ) : null}
-        </AnimatePresence>
+                    </div>
+                </div>
     );
 }

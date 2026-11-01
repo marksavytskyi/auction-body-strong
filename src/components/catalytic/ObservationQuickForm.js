@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const selectClass =
-    "w-full h-11 rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-all";
+    "w-full h-11 rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-colors";
 
 // The real ObservationRequest only accepts free-text `physical_code_raw` —
 // there is no candidate_id to select. Known candidates are offered as
@@ -94,7 +94,7 @@ export default function ObservationQuickForm({ positions, initialPositionCode, i
                     onChange={(e) => setNotes(e.target.value)}
                     rows={2}
                     placeholder="Condition, location, anything unusual…"
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500/50 transition-all resize-none"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500/50 transition-colors resize-none"
                 />
             </div>
 

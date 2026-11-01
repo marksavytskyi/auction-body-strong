@@ -21,12 +21,12 @@ import { formatMoney } from "@/lib/operations/format";
 // batch is actually a complete estimate.
 function MoneyCard({ label, value, hint, emphasis }) {
     return (
-        <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-            <div className="text-[10px] uppercase tracking-wider text-white/40 font-bold mb-1.5">{label}</div>
-            <div className={emphasis ? "text-2xl font-black text-emerald-300" : "text-xl font-bold text-white/85"}>
+        <div className="rounded-xl border border-white/10 bg-black/25 p-3 sm:p-4">
+            <div className="text-[10px] uppercase tracking-wider text-white/40 font-bold mb-1">{label}</div>
+            <div className={emphasis ? "text-lg font-black text-emerald-300 sm:text-2xl" : "text-base font-bold text-white/85 sm:text-xl"}>
                 {formatMoney(value)}
             </div>
-            {hint && <div className="text-[11px] text-white/35 mt-1">{hint}</div>}
+            {hint && <div className="mt-1 hidden text-[11px] text-white/35 sm:block">{hint}</div>}
         </div>
     );
 }
@@ -94,12 +94,12 @@ export default function FinancialSummaryCards({ batchId, refreshKey }) {
         && summary.ourdb_recovery_total !== null && summary.ourdb_recovery_total !== undefined;
 
     return (
-        <div className="space-y-3">
+        <div className="space-y-2 sm:space-y-3">
             <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-white/40 font-bold">
                 <DollarSign className="h-3 w-3" /> Financial Summary
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
                 {isDualSource ? (
                     <>
                         <MoneyCard
@@ -130,14 +130,14 @@ export default function FinancialSummaryCards({ batchId, refreshKey }) {
                 />
             </div>
 
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+            <div className="grid gap-2 grid-cols-2 sm:gap-3 sm:grid-cols-4">
                 <MoneyCard label="Engine Total" value={summary.engine_value_total} />
                 <MoneyCard label="Transmission Total" value={summary.transmission_value_total} />
                 <MoneyCard label="Selected Catalytic Total" value={summary.cats_value_total} />
                 <MoneyCard label="Scrap Total" value={summary.scrap_value_total} />
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+            <div className="rounded-xl border border-white/10 bg-black/25 p-3 sm:p-4">
                 <div className="grid grid-cols-5 gap-2">
                     <CountCell label="Total Vehicles" value={summary.total_vehicle_count} />
                     <CountCell label="Complete" value={summary.complete_count} tone="success" />

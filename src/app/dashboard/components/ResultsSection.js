@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
 import {
     Search,
     Settings2,
@@ -209,7 +208,7 @@ export default function ResultsSection({
             ].join(" ")}
         >
             <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-black/75 backdrop-blur z-10">
+                <thead className="sticky top-0 bg-black/75 z-10">
                     <tr>
                         <th className="px-3 py-2 text-left text-xs text-white/70 border-b border-white/10 whitespace-nowrap">#</th>
 
@@ -234,7 +233,7 @@ export default function ResultsSection({
                                         <button
                                             type="button"
                                             onClick={() => toggleColumn(h)}
-                                            className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-white/10 text-white/40 hover:text-red-400 transition-all"
+                                            className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-white/10 text-white/40 hover:text-red-400 transition-colors"
                                             title="Hide column"
                                         >
                                             <X className="h-3 w-3" />
@@ -322,9 +321,7 @@ export default function ResultsSection({
                     </Button>
 
                     {showColumnToggle && (
-                        <motion.div
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
+                        <div
                             className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-white/10 bg-[#0c0e13] p-2 shadow-2xl"
                         >
                             <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-2 px-2">
@@ -361,7 +358,7 @@ export default function ResultsSection({
                                 ))}
                                 {filteredHeaders.length === 0 && <div className="px-2 py-4 text-center text-[10px] text-white/40 italic">No columns found</div>}
                             </div>
-                        </motion.div>
+                        </div>
                     )}
                 </div>
 
@@ -401,7 +398,7 @@ export default function ResultsSection({
     );
 
     const renderPagination = ({ fullscreen = false } = {}) => (
-        <div className={`${fullscreen ? "px-4 py-3 border-t border-white/10 bg-[#090b10]/95 backdrop-blur" : "mt-4"} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
+        <div className={`${fullscreen ? "px-4 py-3 border-t border-white/10 bg-[#090b10]/95" : "mt-4"} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
             <div className="text-xs text-white/60 text-center sm:text-left">
                 Showing <b className="text-white/80">{totalRows === 0 ? 0 : (safePage - 1) * pageSize + 1}</b> - <b className="text-white/80">{Math.min(safePage * pageSize, totalRows)}</b> of{" "}
                 <b className="text-white/80">{totalRows}</b> rows
@@ -440,12 +437,12 @@ export default function ResultsSection({
     );
 
     return (
-        <div className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden shadow-xl shadow-black/20">
+        <div className="rounded-3xl border border-white/10 bg-white/[0.03] overflow-hidden shadow-xl shadow-black/20">
             <div className="px-5 py-5 sm:px-6 sm:py-6 border-b border-white/[0.06]">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                        <h2 className="text-xl sm:text-2xl font-black tracking-tight uppercase italic text-gradient">
-                            Results <span className="emerald-gradient">Table</span>
+                        <h2 className="text-xl sm:text-2xl font-black tracking-tight uppercase italic text-white">
+                            Results <span className="text-emerald-400">Table</span>
                         </h2>
                         <p className="text-sm text-white/55 mt-1">
                             {canReadPreview ? `Rows: ${jobRows} • Columns: ${jobCols} • Status: ${normalizedStatus || "unknown"}` : "Upload a CSV to see results."}
@@ -460,12 +457,12 @@ export default function ResultsSection({
 
                 <div className="mt-4">
                     {isProcessing ? (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-2xl border border-white/10 bg-white/5 p-6 flex items-center gap-3">
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 flex items-center gap-3">
                             <Loader2 className="h-5 w-5 animate-spin text-emerald-400" />
                     <div className="text-sm text-white/80">
                         Processing... <span className="text-white/60">({formatDuration(elapsedSec)})</span>
                     </div>
-                </motion.div>
+                </div>
                     ) : null}
 
                     {canReadPreview ? (
@@ -495,7 +492,7 @@ export default function ResultsSection({
                 title="Results Table"
             >
                 <div className="h-full flex flex-col">
-                    <div className="shrink-0 px-4 py-3 border-b border-white/10 bg-[#090b10]/95 backdrop-blur">
+                    <div className="shrink-0 px-4 py-3 border-b border-white/10 bg-[#090b10]/95">
                         {renderTableControls({ fullscreen: true, menuRef: fullscreenColumnMenuRef })}
                     </div>
                     <div className="flex-1 min-h-0">{renderResultsTable("h-full", true)}</div>

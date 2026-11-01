@@ -192,7 +192,7 @@ export default function CopartImportDetailPage() {
                             type="button"
                             onClick={() => setFilter(f.id)}
                             className={[
-                                "px-3 h-8 rounded-xl text-[11px] font-bold uppercase tracking-wider border transition-all",
+                                "px-3 h-8 rounded-xl text-[11px] font-bold uppercase tracking-wider border transition-colors",
                                 filter === f.id ? "bg-sky-500/15 border-sky-500/30 text-sky-300" : "border-white/10 text-white/45 hover:text-white hover:bg-white/5",
                             ].join(" ")}
                         >

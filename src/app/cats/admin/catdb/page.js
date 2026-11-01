@@ -171,7 +171,7 @@ export default function CatdbAdminPage() {
                 </div>
             )}
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-5 sm:p-6 space-y-4">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6 space-y-4">
                 <div className="flex items-center justify-between">
                     <h2 className="text-xs font-bold uppercase tracking-wider text-white/40">CatDB Machines</h2>
                     <button type="button" onClick={loadMachines} className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white"><RefreshCw className="h-3.5 w-3.5" /></button>
@@ -235,7 +235,7 @@ export default function CatdbAdminPage() {
                 )}
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-5 sm:p-6 space-y-4">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6 space-y-4">
                 <div className="flex items-center justify-between flex-wrap gap-3">
                     <h2 className="text-xs font-bold uppercase tracking-wider text-white/40">CatDB Jobs</h2>
                     <form onSubmit={handleEnqueue} className="flex gap-2">

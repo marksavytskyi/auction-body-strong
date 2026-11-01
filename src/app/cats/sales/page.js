@@ -71,14 +71,14 @@ export default function SalesPage() {
 
     return (
         <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-5 sm:p-6 h-fit">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6 h-fit">
                 <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-white/40 font-bold mb-4">
                     Record Sale
                 </div>
                 <SaleForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-5 sm:p-6">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
                 <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
                     <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-white/40 font-bold">
                         <History className="h-3.5 w-3.5 text-emerald-400" />

@@ -64,7 +64,7 @@ export default function CatsLookupPage() {
 
     return (
         <div className="space-y-6">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-5 sm:p-6">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
                 <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-white/40 font-bold mb-4">
                     <Search className="h-3.5 w-3.5 text-sky-400" />
                     Vehicle Lookup

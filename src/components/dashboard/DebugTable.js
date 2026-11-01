@@ -205,7 +205,7 @@ export function DebugTable({ data }) {
                                             <span>{formatLabel(k)}</span>
                                             <button 
                                                 onClick={() => toggleKey(k)}
-                                                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-white/10 text-white/40 hover:text-red-400 transition-all"
+                                                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-white/10 text-white/40 hover:text-red-400 transition-colors"
                                                 title="Hide column"
                                             >
                                                 <X className="h-3 w-3" />
@@ -244,19 +244,19 @@ export function DebugTable({ data }) {
                     <button
                         type="button"
                         onClick={() => setIsTableFullscreen(true)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800/50 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/10 text-[10px] font-bold text-white/70 uppercase transition-all shadow-lg active:scale-95"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800/50 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/10 text-[10px] font-bold text-white/70 uppercase transition-colors shadow-lg"
                     >
                         <Maximize2 className="h-3 w-3 text-emerald-400" />
                         Fullscreen
                     </button>
 
                     <div className="relative group/menu">
-                        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800/50 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/10 text-[10px] font-bold text-white/70 uppercase transition-all shadow-lg active:scale-95">
+                        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800/50 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/10 text-[10px] font-bold text-white/70 uppercase transition-colors shadow-lg">
                             <LayoutGrid className="h-3 w-3 text-emerald-400" />
                             Columns ({visibleKeys.size}/{keys.length})
                         </button>
                         
-                        <div className="absolute right-0 top-full mt-2 w-56 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-3 z-[60] opacity-0 translate-y-2 pointer-events-none group-hover/menu:opacity-100 group-hover/menu:translate-y-0 group-hover/menu:pointer-events-auto transition-all duration-200">
+                        <div className="absolute right-0 top-full mt-2 w-56 bg-zinc-900/95 border border-white/10 rounded-xl shadow-2xl p-3 z-[60] opacity-0 translate-y-2 pointer-events-none group-hover/menu:opacity-100 group-hover/menu:translate-y-0 group-hover/menu:pointer-events-auto transition-colors duration-200">
                             <div className="mb-3 space-y-2.5">
                                 <div className="flex items-center justify-between">
                                     <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Visibility</span>
@@ -285,7 +285,7 @@ export function DebugTable({ data }) {
                                             type="checkbox" 
                                             checked={visibleKeys.has(k)}
                                             onChange={() => toggleKey(k)}
-                                            className="w-3.5 h-3.5 rounded border-white/20 bg-black/50 text-emerald-500 focus:ring-emerald-500/50 transition-all cursor-pointer"
+                                            className="w-3.5 h-3.5 rounded border-white/20 bg-black/50 text-emerald-500 focus:ring-emerald-500/50 transition-colors cursor-pointer"
                                         />
                                         <span className={`text-[11px] truncate ${visibleKeys.has(k) ? 'text-white/90 font-medium' : 'text-white/40 group-hover/item:text-white/60'}`}>
                                             {formatLabel(k)}
@@ -331,7 +331,7 @@ export function DebugTable({ data }) {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                     {keys.filter(k => k !== pricingKey).map((k) => (
-                        <div key={k} className="flex flex-col p-3 rounded-xl bg-white/5 border border-white/10 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all group">
+                        <div key={k} className="flex flex-col p-3 rounded-xl bg-white/5 border border-white/10 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-colors group">
                             <span className="text-[10px] uppercase text-white/40 font-bold mb-1.5 tracking-tight group-hover:text-emerald-400/60 transition-colors" title={k}>
                                 {formatLabel(k)}
                             </span>

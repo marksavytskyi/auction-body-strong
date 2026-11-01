@@ -10,13 +10,19 @@ import { CatalyticApiError } from "@/lib/catalytic/http";
 import { BATCH_STATUS_TONE } from "@/lib/operations/constants";
 import { formatDate } from "@/lib/operations/format";
 import StatusPill from "@/components/catalytic/StatusPill";
-import UploadBatchFlow from "@/components/operations/UploadBatchFlow";
+import dynamic from "next/dynamic";
+
+// Holds the file-drop library; the batch list shouldn't wait for it.
+const UploadBatchFlow = dynamic(() => import("@/components/operations/UploadBatchFlow"), {
+    ssr: false,
+    loading: () => <div className="h-28 rounded-2xl border border-dashed border-white/10" />,
+});
 
 function BatchRow({ batch }) {
     return (
         <Link
             href={`/operations/${batch.id}`}
-            className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3.5 hover:bg-white/[0.05] hover:border-white/20 transition-all sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3.5 hover:bg-white/[0.05] hover:border-white/20 transition-colors sm:flex-row sm:items-center sm:justify-between"
         >
             <div className="flex items-center gap-3 min-w-0">
                 <div className="p-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 shrink-0">

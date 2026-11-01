@@ -1,186 +1,151 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardFooter,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-import { Formik, Form, Field } from "formik";
-import * as Yup from "yup";
-import { Mail, Lock, Car, ArrowRight, Eye, EyeOff } from "lucide-react";
-import toast from "react-hot-toast";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import axiosInstance from "@/utils/axios";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
-import { motion } from "framer-motion";
+import { isValidEmail, useSimpleForm } from "@/hooks/useSimpleForm";
 import { getLastModule } from "@/lib/moduleStorage";
 import { homeRouteForRole } from "@/lib/rbac";
 
-const LoginSchema = Yup.object().shape({
-    email: Yup.string().email("Invalid email address").required("Email is required"),
-    password: Yup.string().min(6, "Password must be at least 6 characters").required("Password is required"),
-});
+// A dead connection should fail here in seconds, not after the app-wide
+// timeout that exists for long uploads.
+const AUTH_TIMEOUT_MS = 20_000;
+
+const INITIAL_VALUES = { email: "", password: "" };
+
+function validate(values) {
+    const errors = {};
+    if (!values.email) errors.email = "Email is required";
+    else if (!isValidEmail(values.email)) errors.email = "Invalid email address";
+    if (!values.password) errors.password = "Password is required";
+    else if (values.password.length < 6) errors.password = "Password must be at least 6 characters";
+    return errors;
+}
 
 export default function Page() {
     const router = useRouter();
-    const { saveToken } = useAuth();
+    const { ready, isLoggedIn, saveToken } = useAuth();
     const [showPassword, setShowPassword] = React.useState(false);
+    // Signing in also flips isLoggedIn; the submit handler owns that redirect.
+    const signingIn = useRef(false);
 
-    const handleSubmit = async (values, { setSubmitting, setStatus }) => {
-        setSubmitting(true);
-        setStatus(undefined);
-
+    const goHome = async () => {
+        if (getLastModule() !== "cats") {
+            router.replace("/dashboard");
+            return;
+        }
+        // Role-aware Cats redirect — a WORKER must never land on the admin
+        // lookup/dashboard and bounce off a 403.
         try {
-            const response = await axiosInstance.post("/auth/login", values);
-
-            const accessToken = response?.data?.access_token;
-            if (!accessToken) throw new Error("No access_token in response");
-
-            saveToken(accessToken);
-
-            if (getLastModule() === "cats") {
-                // Role-aware Cats redirect — a WORKER must never land on
-                // the admin lookup/dashboard and bounce off a 403.
-                try {
-                    const me = await axiosInstance.get("/auth/me");
-                    router.push(homeRouteForRole(me?.data?.role));
-                } catch {
-                    router.push("/cats");
-                }
-            } else {
-                router.push("/dashboard");
-            }
-        } catch (error) {
-            const msg =
-                error?.response?.data?.detail ||
-                error?.message ||
-                "Invalid credentials or something went wrong!";
-            setStatus(msg);
-        } finally {
-            setSubmitting(false);
+            const me = await axiosInstance.get("/auth/me", { timeout: AUTH_TIMEOUT_MS });
+            router.replace(homeRouteForRole(me?.data?.role));
+        } catch {
+            router.replace("/cats");
         }
     };
 
+    useEffect(() => {
+        if (ready && isLoggedIn && !signingIn.current) goHome();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ready, isLoggedIn]);
+
+    const form = useSimpleForm({
+        initialValues: INITIAL_VALUES,
+        validate,
+        onSubmit: async (values, { setStatus }) => {
+            signingIn.current = true;
+            try {
+                const response = await axiosInstance.post("/auth/login", values, { timeout: AUTH_TIMEOUT_MS });
+                const accessToken = response?.data?.access_token;
+                if (!accessToken) throw new Error("No access_token in response");
+                saveToken(accessToken);
+                await goHome();
+            } catch (error) {
+                signingIn.current = false;
+                setStatus(
+                    error?.response || error?.message === "No access_token in response"
+                        ? error.response?.data?.detail || "Invalid credentials or something went wrong!"
+                        : "Can't reach the server. Check your connection and try again."
+                );
+            }
+        },
+    });
+
     return (
-        <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
-        >
-            <Card className="border-0 bg-transparent shadow-none p-0">
-                <CardHeader className="text-center p-0 mb-10">
-                    <div className="flex justify-center mb-8">
-                        <div className="p-5 bg-emerald-500/10 rounded-3xl border border-emerald-500/20 accent-glow-sm">
-                            <Car className="h-12 w-12 text-emerald-500" />
-                        </div>
+        <div>
+            <div className="mb-6 text-center">
+                <div className="text-sm font-black italic tracking-tight text-emerald-400 lg:hidden">STRONGG. AUTO</div>
+                <h1 className="mt-1 text-2xl font-bold">Sign in</h1>
+            </div>
+
+            <form className="space-y-4" onSubmit={form.handleSubmit} noValidate>
+                <div className="space-y-1.5">
+                    <label htmlFor="email" className="text-xs font-medium text-white/60">Email</label>
+                    <Input
+                        {...form.field("email")}
+                        type="email"
+                        inputMode="email"
+                        placeholder="Email address"
+                        className="h-12 rounded-xl border-white/10 bg-white/5"
+                        autoComplete="email"
+                        autoCapitalize="none"
+                    />
+                    {form.shownError("email") && <p role="alert" className="text-xs text-red-400">{form.shownError("email")}</p>}
+                </div>
+
+                <div className="space-y-1.5">
+                    <label htmlFor="password" className="text-xs font-medium text-white/60">Password</label>
+                    <div className="relative">
+                        <Input
+                            {...form.field("password")}
+                            type={showPassword ? "text" : "password"}
+                            placeholder="Password"
+                            className="h-12 rounded-xl border-white/10 bg-white/5 pr-12"
+                            autoComplete="current-password"
+                        />
+                        <button
+                            type="button"
+                            aria-label={showPassword ? "Hide password" : "Show password"}
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-0 top-0 flex h-12 w-12 items-center justify-center text-white/40 hover:text-emerald-400"
+                        >
+                            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                        </button>
                     </div>
-                    <CardTitle className="text-4xl font-black tracking-tighter uppercase italic mb-3 text-gradient">
-                        Welcome <span className="emerald-gradient">Back</span>
-                    </CardTitle>
-                    <CardDescription className="text-white/40 text-sm font-medium">Access your intelligent dashboard</CardDescription>
-                </CardHeader>
+                    {form.shownError("password") && <p role="alert" className="text-xs text-red-400">{form.shownError("password")}</p>}
+                </div>
 
-                <CardContent className="p-0">
-                    <Formik
-                        initialValues={{ email: "", password: "" }}
-                        validationSchema={LoginSchema}
-                        onSubmit={handleSubmit}
+                {form.status && (
+                    <div role="alert" className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-center text-sm text-red-400">
+                        {String(form.status)}
+                    </div>
+                )}
+
+                <Button
+                    type="submit"
+                    className="h-12 w-full rounded-xl bg-emerald-500 text-sm font-bold text-black hover:bg-emerald-600"
+                    isLoading={form.isSubmitting}
+                    disabled={form.isSubmitting}
+                >
+                    Sign In <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+
+                <p className="pt-2 text-center text-sm text-white/40">
+                    New to Strongg?{" "}
+                    <button
+                        type="button"
+                        onClick={() => router.push("/register")}
+                        className="font-bold text-emerald-500 underline underline-offset-4 hover:text-emerald-400"
                     >
-                        {({ errors, touched, isSubmitting, status }) => (
-                            <Form className="space-y-6">
-                                <div className="space-y-4">
-                                    {/* Email */}
-                                    <div className="space-y-2">
-                                        <div className="relative group">
-                                            <Field
-                                                as={Input}
-                                                id="email"
-                                                name="email"
-                                                placeholder="Email address"
-                                                className="pl-12 h-14 bg-white/5 border-white/10 rounded-2xl focus:border-emerald-500/50 focus:ring-emerald-500/20 transition-all"
-                                                autoComplete="email"
-                                            />
-                                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-white/20 group-focus-within:text-emerald-500 transition-colors" />
-                                        </div>
-                                        {errors.email && touched.email && (
-                                            <p className="text-red-400 text-[10px] uppercase tracking-wider font-bold ml-2">{String(errors.email)}</p>
-                                        )}
-                                    </div>
-
-                                    {/* Password */}
-                                    <div className="space-y-2">
-                                        <div className="relative group">
-                                            <Field
-                                                as={Input}
-                                                id="password"
-                                                name="password"
-                                                type={showPassword ? "text" : "password"}
-                                                placeholder="Password"
-                                                className="pl-12 pr-12 h-14 bg-white/5 border-white/10 rounded-2xl focus:border-emerald-500/50 focus:ring-emerald-500/20 transition-all"
-                                                autoComplete="current-password"
-                                            />
-                                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-white/20 group-focus-within:text-emerald-500 transition-colors" />
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowPassword(!showPassword)}
-                                                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-emerald-500 transition-colors focus:outline-none"
-                                            >
-                                                {showPassword ? (
-                                                    <EyeOff className="h-5 w-5" />
-                                                ) : (
-                                                    <Eye className="h-5 w-5" />
-                                                )}
-                                            </button>
-                                        </div>
-                                        {errors.password && touched.password && (
-                                            <p className="text-red-400 text-[10px] uppercase tracking-wider font-bold ml-2">{String(errors.password)}</p>
-                                        )}
-                                    </div>
-
-                                    {status && (
-                                        <motion.div 
-                                            initial={{ opacity: 0, scale: 0.95 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium text-center"
-                                        >
-                                            {String(status)}
-                                        </motion.div>
-                                    )}
-                                </div>
-
-                                <Button
-                                    type="submit"
-                                    className="w-full h-14 text-sm font-bold uppercase tracking-widest rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-black shadow-[0_10px_20px_-10px_rgba(16,185,129,0.3)] transition-all active:scale-[0.98]"
-                                    isLoading={isSubmitting}
-                                    disabled={isSubmitting}
-                                >
-                                    Sign In <ArrowRight className="ml-2 h-4 w-4" />
-                                </Button>
-
-                                <div className="text-center pt-4">
-                                    <p className="text-sm text-white/30 font-medium">
-                                        New to Strongg?{" "}
-                                        <button
-                                            type="button"
-                                            onClick={() => router.push("/register")}
-                                            className="text-emerald-500 hover:text-emerald-400 font-bold transition-all underline underline-offset-4"
-                                        >
-                                            Create Account
-                                        </button>
-                                    </p>
-                                </div>
-                            </Form>
-                        )}
-                    </Formik>
-                </CardContent>
-            </Card>
-        </motion.div>
+                        Create Account
+                    </button>
+                </p>
+            </form>
+        </div>
     );
 }

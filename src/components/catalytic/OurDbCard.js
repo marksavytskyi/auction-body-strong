@@ -15,7 +15,7 @@ export default function OurDbCard({ result }) {
     const hasEvidence = observedEvidence > 0;
 
     return (
-        <div className="rounded-3xl border border-emerald-500/15 bg-emerald-500/[0.03] backdrop-blur-xl overflow-hidden flex flex-col">
+        <div className="rounded-3xl border border-emerald-500/15 bg-emerald-500/[0.03] overflow-hidden flex flex-col">
             <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between gap-3">
                 <div className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-white/70">
                     <FlaskConical className="h-4 w-4 text-emerald-400" />

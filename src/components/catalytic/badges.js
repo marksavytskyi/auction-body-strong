@@ -24,7 +24,7 @@ export function ConfidenceBadge({ confidence, className = "" }) {
     return (
         <span
             className={[
-                "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-md whitespace-nowrap",
+                "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border whitespace-nowrap",
                 CONFIDENCE_STYLE[key],
                 className,
             ].join(" ")}

@@ -212,7 +212,7 @@ export default function ModerationDetailPage() {
                 <CaptureStatusBadge status={detail.status} />
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-5 sm:p-6">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
                 <div className="font-bold text-lg text-white/90">
                     {[detail.year, detail.make, detail.model].filter(Boolean).join(" ") || "Vehicle not identified"}
                 </div>
@@ -224,7 +224,7 @@ export default function ModerationDetailPage() {
                 {detail.notes && <p className="text-xs text-white/35 italic mt-2">{detail.notes}</p>}
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-5 sm:p-6 space-y-3">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6 space-y-3">
                 <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-white/40 font-bold">
                     <Layers className="h-3.5 w-3.5 text-emerald-400" />
                     Catalysts ({detail.catalysts?.length || 0})
@@ -245,7 +245,7 @@ export default function ModerationDetailPage() {
             </div>
 
             {isPending && (
-                <div className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-5 sm:p-6 space-y-3">
+                <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6 space-y-3">
                     <Label className="text-white/60 text-xs uppercase tracking-wider">Moderator notes (optional)</Label>
                     <textarea
                         value={moderatorNotes}

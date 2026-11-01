@@ -29,7 +29,7 @@ function ImportRow({ imp }) {
     return (
         <Link
             href={`/cats/admin/copart/${imp.id}`}
-            className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3.5 hover:bg-white/[0.05] hover:border-white/20 transition-all sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3.5 hover:bg-white/[0.05] hover:border-white/20 transition-colors sm:flex-row sm:items-center sm:justify-between"
         >
             <div className="flex items-center gap-3 min-w-0">
                 <div className="p-2 rounded-xl border border-sky-500/20 bg-sky-500/10 shrink-0">

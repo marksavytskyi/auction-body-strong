@@ -63,7 +63,7 @@ export default function CatsNav({ role }) {
                 key={item.href}
                 href={item.href}
                 className={[
-                    "inline-flex items-center gap-2 px-4 h-10 rounded-xl text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap",
+                    "inline-flex items-center gap-2 px-4 h-10 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors whitespace-nowrap",
                     active
                         ? "bg-emerald-500/15 border border-emerald-500/30 text-emerald-300"
                         : "border border-transparent text-white/50 hover:text-white hover:bg-white/5",

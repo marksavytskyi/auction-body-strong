@@ -18,7 +18,7 @@ const STEP = { PICK: "pick", REVIEW: "review", CONFIRM_START: "confirm_start" };
 
 function Overlay({ children, onClose }) {
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80" onClick={onClose}>
             <div
                 className="max-w-lg w-full max-h-[85vh] overflow-auto rounded-2xl border border-white/10 bg-[#0b0d12] p-5 sm:p-6"
                 onClick={(e) => e.stopPropagation()}
@@ -138,7 +138,7 @@ export default function CreateCatdbBatchFlow({ copartImportId, readyCount, onSta
                                 type="button"
                                 onClick={() => { setLimit(n); setCustomLimit(""); }}
                                 className={[
-                                    "h-10 w-14 rounded-xl text-sm font-bold border transition-all",
+                                    "h-10 w-14 rounded-xl text-sm font-bold border transition-colors",
                                     !customLimit && limit === n
                                         ? "bg-sky-500/15 border-sky-500/40 text-sky-300"
                                         : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10",

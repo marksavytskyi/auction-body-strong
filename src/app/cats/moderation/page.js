@@ -38,7 +38,7 @@ export default function ModerationQueuePage() {
 
     return (
         <div className="space-y-5">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-5 sm:p-6">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-white/40 font-bold">
                         <ShieldCheck className="h-3.5 w-3.5 text-amber-400" />

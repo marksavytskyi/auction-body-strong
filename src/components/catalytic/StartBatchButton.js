@@ -54,7 +54,7 @@ export default function StartBatchButton({ batchId, size = "sm", onStarted }) {
             </Button>
 
             {open && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => !busy && setOpen(false)}>
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80" onClick={() => !busy && setOpen(false)}>
                     <div className="max-w-md w-full rounded-2xl border border-white/10 bg-[#0b0d12] p-5" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-4">
                             <div className="text-sm font-bold text-white/90 uppercase tracking-wide">Start CatDB Processing?</div>

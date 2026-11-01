@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useAuth } from "@/hooks/useAuth";
+import { resetRoleCache, useAuth } from "@/hooks/useAuth";
 import { useAdminTierGate, useOwnerOnlyGate } from "@/hooks/useRoleGate";
 import axiosInstance from "@/utils/axios";
 
@@ -22,9 +22,35 @@ function fakeJwt(claims) {
 
 describe("useAuth", () => {
     beforeEach(() => {
+        resetRoleCache();
         replaceMock.mockClear();
         axiosInstance.get.mockReset();
         window.localStorage.clear();
+    });
+
+    it("makes one /auth/me request for several components using the same token", async () => {
+        window.localStorage.setItem("authToken", fakeJwt({ sub: "owner@strongg.us" }));
+        axiosInstance.get.mockResolvedValue({ data: { role: "OWNER" } });
+
+        const first = renderHook(() => useAuth());
+        const second = renderHook(() => useAuth());
+
+        await waitFor(() => expect(first.result.current.role).toBe("OWNER"));
+        await waitFor(() => expect(second.result.current.role).toBe("OWNER"));
+        expect(axiosInstance.get).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not remember a failed /auth/me, so the next page can recover", async () => {
+        window.localStorage.setItem("authToken", fakeJwt({ sub: "owner@strongg.us" }));
+        axiosInstance.get.mockRejectedValueOnce(new Error("Network Error"));
+        axiosInstance.get.mockResolvedValue({ data: { role: "OWNER" } });
+
+        const failed = renderHook(() => useAuth());
+        await waitFor(() => expect(failed.result.current.roleReady).toBe(true));
+        expect(failed.result.current.role).toBeNull();
+
+        const retried = renderHook(() => useAuth());
+        await waitFor(() => expect(retried.result.current.role).toBe("OWNER"));
     });
 
     // Regression test for the production bug: every /cats/admin/* page and

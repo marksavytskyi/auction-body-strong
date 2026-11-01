@@ -2,8 +2,7 @@
 
 import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, Sparkles, FlaskConical, User } from "lucide-react";
-import { motion } from "framer-motion";
+import { LogOut, FlaskConical } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
 import { isWorkerRole } from "@/lib/rbac";
@@ -47,62 +46,34 @@ export default function CatsLayout({ children }) {
     if (!isLoggedIn) return null;
 
     return (
-        <div className="relative min-h-screen w-full bg-[#020202] text-white overflow-hidden">
-            <div className="absolute inset-0 opacity-[0.16]" style={{ backgroundImage: "radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)", backgroundSize: "42px 42px" }} />
-            <div className="absolute -top-[28rem] -left-[18rem] h-[44rem] w-[44rem] rounded-full bg-sky-500/10 blur-[180px]" />
-            <div className="absolute -bottom-[30rem] -right-[18rem] h-[44rem] w-[44rem] rounded-full bg-emerald-500/10 blur-[180px]" />
+        <div className="min-h-screen w-full bg-[#020202] text-white">
 
-            <div className="relative mx-auto max-w-7xl px-4 py-10 md:py-12">
-                <motion.div
-                    initial={{ opacity: 0, y: -12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.45 }}
-                    className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+            <div className="mx-auto max-w-7xl px-3 py-3 sm:px-4 md:py-5">
+                <div
+                    className="mb-3 flex flex-wrap items-center gap-2 md:mb-4"
                 >
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 rounded-2xl border border-sky-500/25 bg-sky-500/10 accent-glow-sm">
-                            <FlaskConical className="h-6 w-6 text-sky-400" />
-                        </div>
-                        <div>
-                            <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.26em] text-white/45 font-bold">
-                                <Sparkles className="h-3.5 w-3.5 text-sky-400" />
-                                Catalytic Converter Intelligence
-                            </div>
-                            <h1 className="mt-1 text-2xl sm:text-3xl font-black tracking-tight uppercase italic text-gradient">
-                                Cats <span className="text-transparent bg-clip-text bg-gradient-to-br from-sky-400 to-sky-600">Module</span>
-                            </h1>
-                        </div>
-                    </div>
+                    <h1 className="mr-auto inline-flex items-center gap-2 text-lg font-black uppercase tracking-tight">
+                        <FlaskConical className="h-5 w-5 text-sky-400" />
+                        Cats
+                    </h1>
 
-                    <div className="flex items-center gap-3">
+                    <div className="order-last w-full sm:order-none sm:w-auto">
                         <ModuleSwitcher active="cats" />
-                        {userEmail && (
-                            <div className="hidden md:flex items-center gap-2.5 px-4 py-2 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md">
-                                <div className="p-1.5 rounded-lg bg-sky-500/10 border border-sky-500/20">
-                                    <User className="h-3.5 w-3.5 text-sky-400" />
-                                </div>
-                                <span className="text-xs font-bold text-white/70 tracking-wide select-none">{userEmail}</span>
-                            </div>
-                        )}
-                        <Button variant="outline" className="rounded-2xl border-white/15 h-11 px-5" onClick={() => router.push("/logout")}>
-                            <LogOut className="mr-1.5 h-4 w-4" />
-                            Logout
-                        </Button>
                     </div>
-                </motion.div>
+                    {userEmail && <span className="hidden max-w-[220px] truncate text-xs text-white/50 lg:inline">{userEmail}</span>}
+                    <Button variant="outline" className="h-9 rounded-xl border-white/15 px-3" aria-label="Logout" onClick={() => router.push("/logout")}>
+                            <LogOut className="h-4 w-4" />
+                            <span className="hidden sm:inline">Logout</span>
+                        </Button>
+                </div>
 
-                <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: 0.05 }}
-                    className="mb-6 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-2"
+                <div
+                    className="mb-3 overflow-x-auto rounded-xl border border-white/10 bg-white/[0.03] p-1"
                 >
                     <CatsNav role={role} />
-                </motion.div>
+                </div>
 
-                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }}>
-                    {children}
-                </motion.div>
+                {children}
             </div>
         </div>
     );

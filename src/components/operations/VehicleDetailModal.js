@@ -142,9 +142,9 @@ export default function VehicleDetailModal({ vehicle, onClose, onUpdated }) {
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/80" onClick={onClose}>
             <div
-                className="max-w-2xl w-full max-h-[88vh] overflow-auto rounded-2xl border border-white/10 bg-[#0b0d12] p-5 sm:p-6"
+                className="max-w-2xl w-full max-h-[94dvh] overflow-auto rounded-2xl border border-white/10 bg-[#0b0d12] p-4 sm:max-h-[88vh] sm:p-6"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between mb-4">

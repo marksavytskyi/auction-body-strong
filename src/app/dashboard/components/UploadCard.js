@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
 import { UploadCloud, Loader2, FileText, RefreshCw, Download, Eye, Maximize2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatBytes } from "@/utils/formatters";
-import NeonJobClock from "./NeonJobClock";
+import dynamic from "next/dynamic";
+
+const NeonJobClock = dynamic(() => import("./NeonJobClock"), { ssr: false });
 import TableFullscreenModal from "@/components/dashboard/TableFullscreenModal";
 
 const MAX_MB = 25;
@@ -206,11 +207,10 @@ export default function UploadCard({
     );
 
     return (
-        <motion.div
+        <div
             {...getRootProps()}
-            whileHover={{ y: -2 }}
             className={[
-                "rounded-3xl border border-dashed p-5 transition-all duration-300 cursor-pointer",
+                "rounded-3xl border border-dashed p-5 transition-colors cursor-pointer",
                 "glass-card shadow-xl shadow-black/20",
                 isDragActive ? "border-emerald-400/70 bg-emerald-500/[0.08]" : "border-white/15",
             ].join(" ")}
@@ -292,10 +292,7 @@ export default function UploadCard({
             ) : null}
 
             {hasPreview && (
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.25 }}
+                <div
                     className="mt-4 rounded-2xl border border-emerald-500/20 bg-black/35 overflow-hidden"
                 >
                     <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-white/10 bg-emerald-500/10">
@@ -323,7 +320,7 @@ export default function UploadCard({
                         bodyRows: inlineBodyRows,
                         maxHeightClass: "max-h-44",
                     })}
-                </motion.div>
+                </div>
             )}
 
             <TableFullscreenModal
@@ -332,7 +329,7 @@ export default function UploadCard({
                 title={file ? `CSV Preview: ${file.name} (${Math.max(0, fullscreenTotalRows)} rows)` : "CSV Preview"}
             >
                 <div className="h-full flex flex-col">
-                    <div className="shrink-0 px-4 py-3 border-b border-white/10 bg-[#090b10]/95 backdrop-blur">
+                    <div className="shrink-0 px-4 py-3 border-b border-white/10 bg-[#090b10]/95">
                         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div className="relative w-full md:max-w-sm">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/50" />
@@ -379,7 +376,7 @@ export default function UploadCard({
                         })}
                     </div>
 
-                    <div className="shrink-0 px-4 py-3 border-t border-white/10 bg-[#090b10]/95 backdrop-blur flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="shrink-0 px-4 py-3 border-t border-white/10 bg-[#090b10]/95 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="text-xs text-white/60 text-center sm:text-left">
                             Showing <b className="text-white/80">{fullscreenTotalRows === 0 ? 0 : (fullscreenSafePage - 1) * fullscreenPageSize + 1}</b> -{" "}
                             <b className="text-white/80">{Math.min(fullscreenSafePage * fullscreenPageSize, fullscreenTotalRows)}</b> of{" "}
@@ -436,6 +433,6 @@ export default function UploadCard({
                     </div>
                 </div>
             </TableFullscreenModal>
-        </motion.div>
+        </div>
     );
 }

@@ -257,8 +257,9 @@ describe("VehicleTable price confidence tag (K.34)", () => {
             total: 1,
         });
         render(<VehicleTable batchId={1} onOpenVehicle={vi.fn()} refreshKey={0} />);
-        expect(await screen.findByText("Low confidence")).toBeInTheDocument();
-        expect(screen.getByText("Too few listings")).toBeInTheDocument();
+        // Once in the desktop table and once on the mobile card.
+        expect(await screen.findAllByText("Low confidence")).toHaveLength(2);
+        expect(screen.getAllByText("Too few listings")).toHaveLength(2);
     });
 
     it("adds nothing for strong prices or vehicles priced before K.34", async () => {

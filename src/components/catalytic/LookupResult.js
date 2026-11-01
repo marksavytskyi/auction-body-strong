@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { motion } from "framer-motion";
 import { Car, Hash, Layers, Code2, ClipboardPlus, ChevronDown, ChevronUp, SlidersHorizontal } from "lucide-react";
 import { normalizeCatdbSnapshot } from "@/lib/catalytic/catdb";
 import { ConfidenceBadge, SourceBadge } from "./badges";
@@ -108,9 +107,9 @@ export default function LookupResult({ result, vin, onRecordObservation }) {
     const catdbSnapshot = normalizeCatdbSnapshot(result.raw);
 
     return (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="space-y-5">
+        <div className="space-y-5">
             {/* Vehicle identity */}
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-5 sm:p-6">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
                 <div className="flex items-center gap-3">
                     <div className="p-2 rounded-xl bg-white/5 border border-white/10 shrink-0">
                         <Car className="h-5 w-5 text-white/60" />
@@ -181,6 +180,6 @@ export default function LookupResult({ result, vin, onRecordObservation }) {
                     </div>
                 )}
             </div>
-        </motion.div>
+        </div>
     );
 }

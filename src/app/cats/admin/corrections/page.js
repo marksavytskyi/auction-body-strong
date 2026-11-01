@@ -630,19 +630,19 @@ function CatsAdminPageInner() {
 
     return (
         <div className="space-y-5">
-            <div className="rounded-3xl border border-amber-500/20 bg-amber-500/[0.04] backdrop-blur-xl p-4 flex items-center gap-3">
+            <div className="rounded-3xl border border-amber-500/20 bg-amber-500/[0.04] p-4 flex items-center gap-3">
                 <ShieldAlert className="h-5 w-5 text-amber-400 shrink-0" />
                 <p className="text-xs text-amber-200/80">Administrative corrections. Changes here affect confidence and pricing for everyone and are logged to the override log.</p>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] overflow-hidden">
                 <div className="flex flex-wrap gap-1 p-2 border-b border-white/[0.06]">
                     {TABS.map((t) => (
                         <button
                             key={t.id}
                             type="button"
                             onClick={() => setTab(t.id)}
-                            className={`px-3.5 h-9 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+                            className={`px-3.5 h-9 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors ${
                                 tab === t.id ? "bg-amber-500/15 border border-amber-500/30 text-amber-300" : "border border-transparent text-white/50 hover:text-white hover:bg-white/5"
                             }`}
                         >

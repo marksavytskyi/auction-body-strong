@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isPageHidden } from "@/lib/pageVisibility";
 import { useDropzone } from "react-dropzone";
 import toast from "react-hot-toast";
 import { UploadCloud, Loader2, FileText, RefreshCw, FileStack, Eye, X, ArrowUpDown, ArrowUp, ArrowDown, Search } from "lucide-react";
@@ -64,7 +65,7 @@ const SORT_OPTIONS = [
 function RowDetailModal({ row, onClose }) {
     if (!row) return null;
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80" onClick={onClose}>
             <div className="max-w-2xl w-full max-h-[80vh] overflow-auto rounded-2xl border border-white/10 bg-[#0b0d12] p-5" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-3">
                     <div className="text-sm font-bold text-white/90">Row {row.rowIndex + 1} — {row.vehicleLabel}</div>
@@ -150,7 +151,7 @@ export default function CatsBatchPage() {
         (id) => {
             if (pollRef.current) clearInterval(pollRef.current);
             pollRef.current = setInterval(() => {
-                fetchStatus(id).catch(() => {});
+                if (!isPageHidden()) fetchStatus(id).catch(() => {});
             }, 2500);
         },
         [fetchStatus]
@@ -218,7 +219,7 @@ export default function CatsBatchPage() {
             <div
                 {...getRootProps()}
                 className={[
-                    "rounded-3xl border border-dashed p-5 transition-all cursor-pointer glass-card shadow-xl shadow-black/20 h-fit",
+                    "rounded-3xl border border-dashed p-5 transition-colors cursor-pointer glass-card shadow-xl shadow-black/20 h-fit",
                     isDragActive ? "border-sky-400/70 bg-sky-500/[0.08]" : "border-white/15",
                 ].join(" ")}
             >
@@ -253,7 +254,7 @@ export default function CatsBatchPage() {
                     <div className="mt-4 space-y-2 rounded-2xl border border-white/10 bg-black/30 p-3">
                         <div className="flex items-center justify-between text-xs">
                             <span className="text-white/50">Status</span>
-                            <span className={`font-bold uppercase ${isProcessing ? "text-sky-300 animate-pulse" : status === "failed" ? "text-rose-300" : "text-emerald-300"}`}>
+                            <span className={`font-bold uppercase ${isProcessing ? "text-sky-300" : status === "failed" ? "text-rose-300" : "text-emerald-300"}`}>
                                 {status || "unknown"}
                             </span>
                         </div>
@@ -276,7 +277,7 @@ export default function CatsBatchPage() {
                 )}
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] overflow-hidden">
                 <div className="px-5 py-4 border-b border-white/[0.06] flex flex-wrap items-center gap-3 justify-between">
                     <h2 className="text-sm font-bold uppercase tracking-wider text-white/70">Valuation Table</h2>
                     <div className="flex items-center gap-2 flex-wrap">

@@ -16,7 +16,10 @@ import ProcessingProgress from "@/components/operations/ProcessingProgress";
 import ExportCsvButton from "@/components/operations/ExportCsvButton";
 import CatdbSection from "@/components/operations/CatdbSection";
 import VehicleTable from "@/components/operations/VehicleTable";
-import VehicleDetailModal from "@/components/operations/VehicleDetailModal";
+import dynamic from "next/dynamic";
+
+// Opened on demand, so the batch table doesn't wait for it.
+const VehicleDetailModal = dynamic(() => import("@/components/operations/VehicleDetailModal"), { ssr: false });
 
 const POLL_MS = 4000;
 const EMPTY_LEG_ACTIVE = { parts: false, ourdb: false, weight: false };
@@ -163,7 +166,7 @@ export default function OperationsBatchDetailPage() {
     }
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-3 sm:space-y-5">
             <button onClick={() => router.push("/operations")} className="text-xs text-white/40 hover:text-white inline-flex items-center gap-1.5"><ArrowLeft className="h-3.5 w-3.5" /> Back to Operations</button>
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -176,6 +179,7 @@ export default function OperationsBatchDetailPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                    <a href="#vehicles" className="inline-flex h-10 items-center rounded-xl bg-emerald-500 px-3 text-sm font-bold text-black lg:hidden">Vehicles</a>
                     <ExportCsvButton batchId={batch.id} />
                     <button type="button" onClick={handleManualRefresh} className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white" title="Refresh">
                         <RefreshCw className="h-4 w-4" />
@@ -195,7 +199,7 @@ export default function OperationsBatchDetailPage() {
 
             <CatdbSection batchId={batch.id} refreshKey={refreshKey} onBatchDataChanged={() => setRefreshKey((k) => k + 1)} />
 
-            <div>
+            <div id="vehicles" className="scroll-mt-2">
                 <h2 className="text-sm font-bold text-white/70 uppercase tracking-wide mb-3">Vehicles</h2>
                 <VehicleTable batchId={batch.id} onOpenVehicle={setSelectedVehicle} refreshKey={refreshKey} />
             </div>

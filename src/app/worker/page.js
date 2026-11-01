@@ -96,7 +96,7 @@ export default function WorkerHomePage() {
             <button
                 type="button"
                 onClick={() => router.push("/worker/captures/new")}
-                className="w-full h-32 rounded-3xl bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] transition-all text-black flex flex-col items-center justify-center gap-2 shadow-[0_16px_32px_-12px_rgba(16,185,129,0.5)]"
+                className="w-full h-32 rounded-3xl bg-emerald-500 hover:bg-emerald-600 transition-colors text-black flex flex-col items-center justify-center gap-2"
             >
                 <Plus className="h-8 w-8" />
                 <span className="text-lg font-black uppercase tracking-wider">New Vehicle</span>

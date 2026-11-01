@@ -59,7 +59,7 @@ export default function CatdbApprovalDialog({ batchId, preview, onClose, onAppro
     };
 
     return (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80" onClick={onClose}>
             <div
                 className="max-w-lg w-full rounded-2xl border border-white/10 bg-[#0b0d12] p-5 sm:p-6 space-y-4"
                 onClick={(e) => e.stopPropagation()}

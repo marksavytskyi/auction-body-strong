@@ -31,7 +31,7 @@ export default function WorkerLayout({ children }) {
 
     return (
         <div className="min-h-screen w-full bg-[#020202] text-white">
-            <div className="sticky top-0 z-20 flex items-center justify-between gap-3 px-4 h-14 border-b border-white/10 bg-[#020202]/95 backdrop-blur">
+            <div className="sticky top-0 z-20 flex items-center justify-between gap-3 px-4 h-14 border-b border-white/10 bg-[#020202]/95">
                 <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-wider text-white/85">
                     <Wrench className="h-4 w-4 text-emerald-400" />
                     Cats Capture

@@ -14,6 +14,7 @@
 // is ever computed client-side.
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { isPageHidden } from "@/lib/pageVisibility";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -52,6 +53,8 @@ function apiErrorMessage(e, fallback) {
 
 // ─── modal portal ───────────────────────────────────────────────────────
 //
+// (The animated layout wrapper described here has since been removed; the
+// portal stays, as it is the correct home for a full-screen dialog.)
 // Root cause of the "Adjust Search Balance" modal rendering behind/
 // clipped by the CatDB Devices section: this page's dialogs were plain
 // `position: fixed` <div>s rendered IN PLACE in the component tree,
@@ -89,7 +92,7 @@ function ModalShell({ onClose, widthClassName = "max-w-md", children }) {
     return (
         <ModalPortal>
             <div
-                className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto"
+                className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 overflow-y-auto"
                 onClick={onClose}
             >
                 <div
@@ -498,7 +501,7 @@ export default function CatdbSettingsPage() {
 
     useEffect(() => {
         load();
-        const interval = setInterval(load, 15000);
+        const interval = setInterval(() => { if (!isPageHidden()) load(); }, 15000);
         return () => clearInterval(interval);
     }, [load]);
 
@@ -532,7 +535,7 @@ export default function CatdbSettingsPage() {
                 <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">{error}</div>
             )}
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-5 sm:p-6 space-y-4">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6 space-y-4">
                 <div className="flex items-center justify-between flex-wrap gap-3">
                     <h2 className="text-xs font-bold uppercase tracking-wider text-white/40">CatDB Subscriptions</h2>
                     <NewSubscriptionForm onCreated={load} />
@@ -551,7 +554,7 @@ export default function CatdbSettingsPage() {
                 )}
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-5 sm:p-6 space-y-4">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6 space-y-4">
                 <div className="flex items-center justify-between">
                     <h2 className="text-xs font-bold uppercase tracking-wider text-white/40 inline-flex items-center gap-1.5">
                         <Smartphone className="h-3.5 w-3.5" /> CatDB Devices

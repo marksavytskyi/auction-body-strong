@@ -22,7 +22,7 @@ function fmtDate(s) {
 const STATUS_META = {
     [CATDB_STATUS.NO_DATA]: { label: "No Data", tone: "border-white/15 bg-white/5 text-white/45", icon: CircleSlash },
     [CATDB_STATUS.PENDING]: { label: "Pending", tone: "border-amber-500/30 bg-amber-500/10 text-amber-300", icon: Clock },
-    [CATDB_STATUS.SEARCHING]: { label: "Searching", tone: "border-sky-500/30 bg-sky-500/10 text-sky-300 animate-pulse", icon: Loader2 },
+    [CATDB_STATUS.SEARCHING]: { label: "Searching", tone: "border-sky-500/30 bg-sky-500/10 text-sky-300", icon: Loader2 },
     [CATDB_STATUS.COMPLETE]: { label: "Complete", tone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300", icon: Database },
     [CATDB_STATUS.FAILED]: { label: "Failed", tone: "border-rose-500/30 bg-rose-500/10 text-rose-300", icon: TriangleAlert },
 };
@@ -35,7 +35,7 @@ export default function CatdbCard({ snapshot }) {
     const capturedLabel = fmtDate(snapshot.capturedAt);
 
     return (
-        <div className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden flex flex-col">
+        <div className="rounded-3xl border border-white/10 bg-white/[0.03] overflow-hidden flex flex-col">
             <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between gap-3">
                 <div className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-white/70">
                     <Database className="h-4 w-4 text-sky-400" />

@@ -22,6 +22,30 @@ const decodeToken = (t) => {
     }
 };
 
+// Layouts and page gates each call useAuth, and every navigation remounts the
+// gates. Share one answer per token briefly instead of blocking each page on a
+// new request. The backend still checks the role on every real call.
+const ROLE_CACHE_MS = 60_000;
+let roleLookup = null; // { token, at, promise }
+
+const fetchRole = (token) => {
+    if (roleLookup && roleLookup.token === token && Date.now() - roleLookup.at < ROLE_CACHE_MS) {
+        return roleLookup.promise;
+    }
+    const entry = { token, at: Date.now() };
+    entry.promise = axiosInstance.get('/auth/me', { timeout: 20_000 }).catch((error) => {
+        // A failure must be retried by the next caller, never cached.
+        if (roleLookup === entry) roleLookup = null;
+        throw error;
+    });
+    roleLookup = entry;
+    return entry.promise;
+};
+
+export const resetRoleCache = () => {
+    roleLookup = null;
+};
+
 export const useAuth = () => {
     const [token, setToken] = useState(null);
     const [expiresAt, setExpiresAt] = useState(0);
@@ -81,8 +105,7 @@ export const useAuth = () => {
         let cancelled = false;
         setRoleReady(false);
 
-        axiosInstance
-            .get('/auth/me')
+        fetchRole(token)
             .then((res) => {
                 if (cancelled) return;
                 setRole(res?.data?.role || null);
@@ -117,6 +140,7 @@ export const useAuth = () => {
         window.localStorage.removeItem('authToken');
         window.localStorage.removeItem('authTokenTimestamp');
         window.localStorage.removeItem('dashboard:active-job-id');
+        resetRoleCache();
         setToken(null);
         setExpiresAt(0);
         setEmail(null);

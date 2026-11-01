@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { Search, Filter, ArrowUpDown, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,15 +43,13 @@ export default function JobsHistory({ jobs, jobError, openJob, deleteJob }) {
     }, [jobs, search, statusFilter, sortOrder]);
 
     return (
-        <div className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4 sm:p-5 space-y-4 shadow-xl shadow-black/20">
+        <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:p-5 space-y-4 shadow-xl shadow-black/20">
             {jobError && (
-                <motion.div
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
+                <div
                     className="rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200"
                 >
                     {jobError}
-                </motion.div>
+                </div>
             )}
 
             <div className="flex items-center justify-between gap-3">
@@ -106,15 +103,10 @@ export default function JobsHistory({ jobs, jobError, openJob, deleteJob }) {
             </div>
 
             <div className="space-y-2 max-h-[430px] overflow-auto pr-1">
-                <AnimatePresence initial={false}>
                     {filteredJobs.length ? (
                         filteredJobs.map((job) => (
-                            <motion.div
+                            <div
                                 key={job.job_id}
-                                layout
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -8 }}
                                 className="rounded-2xl border border-white/10 bg-black/25 hover:bg-black/35 transition-colors"
                             >
                                 <button type="button" onClick={() => openJob(job.job_id)} className="w-full text-left px-3 py-3 min-w-0">
@@ -156,14 +148,13 @@ export default function JobsHistory({ jobs, jobError, openJob, deleteJob }) {
                                         Delete
                                     </Button>
                                 </div>
-                            </motion.div>
+                            </div>
                         ))
                     ) : (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-white/60 py-8 text-center border border-dashed border-white/10 rounded-2xl">
+                        <div className="text-xs text-white/60 py-8 text-center border border-dashed border-white/10 rounded-2xl">
                             No jobs matching current filters.
-                        </motion.div>
+                        </div>
                     )}
-                </AnimatePresence>
             </div>
         </div>
     );

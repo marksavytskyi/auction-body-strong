@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isPageHidden } from "@/lib/pageVisibility";
 import { useDropzone } from "react-dropzone";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { LogOut, Sparkles, UploadCloud, User } from "lucide-react";
-import { motion } from "framer-motion";
 
 import axiosInstance from "@/utils/axios";
 import { useAuth } from "@/hooks/useAuth";
@@ -365,7 +365,7 @@ export default function Page() {
             previewTickRef.current = 0;
 
             pollRef.current = setInterval(async () => {
-                if (tickInFlight) return;
+                if (tickInFlight || isPageHidden()) return;
                 tickInFlight = true;
 
                 try {
@@ -608,10 +608,10 @@ export default function Page() {
         const status = jobStatus;
         if (!status) return null;
 
-        const base = "px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-md";
-        if (status === "done") return <span className={`${base} border-emerald-500/30 bg-emerald-500/10 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]`}>done</span>;
-        if (status === "failed") return <span className={`${base} border-rose-500/30 bg-rose-500/10 text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.1)]`}>failed</span>;
-        if (status === "processing" || status === "queued") return <span className={`${base} border-blue-500/30 bg-blue-500/10 text-blue-400 animate-pulse`}>{status}</span>;
+        const base = "px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border";
+        if (status === "done") return <span className={`${base} border-emerald-500/30 bg-emerald-500/10 text-emerald-400`}>done</span>;
+        if (status === "failed") return <span className={`${base} border-rose-500/30 bg-rose-500/10 text-rose-400`}>failed</span>;
+        if (status === "processing" || status === "queued") return <span className={`${base} border-blue-500/30 bg-blue-500/10 text-blue-400`}>{status}</span>;
         return <span className={`${base} border-white/20 bg-white/5 text-white/60`}>{status}</span>;
     }, [jobStatus]);
 
@@ -625,19 +625,13 @@ export default function Page() {
 
     return (
         <div className="relative min-h-screen w-full bg-[#020202] text-white overflow-hidden">
-            <div className="absolute inset-0 opacity-[0.16]" style={{ backgroundImage: "radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)", backgroundSize: "42px 42px" }} />
-            <div className="absolute -top-[28rem] -left-[18rem] h-[44rem] w-[44rem] rounded-full bg-emerald-500/10 blur-[180px]" />
-            <div className="absolute -bottom-[30rem] -right-[18rem] h-[44rem] w-[44rem] rounded-full bg-blue-500/10 blur-[180px]" />
 
             <div className="relative mx-auto max-w-6xl px-4 py-10 md:py-12">
-                <motion.div
-                    initial={{ opacity: 0, y: -12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.45 }}
+                <div
                     className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                     <div className="flex items-center gap-4">
-                        <div className="p-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 accent-glow-sm">
+                        <div className="p-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/10">
                             <UploadCloud className="h-6 w-6 text-emerald-400" />
                         </div>
                         <div>
@@ -645,8 +639,8 @@ export default function Page() {
                                 <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
                                 Vehicle Intelligence Console
                             </div>
-                            <h1 className="mt-1 text-2xl sm:text-3xl font-black tracking-tight uppercase italic text-gradient">
-                                Dashboard <span className="emerald-gradient">v2</span>
+                            <h1 className="mt-1 text-2xl sm:text-3xl font-black tracking-tight uppercase italic text-white">
+                                Dashboard <span className="text-emerald-400">v2</span>
                             </h1>
                         </div>
                     </div>
@@ -654,7 +648,7 @@ export default function Page() {
                     <div className="flex items-center gap-3">
                         <ModuleSwitcher active="parts" />
                         {userEmail && (
-                            <div className="hidden md:flex items-center gap-2.5 px-4 py-2 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md">
+                            <div className="hidden md:flex items-center gap-2.5 px-4 py-2 rounded-2xl border border-white/10 bg-white/5">
                                 <div className="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                                     <User className="h-3.5 w-3.5 text-emerald-400" />
                                 </div>
@@ -668,10 +662,10 @@ export default function Page() {
                             Logout
                         </Button>
                     </div>
-                </motion.div>
+                </div>
 
                 <div className="flex flex-col gap-6">
-                    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.08 }}>
+                    <div>
                         <CardContent className="p-0 grid gap-6 md:grid-cols-[420px_1fr]">
                             <UploadCard
                                 getRootProps={getRootProps}
@@ -697,9 +691,9 @@ export default function Page() {
 
                             <JobsHistory jobs={jobs} jobError={jobError} openJob={openJob} deleteJob={deleteJob} />
                         </CardContent>
-                    </motion.div>
+                    </div>
 
-                    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.14 }}>
+                    <div>
                         <ResultsSection
                             jobId={jobId}
                             jobStatus={jobStatus}
@@ -719,7 +713,7 @@ export default function Page() {
                             downloadResult={downloadResult}
                             openModal={openModal}
                         />
-                    </motion.div>
+                    </div>
                 </div>
             </div>
 

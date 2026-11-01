@@ -30,7 +30,7 @@ export default function ModuleSwitcher({ active }) {
         <div
             role="tablist"
             aria-label="Product module"
-            className="inline-flex items-center gap-1 rounded-2xl border border-white/10 bg-white/5 p-1 backdrop-blur-md"
+            className="flex w-full items-center gap-1 rounded-2xl border border-white/10 bg-white/5 p-1 sm:inline-flex sm:w-auto"
         >
             {MODULES.map(({ id, label, href, icon: Icon }) => {
                 const isActive = id === active;
@@ -45,9 +45,9 @@ export default function ModuleSwitcher({ active }) {
                             if (!isActive) router.push(href);
                         }}
                         className={[
-                            "inline-flex items-center gap-1.5 rounded-xl px-3.5 h-9 text-xs font-bold uppercase tracking-wider transition-all",
+                            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl px-2 h-9 text-xs font-bold uppercase tracking-wider transition-colors sm:flex-none sm:px-3.5",
                             isActive
-                                ? "bg-emerald-500 text-black shadow-[0_6px_16px_-6px_rgba(16,185,129,0.5)]"
+                                ? "bg-emerald-500 text-black"
                                 : "text-white/50 hover:text-white hover:bg-white/5",
                         ].join(" ")}
                     >

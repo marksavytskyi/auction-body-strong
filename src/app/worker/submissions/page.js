@@ -61,7 +61,7 @@ export default function MySubmissionsPage() {
                         key={f.id}
                         type="button"
                         onClick={() => setFilter(f.id)}
-                        className={`px-3 h-8 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all ${
+                        className={`px-3 h-8 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-colors ${
                             filter === f.id ? "bg-emerald-500/15 border border-emerald-500/30 text-emerald-300" : "border border-white/10 text-white/50"
                         }`}
                     >
