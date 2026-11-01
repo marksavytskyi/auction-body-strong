@@ -1,30 +1,29 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React from "react";
+import { createPortal } from "react-dom";
 import { AlertCircle, LayoutGrid, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useModalLayer } from "@/hooks/useModalLayer";
 
 export default function DetailsModal({ isOpen, data, onClose, children }) {
-    useEffect(() => {
-        if (!isOpen) return;
-
-        const onEscape = (event) => {
-            if (event.key === "Escape") onClose();
-        };
-
-        document.addEventListener("keydown", onEscape);
-        return () => document.removeEventListener("keydown", onEscape);
-    }, [isOpen, onClose]);
+    // A portal too: rendered inside the page, this sat under the fullscreen table
+    // (also on <body>), so View Details opened where nobody could see it.
+    const zIndex = useModalLayer(isOpen, onClose);
 
     if (!isOpen) return null;
 
-    return (
+    return createPortal(
                 <div
-                    className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Pricing details"
+                    style={{ zIndex }}
+                    className="fixed inset-0 flex items-center justify-center p-2 sm:p-4 bg-black/80"
                     onClick={onClose}
                 >
                     <div
-                        className="relative w-full max-w-6xl max-h-[90vh] overflow-hidden bg-[#0b0d12] rounded-3xl border border-white/10 shadow-2xl flex flex-col"
+                        className="relative w-full max-w-6xl max-h-[94dvh] overflow-hidden bg-[#0b0d12] rounded-3xl border border-white/10 shadow-2xl flex flex-col"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="p-4 sm:p-6 border-b border-white/5 bg-white/[0.04]">
@@ -49,7 +48,7 @@ export default function DetailsModal({ isOpen, data, onClose, children }) {
                             </div>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-white/10">
+                        <div className="flex-1 overflow-y-auto p-3 sm:p-6 scrollbar-thin scrollbar-thumb-white/10">
                             {data ? (
                                 children
                             ) : (
@@ -66,6 +65,7 @@ export default function DetailsModal({ isOpen, data, onClose, children }) {
                             </Button>
                         </div>
                     </div>
-                </div>
+                </div>,
+        document.body
     );
 }

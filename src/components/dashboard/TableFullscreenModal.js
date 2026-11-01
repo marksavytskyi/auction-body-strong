@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { createPortal } from "react-dom";
+import { useModalLayer } from "@/hooks/useModalLayer";
 
 export default function TableFullscreenModal({ isOpen, onClose, title = "Table", children }) {
     const [mounted, setMounted] = useState(false);
@@ -12,33 +13,14 @@ export default function TableFullscreenModal({ isOpen, onClose, title = "Table",
         return () => setMounted(false);
     }, []);
 
-    useEffect(() => {
-        if (!isOpen) return;
-
-        const onEscape = (event) => {
-            if (event.key === "Escape") onClose();
-        };
-
-        document.addEventListener("keydown", onEscape);
-        return () => document.removeEventListener("keydown", onEscape);
-    }, [isOpen, onClose]);
-
-    useEffect(() => {
-        if (!isOpen || typeof document === "undefined") return;
-
-        const prevOverflow = document.body.style.overflow;
-        document.body.style.overflow = "hidden";
-
-        return () => {
-            document.body.style.overflow = prevOverflow;
-        };
-    }, [isOpen]);
+    const zIndex = useModalLayer(isOpen, onClose);
 
     const modalNode = useMemo(
         () =>
                 isOpen ? (
                     <div
-                        className="fixed inset-0 z-[9999] h-[100dvh] w-[100vw] bg-black/90"
+                        className="fixed inset-0 h-[100dvh] w-[100vw] bg-black/90"
+                        style={{ zIndex }}
                         onClick={onClose}
                     >
                         <div
@@ -61,7 +43,7 @@ export default function TableFullscreenModal({ isOpen, onClose, title = "Table",
                         </div>
                     </div>
                 ) : null,
-        [children, isOpen, onClose, title]
+        [children, isOpen, onClose, title, zIndex]
     );
 
     if (!mounted) return null;

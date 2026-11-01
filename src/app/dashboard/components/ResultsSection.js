@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { clamp, formatDuration, safeJsonParse } from "@/utils/formatters";
 import TableFullscreenModal from "@/components/dashboard/TableFullscreenModal";
+import { columnLabel, columnMatches } from "@/lib/parts/columnLabels";
 
 const VISIBLE_COLUMNS_STORAGE_KEY = "dashboard:visible-columns";
 
@@ -126,16 +127,19 @@ export default function ResultsSection({
             }
         };
 
+        // Capture, so Escape closes this menu and not the fullscreen table behind it.
         const onEscape = (event) => {
-            if (event.key === "Escape") setShowColumnToggle(false);
+            if (event.key !== "Escape") return;
+            event.stopPropagation();
+            setShowColumnToggle(false);
         };
 
-        document.addEventListener("mousedown", onOutsideClick);
-        document.addEventListener("keydown", onEscape);
+        document.addEventListener("pointerdown", onOutsideClick);
+        document.addEventListener("keydown", onEscape, true);
 
         return () => {
-            document.removeEventListener("mousedown", onOutsideClick);
-            document.removeEventListener("keydown", onEscape);
+            document.removeEventListener("pointerdown", onOutsideClick);
+            document.removeEventListener("keydown", onEscape, true);
         };
     }, [showColumnToggle]);
 
@@ -172,8 +176,7 @@ export default function ResultsSection({
 
     const filteredHeaders = useMemo(() => {
         if (!columnSearch) return headers;
-        const search = columnSearch.toLowerCase();
-        return headers.filter((h) => String(h || "").toLowerCase().includes(search));
+        return headers.filter((h) => columnMatches(h, columnSearch));
     }, [columnSearch, headers]);
 
     const debugColIdx = useMemo(() => {
@@ -196,7 +199,7 @@ export default function ResultsSection({
     const canReadPreview = Boolean(jobId) && ["queued", "processing", "done"].includes(normalizedStatus);
     const hasTableData = headers.length > 0;
 
-    const sortedByLabel = sortConfig.key ? `${sortConfig.key} (${sortConfig.direction})` : "no sorting";
+    const sortedByLabel = sortConfig.key ? `${columnLabel(sortConfig.key)} (${sortConfig.direction})` : "no sorting";
 
     const renderResultsTable = (heightClass = "max-h-[70vh]", fullscreen = false) => (
         <div
@@ -227,7 +230,7 @@ export default function ResultsSection({
                                             className="inline-flex items-center gap-1.5 hover:text-white transition-colors"
                                             title="Sort by column"
                                         >
-                                            <span>{h || `Column ${idx + 1}`}</span>
+                                            <span title={String(h || "")}>{h ? columnLabel(h) : `Column ${idx + 1}`}</span>
                                             <SortIcon className={`h-3.5 w-3.5 ${isSorted ? "text-emerald-400" : "text-white/35"}`} />
                                         </button>
                                         <button
@@ -322,11 +325,11 @@ export default function ResultsSection({
 
                     {showColumnToggle && (
                         <div
-                            className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-white/10 bg-[#0c0e13] p-2 shadow-2xl"
+                            className="absolute left-0 top-full z-50 mt-2 w-[min(18rem,calc(100vw-2rem))] rounded-xl border border-white/10 bg-[#0c0e13] p-2 shadow-2xl sm:left-auto sm:right-0"
                         >
                             <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-2 px-2">
                                 <span className="text-xs font-bold text-white/60 uppercase tracking-wider">Visible Columns</span>
-                                <button onClick={toggleAllColumns} className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold uppercase">
+                                <button type="button" onClick={toggleAllColumns} className="-my-1 px-1 py-1 text-[11px] text-emerald-400 hover:text-emerald-300 font-bold uppercase">
                                     {isAllSelected ? "Deselect All" : "Select All"}
                                 </button>
                             </div>
@@ -337,7 +340,7 @@ export default function ResultsSection({
                                     <input
                                         type="text"
                                         placeholder="Search column..."
-                                        className="w-full rounded-lg border border-white/10 bg-white/5 py-1 pl-7 pr-2 text-[10px] text-white outline-none focus:border-emerald-500/50 transition-colors"
+                                        className="w-full rounded-lg border border-white/10 bg-white/5 py-2 pl-7 pr-2 text-base text-white outline-none sm:py-1 sm:text-xs focus:border-emerald-500/50 transition-colors"
                                         value={columnSearch}
                                         onChange={(e) => setColumnSearch(e.target.value)}
                                         autoFocus
@@ -349,11 +352,13 @@ export default function ResultsSection({
                                 {filteredHeaders.map((h, i) => (
                                     <button
                                         key={`${String(h)}_${i}`}
+                                        type="button"
+                                        title={String(h || "")}
                                         onClick={() => toggleColumn(h)}
-                                        className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-white/80 hover:bg-white/5 transition-colors"
+                                        className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs sm:min-h-0 text-white/80 hover:bg-white/5 transition-colors"
                                     >
-                                        {visibleColumns.has(h) ? <CheckSquare className="h-4 w-4 text-emerald-500" /> : <Square className="h-4 w-4 text-white/20" />}
-                                        <span className="truncate">{h || `Col ${i + 1}`}</span>
+                                        {visibleColumns.has(h) ? <CheckSquare className="h-4 w-4 shrink-0 text-emerald-500" /> : <Square className="h-4 w-4 shrink-0 text-white/20" />}
+                                        <span className="min-w-0 break-words">{h ? columnLabel(h) : `Col ${i + 1}`}</span>
                                     </button>
                                 ))}
                                 {filteredHeaders.length === 0 && <div className="px-2 py-4 text-center text-[10px] text-white/40 italic">No columns found</div>}

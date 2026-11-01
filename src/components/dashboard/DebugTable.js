@@ -11,6 +11,8 @@ import {
     Maximize2,
 } from "lucide-react";
 import TableFullscreenModal from "@/components/dashboard/TableFullscreenModal";
+import { columnLabel, columnMatches } from "@/lib/parts/columnLabels";
+import { EMPTY_VALUE, fieldKind, formatField } from "@/lib/parts/fieldFormat";
 
 /**
  * DebugTable component to show sub-data info
@@ -19,6 +21,7 @@ export function DebugTable({ data }) {
     const [visibleKeys, setVisibleKeys] = useState(new Set());
     const [searchKey, setSearchKey] = useState("");
     const [isTableFullscreen, setIsTableFullscreen] = useState(false);
+    const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false);
 
     useEffect(() => {
         if (Array.isArray(data) && data.length > 0) {
@@ -106,61 +109,16 @@ export function DebugTable({ data }) {
             );
         }
 
-        if (typeof v === "number" || (typeof v === "string" && !isNaN(v) && v.length > 0 && (key.toLowerCase().includes("price") || key.toLowerCase().includes("cost")))) {
-            const num = parseFloat(v);
-            if (!isNaN(num)) {
-                return (
-                    <span className="font-mono text-emerald-400 font-semibold">
-                        ${num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
-                    </span>
-                );
-            }
-        }
-        
-        if (key.toLowerCase() === "disp" && typeof v === "number") {
-            return <span className="text-white/90 font-medium">{v.toFixed(1)} L</span>;
-        }
-
-        if (key.toLowerCase() === "mileage" && typeof v === "number") {
-            return <span className="text-white/90 font-medium">{v.toLocaleString()} km</span>;
-        }
-
         if (typeof v === "object" && v !== null) return JSON.stringify(v);
-        return <span className="text-white/80">{String(v ?? "-")}</span>;
+
+        const shown = formatField(v, key);
+        if (fieldKind(key) === "money" && shown !== EMPTY_VALUE) {
+            return <span className="font-mono text-emerald-400 font-semibold">{shown}</span>;
+        }
+        return <span className="text-white/80">{shown}</span>;
     };
 
-    const formatLabel = (s) => {
-        const mapping = {
-            "vin": "VIN",
-            "make": "Make",
-            "model": "Model",
-            "model_norm": "Model",
-            "year": "Year",
-            "price": "Price",
-            "price_usd": "Price ($)",
-            "odometer": "Odometer",
-            "mileage": "Mileage",
-            "disp": "Engine (L)",
-            "engine": "Engine",
-            "transmission": "Transmission",
-            "color": "Color",
-            "location": "Location",
-            "lot_url": "Lot URL",
-            "auction": "Auction",
-            "sold_date": "Sold Date",
-            "final_price": "Final Price",
-            "avg_price": "Avg Price",
-            "distance": "Distance",
-            "score": "Match Score",
-            "confidence": "Confidence",
-            "id": "ID",
-            "description": "Description",
-        };
-        const low = s.toLowerCase();
-        if (mapping[low]) return mapping[low];
-        
-        return s.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
-    };
+    const formatLabel = columnLabel;
 
     if (Array.isArray(data)) {
         if (data.length === 0) return <div className="text-xs text-white/40 italic p-4 bg-white/5 rounded-xl">Empty array</div>;
@@ -180,7 +138,7 @@ export function DebugTable({ data }) {
             return pA - pB;
         });
 
-        const filteredKeysForMenu = sortedKeys.filter(k => k.toLowerCase().includes(searchKey.toLowerCase()));
+        const filteredKeysForMenu = sortedKeys.filter(k => columnMatches(k, searchKey));
 
         const renderArrayTable = (maxHeightClass = "", fullscreen = false) => (
             <div
@@ -225,7 +183,7 @@ export function DebugTable({ data }) {
                                         <td 
                                             key={cidx} 
                                             className="px-3 py-2 text-white/80 whitespace-nowrap max-w-[200px] truncate"
-                                            title={String(item[k] || "")}
+                                            title={String(item[k] ?? "")}
                                         >
                                             {renderVal(item[k], k)}
                                         </td>
@@ -250,17 +208,22 @@ export function DebugTable({ data }) {
                         Fullscreen
                     </button>
 
-                    <div className="relative group/menu">
-                        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800/50 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/10 text-[10px] font-bold text-white/70 uppercase transition-colors shadow-lg">
+                    <div className="relative">
+                        <button
+                            type="button"
+                            aria-expanded={isColumnMenuOpen}
+                            onClick={() => setIsColumnMenuOpen((open) => !open)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800/50 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/10 text-[10px] font-bold text-white/70 uppercase transition-colors shadow-lg">
                             <LayoutGrid className="h-3 w-3 text-emerald-400" />
                             Columns ({visibleKeys.size}/{keys.length})
                         </button>
                         
-                        <div className="absolute right-0 top-full mt-2 w-56 bg-zinc-900/95 border border-white/10 rounded-xl shadow-2xl p-3 z-[60] opacity-0 translate-y-2 pointer-events-none group-hover/menu:opacity-100 group-hover/menu:translate-y-0 group-hover/menu:pointer-events-auto transition-colors duration-200">
+                        <div className={`absolute right-0 top-full mt-2 w-[min(16rem,calc(100vw-2.5rem))] bg-zinc-900 border border-white/10 rounded-xl shadow-2xl p-3 z-[60] ${isColumnMenuOpen ? "" : "hidden"}`}>
                             <div className="mb-3 space-y-2.5">
                                 <div className="flex items-center justify-between">
                                     <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Visibility</span>
                                     <button 
+                                        type="button"
                                         onClick={() => setVisibleKeys(visibleKeys.size === keys.length ? new Set([sortedKeys[0]]) : new Set(keys))}
                                         className="text-[10px] text-white/40 hover:text-white transition-colors"
                                     >
@@ -274,20 +237,20 @@ export function DebugTable({ data }) {
                                         placeholder="Search..." 
                                         value={searchKey}
                                         onChange={(e) => setSearchKey(e.target.value)}
-                                        className="w-full bg-black/40 border border-white/10 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg pl-8 pr-3 py-2 text-base sm:py-1.5 sm:text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-emerald-500/50 transition-colors"
                                     />
                                 </div>
                             </div>
                             <div className="max-h-60 overflow-y-auto pr-1 space-y-0.5 scrollbar-thin scrollbar-thumb-emerald-500/20">
                                 {filteredKeysForMenu.map(k => (
-                                    <label key={k} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition-colors group/item">
+                                    <label key={k} className="flex items-center gap-2.5 min-h-10 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition-colors group/item sm:min-h-0">
                                         <input 
                                             type="checkbox" 
                                             checked={visibleKeys.has(k)}
                                             onChange={() => toggleKey(k)}
                                             className="w-3.5 h-3.5 rounded border-white/20 bg-black/50 text-emerald-500 focus:ring-emerald-500/50 transition-colors cursor-pointer"
                                         />
-                                        <span className={`text-[11px] truncate ${visibleKeys.has(k) ? 'text-white/90 font-medium' : 'text-white/40 group-hover/item:text-white/60'}`}>
+                                        <span className={`text-[11px] min-w-0 break-words ${visibleKeys.has(k) ? 'text-white/90 font-medium' : 'text-white/40 group-hover/item:text-white/60'}`}>
                                             {formatLabel(k)}
                                         </span>
                                     </label>
@@ -302,7 +265,7 @@ export function DebugTable({ data }) {
                 <TableFullscreenModal
                     isOpen={isTableFullscreen}
                     onClose={() => setIsTableFullscreen(false)}
-                    title="Debug Table"
+                    title="Source Listings"
                 >
                     {renderArrayTable("h-full", true)}
                 </TableFullscreenModal>
