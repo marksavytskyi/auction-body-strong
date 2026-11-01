@@ -28,7 +28,7 @@ const decodeToken = (t) => {
 const ROLE_CACHE_MS = 60_000;
 let roleLookup = null; // { token, at, promise }
 
-const fetchRole = (token) => {
+export const fetchRole = (token) => {
     if (roleLookup && roleLookup.token === token && Date.now() - roleLookup.at < ROLE_CACHE_MS) {
         return roleLookup.promise;
     }
@@ -56,6 +56,7 @@ export const useAuth = () => {
     // wrong content while that request is in flight.
     const [role, setRole] = useState(null);
     const [roleReady, setRoleReady] = useState(false);
+    const [roleAttempt, setRoleAttempt] = useState(0);
 
     const computeExpiry = (t, fallbackTimestamp) => {
         const decoded = decodeToken(t);
@@ -121,7 +122,12 @@ export const useAuth = () => {
         return () => {
             cancelled = true;
         };
-    }, [ready, isLoggedIn, token]);
+    }, [ready, isLoggedIn, token, roleAttempt]);
+
+    const retryRole = useCallback(() => {
+        resetRoleCache();
+        setRoleAttempt((attempt) => attempt + 1);
+    }, []);
 
     const saveToken = (newToken) => {
         if (typeof window === 'undefined') return;
@@ -153,5 +159,5 @@ export const useAuth = () => {
         if (ready && isTokenExpired) logout();
     }, [ready, isTokenExpired, logout]);
 
-    return { ready, isLoggedIn, token, email, role, roleReady, saveToken, logout };
+    return { ready, isLoggedIn, token, email, role, roleReady, retryRole, saveToken, logout };
 };

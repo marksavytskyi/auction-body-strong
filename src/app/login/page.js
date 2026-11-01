@@ -7,9 +7,8 @@ import { Input } from "@/components/ui/input";
 import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import axiosInstance from "@/utils/axios";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/hooks/useAuth";
+import { fetchRole, useAuth } from "@/hooks/useAuth";
 import { isValidEmail, useSimpleForm } from "@/hooks/useSimpleForm";
-import { getLastModule } from "@/lib/moduleStorage";
 import { homeRouteForRole } from "@/lib/rbac";
 
 // A dead connection should fail here in seconds, not after the app-wide
@@ -29,30 +28,14 @@ function validate(values) {
 
 export default function Page() {
     const router = useRouter();
-    const { ready, isLoggedIn, saveToken } = useAuth();
+    const { ready, isLoggedIn, role, roleReady, saveToken } = useAuth();
     const [showPassword, setShowPassword] = React.useState(false);
     // Signing in also flips isLoggedIn; the submit handler owns that redirect.
     const signingIn = useRef(false);
 
-    const goHome = async () => {
-        if (getLastModule() !== "cats") {
-            router.replace("/dashboard");
-            return;
-        }
-        // Role-aware Cats redirect — a WORKER must never land on the admin
-        // lookup/dashboard and bounce off a 403.
-        try {
-            const me = await axiosInstance.get("/auth/me", { timeout: AUTH_TIMEOUT_MS });
-            router.replace(homeRouteForRole(me?.data?.role));
-        } catch {
-            router.replace("/cats");
-        }
-    };
-
     useEffect(() => {
-        if (ready && isLoggedIn && !signingIn.current) goHome();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ready, isLoggedIn]);
+        if (ready && isLoggedIn && roleReady && !signingIn.current) router.replace(homeRouteForRole(role));
+    }, [ready, isLoggedIn, roleReady, role, router]);
 
     const form = useSimpleForm({
         initialValues: INITIAL_VALUES,
@@ -64,7 +47,13 @@ export default function Page() {
                 const accessToken = response?.data?.access_token;
                 if (!accessToken) throw new Error("No access_token in response");
                 saveToken(accessToken);
-                await goHome();
+                let accountRole = null;
+                try {
+                    accountRole = (await fetchRole(accessToken))?.data?.role;
+                } catch {
+                    // The destination's guard reports this and offers a retry.
+                }
+                router.replace(homeRouteForRole(accountRole));
             } catch (error) {
                 signingIn.current = false;
                 setStatus(

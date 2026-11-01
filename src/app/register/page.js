@@ -8,9 +8,8 @@ import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "@/utils/axios";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/hooks/useAuth";
+import { fetchRole, useAuth } from "@/hooks/useAuth";
 import { isValidEmail, useSimpleForm } from "@/hooks/useSimpleForm";
-import { getLastModule } from "@/lib/moduleStorage";
 import { homeRouteForRole } from "@/lib/rbac";
 
 const VALID_INVITE_CODE = process.env.NEXT_PUBLIC_REGISTRATION_INVITE_CODE || "";
@@ -81,18 +80,13 @@ export default function Page() {
                 }
                 saveToken(accessToken);
 
-                if (getLastModule() === "cats") {
-                    // Every new registration defaults to WORKER on the
-                    // backend — send them straight to the capture flow,
-                    // not the admin lookup screen.
-                    try {
-                        const me = await axiosInstance.get("/auth/me", { timeout: AUTH_TIMEOUT_MS });
-                        router.push(homeRouteForRole(me?.data?.role));
-                    } catch {
-                        router.push("/worker");
-                    }
-                } else {
-                    router.push("/dashboard");
+                // New accounts are always WORKER on the backend, but only its answer
+                // decides, and a failed check still sends nobody to the main app.
+                try {
+                    const me = await fetchRole(accessToken);
+                    router.replace(homeRouteForRole(me?.data?.role));
+                } catch {
+                    router.replace("/worker");
                 }
             } catch (error) {
                 setStatus(

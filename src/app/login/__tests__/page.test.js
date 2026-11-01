@@ -50,6 +50,38 @@ describe("login", () => {
         expect(window.localStorage.getItem("authToken")).toBeTruthy();
     });
 
+    it.each([
+        ["WORKER", "/worker"],
+        ["MODERATOR", "/dashboard"],
+        ["ADMIN", "/dashboard"],
+        ["OWNER", "/dashboard"],
+    ])("sends a signed-in %s to %s", async (role, home) => {
+        axiosInstance.post.mockResolvedValue({ data: { access_token: token() } });
+        axiosInstance.get.mockResolvedValue({ data: { role } });
+        render(<Page />);
+        fillAndSubmit("a@b.co", "secret1");
+        await waitFor(() => expect(replaceMock).toHaveBeenCalledWith(home));
+        expect(replaceMock).toHaveBeenCalledTimes(1);
+        expect(axiosInstance.get).toHaveBeenCalledTimes(1);
+    });
+
+    it("ignores a role or module saved in localStorage", async () => {
+        window.localStorage.setItem("role", "OWNER");
+        window.localStorage.setItem("app:active-module", "operations");
+        axiosInstance.post.mockResolvedValue({ data: { access_token: token() } });
+        axiosInstance.get.mockResolvedValue({ data: { role: "WORKER" } });
+        render(<Page />);
+        fillAndSubmit("a@b.co", "secret1");
+        await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/worker"));
+    });
+
+    it("sends an existing WORKER session to /worker", async () => {
+        window.localStorage.setItem("authToken", token());
+        axiosInstance.get.mockResolvedValue({ data: { role: "WORKER" } });
+        render(<Page />);
+        await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/worker"));
+    });
+
     it("shows the server's message for bad credentials", async () => {
         axiosInstance.post.mockRejectedValue({ response: { status: 400, data: { detail: "Bad credentials" } } });
         render(<Page />);

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { LogOut, Boxes, ShieldAlert } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
+import RoleGuard from "@/components/shell/RoleGuard";
 import { isAdminTierRole } from "@/lib/rbac";
 import { isOperationsUiEnabled } from "@/lib/operations/featureFlag";
 import { Button } from "@/components/ui/button";
@@ -19,23 +20,7 @@ import { setLastModule } from "@/lib/moduleStorage";
 // every /operations/* API call still 403s on its own for anyone who
 // gets here some other way.
 export default function OperationsLayout({ children }) {
-    const router = useRouter();
-    const { ready, isLoggedIn, email: userEmail, role, roleReady } = useAuth();
     const flagEnabled = isOperationsUiEnabled();
-
-    useEffect(() => {
-        if (!ready) return;
-        if (!isLoggedIn) router.replace("/login");
-    }, [ready, isLoggedIn, router]);
-
-    useEffect(() => {
-        if (!roleReady || !isLoggedIn) return;
-        if (!isAdminTierRole(role)) router.replace("/dashboard");
-    }, [roleReady, isLoggedIn, role, router]);
-
-    useEffect(() => {
-        setLastModule("operations");
-    }, []);
 
     if (!flagEnabled) {
         return (
@@ -51,15 +36,20 @@ export default function OperationsLayout({ children }) {
         );
     }
 
-    if (!ready || !roleReady) {
-        return (
-            <div className="min-h-screen w-full flex items-center justify-center bg-[#020202]">
-                <div className="text-white/70 text-sm uppercase tracking-[0.2em]">Loading Operations module...</div>
-            </div>
-        );
-    }
+    return (
+        <RoleGuard allow={isAdminTierRole} loadingLabel="Loading Operations…">
+            <OperationsShell>{children}</OperationsShell>
+        </RoleGuard>
+    );
+}
 
-    if (!isLoggedIn || !isAdminTierRole(role)) return null;
+function OperationsShell({ children }) {
+    const router = useRouter();
+    const { email: userEmail } = useAuth();
+
+    useEffect(() => {
+        setLastModule("operations");
+    }, []);
 
     return (
         <div className="min-h-screen w-full bg-[#020202] text-white">

@@ -44,11 +44,15 @@ export function isAdminTierRole(role) {
     return isOwnerRole(role) || isAdminRole(role);
 }
 
+// Parts, Cats and the dashboard. Named roles only, so a role this build has never
+// heard of gets least privilege rather than the main app.
+export function canUseMainApp(role) {
+    return isAdminTierRole(role) || isModeratorRole(role);
+}
+
 export function homeRouteForRole(role) {
-    if (isWorkerRole(role)) return "/worker";
-    if (isModeratorRole(role)) return "/cats/moderation";
-    if (isAdminTierRole(role)) return "/cats/admin";
-    // Role not resolved yet, or unrecognized — land somewhere that still
-    // works for everyone rather than guessing at admin tools.
-    return "/cats";
+    if (canUseMainApp(role)) return "/dashboard";
+    // Not resolved yet: the dashboard's guard waits for /auth/me, then routes.
+    if (!role) return "/dashboard";
+    return "/worker";
 }

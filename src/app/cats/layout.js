@@ -5,45 +5,30 @@ import { useRouter } from "next/navigation";
 import { LogOut, FlaskConical } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
-import { isWorkerRole } from "@/lib/rbac";
+import { canUseMainApp } from "@/lib/rbac";
+import RoleGuard from "@/components/shell/RoleGuard";
 import { Button } from "@/components/ui/button";
 import ModuleSwitcher from "@/components/shell/ModuleSwitcher";
 import CatsNav from "@/components/catalytic/CatsNav";
 import { setLastModule } from "@/lib/moduleStorage";
 
+// A WORKER only has backend permission for /worker/captures/*, so the guard sends
+// that role to /worker before anything here renders or fetches.
 export default function CatsLayout({ children }) {
-    const router = useRouter();
-    const { ready, isLoggedIn, email: userEmail, role, roleReady } = useAuth();
+    return (
+        <RoleGuard allow={canUseMainApp} loadingLabel="Loading Cats…">
+            <CatsShell>{children}</CatsShell>
+        </RoleGuard>
+    );
+}
 
-    useEffect(() => {
-        if (!ready) return;
-        if (!isLoggedIn) router.replace("/login");
-    }, [ready, isLoggedIn, router]);
+function CatsShell({ children }) {
+    const router = useRouter();
+    const { email: userEmail, role } = useAuth();
 
     useEffect(() => {
         setLastModule("cats");
     }, []);
-
-    // A WORKER account only has backend permission for /worker/captures/* —
-    // verified live, every other /catalytic/* and /moderation/* endpoint
-    // 403s for that role. The whole worker experience lives outside /cats
-    // (see src/app/worker/*, its own minimal layout) — a WORKER should
-    // never even reach this admin-chrome layout in the first place, but
-    // guard against a manually-typed /cats/* URL anyway.
-    useEffect(() => {
-        if (!roleReady || !isWorkerRole(role)) return;
-        router.replace("/worker");
-    }, [roleReady, role, router]);
-
-    if (!ready || !roleReady) {
-        return (
-            <div className="min-h-screen w-full flex items-center justify-center bg-[#020202]">
-                <div className="text-white/70 text-sm uppercase tracking-[0.2em]">Loading Cats module...</div>
-            </div>
-        );
-    }
-
-    if (!isLoggedIn) return null;
 
     return (
         <div className="min-h-screen w-full bg-[#020202] text-white">

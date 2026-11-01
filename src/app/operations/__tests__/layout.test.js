@@ -80,12 +80,12 @@ describe("OperationsLayout — authorization gating (Phase H/I-B direct tests)",
         expect(routerReplace).not.toHaveBeenCalled();
     });
 
-    it.each(["WORKER", "MODERATOR"])("denies a non-admin-tier role (%s), redirecting to /dashboard and never rendering protected content", (role) => {
+    it.each([["WORKER", "/worker"], ["MODERATOR", "/dashboard"]])("denies a non-admin-tier role (%s), redirecting to its home and never rendering protected content", (role, home) => {
         process.env.NEXT_PUBLIC_OPERATIONS_ENABLED = "true";
         setAuth({ role });
         render(<OperationsLayout><div>{PROTECTED_CONTENT}</div></OperationsLayout>);
 
-        expect(routerReplace).toHaveBeenCalledWith("/dashboard");
+        expect(routerReplace).toHaveBeenCalledWith(home);
         expect(screen.queryByText(PROTECTED_CONTENT)).not.toBeInTheDocument();
     });
 
@@ -94,7 +94,7 @@ describe("OperationsLayout — authorization gating (Phase H/I-B direct tests)",
         setAuth({ ready: false, roleReady: false });
         render(<OperationsLayout><div>{PROTECTED_CONTENT}</div></OperationsLayout>);
 
-        expect(screen.getByText(/loading operations module/i)).toBeInTheDocument();
+        expect(screen.getByText(/loading operations/i)).toBeInTheDocument();
         expect(screen.queryByText(PROTECTED_CONTENT)).not.toBeInTheDocument();
         expect(routerReplace).not.toHaveBeenCalled();
     });
@@ -104,7 +104,7 @@ describe("OperationsLayout — authorization gating (Phase H/I-B direct tests)",
         setAuth({ ready: true, isLoggedIn: true, role: null, roleReady: false });
         render(<OperationsLayout><div>{PROTECTED_CONTENT}</div></OperationsLayout>);
 
-        expect(screen.getByText(/loading operations module/i)).toBeInTheDocument();
+        expect(screen.getByText(/loading operations/i)).toBeInTheDocument();
         expect(screen.queryByText(PROTECTED_CONTENT)).not.toBeInTheDocument();
     });
 
