@@ -84,6 +84,7 @@ const COMPONENT_LABEL = {
     engine: "Engine",
     transmission: "Transmission",
     cats: "Catalytic",
+    catalytic: "Catalytic",
     scrap: "Scrap",
 };
 

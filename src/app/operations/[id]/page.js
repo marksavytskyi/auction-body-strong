@@ -14,6 +14,7 @@ import ProcessingControls from "@/components/operations/ProcessingControls";
 import FinancialSummaryCards from "@/components/operations/FinancialSummaryCards";
 import ProcessingProgress from "@/components/operations/ProcessingProgress";
 import ExportCsvButton from "@/components/operations/ExportCsvButton";
+import BatchRecoverySettings from "@/components/operations/BatchRecoverySettings";
 import CatalyticProcessingCard from "@/components/operations/CatalyticProcessingCard";
 import ScrapPriceControl from "@/components/operations/ScrapPriceControl";
 import VehicleTable from "@/components/operations/VehicleTable";
@@ -21,6 +22,7 @@ import dynamic from "next/dynamic";
 
 // Opened on demand, so the batch table doesn't wait for it.
 const VehicleDetailModal = dynamic(() => import("@/components/operations/VehicleDetailModal"), { ssr: false });
+const BulkRecoveryDialog = dynamic(() => import("@/components/operations/BulkRecoveryDialog"), { ssr: false });
 
 const POLL_MS = 4000;
 const EMPTY_LEG_ACTIVE = { parts: false, ourdb: false, weight: false };
@@ -36,6 +38,7 @@ export default function OperationsBatchDetailPage() {
     const [refreshKey, setRefreshKey] = useState(0);
     const [selectedVehicle, setSelectedVehicle] = useState(null);
     const [selectedVehicleIds, setSelectedVehicleIds] = useState([]);
+    const [bulkEditing, setBulkEditing] = useState(false);
     const bumpRefresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
     // pollRef holds the pending setTimeout handle; pollingRef is the
@@ -198,6 +201,8 @@ export default function OperationsBatchDetailPage() {
 
             <FinancialSummaryCards batchId={batch.id} refreshKey={refreshKey} />
 
+            <BatchRecoverySettings batchId={batch.id} onChanged={bumpRefresh} />
+
             <ProcessingProgress batchId={batch.id} refreshKey={refreshKey} />
 
             <ProcessingControls batch={batch} refreshKey={refreshKey} onBatchUpdated={handleBatchUpdated} />
@@ -210,7 +215,14 @@ export default function OperationsBatchDetailPage() {
             />
 
             <div id="vehicles" className="scroll-mt-2">
-                <h2 className="text-sm font-bold text-white/70 uppercase tracking-wide mb-3">Vehicles</h2>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="text-sm font-bold text-white/70 uppercase tracking-wide">Vehicles</h2>
+                    {selectedVehicleIds.length > 0 && (
+                        <button type="button" onClick={() => setBulkEditing(true)} className="h-10 rounded-xl border border-white/15 px-3 text-xs font-bold text-white/85">
+                            Bulk Edit Recovery ({selectedVehicleIds.length})
+                        </button>
+                    )}
+                </div>
                 <VehicleTable
                     batchId={batch.id}
                     onOpenVehicle={setSelectedVehicle}
@@ -224,10 +236,20 @@ export default function OperationsBatchDetailPage() {
                 <VehicleDetailModal
                     vehicle={selectedVehicle}
                     onClose={() => setSelectedVehicle(null)}
+                    onRecoverySaved={bumpRefresh}
                     onUpdated={(updated) => {
                         setSelectedVehicle(updated);
                         setRefreshKey((k) => k + 1);
                     }}
+                />
+            )}
+
+            {bulkEditing && (
+                <BulkRecoveryDialog
+                    batchId={batch.id}
+                    vehicleIds={selectedVehicleIds}
+                    onClose={() => setBulkEditing(false)}
+                    onApplied={bumpRefresh}
                 />
             )}
         </div>

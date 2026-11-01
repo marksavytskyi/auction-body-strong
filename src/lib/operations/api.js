@@ -35,6 +35,103 @@ export function uploadOperationsBatch(file, options = {}) {
     );
 }
 
+// ─── recovery rules ─────────────────────────────────────────────────────
+// Every total comes back from the backend: a preview there is the live figure, and this
+// client never calculates one.
+
+const batchRecoveryUrl = (batchId) => `${BASE}/batches/${encodeURIComponent(batchId)}/recovery`;
+const vehicleRecoveryUrl = (batchId, vehicleId) =>
+    `${BASE}/batches/${encodeURIComponent(batchId)}/vehicles/${encodeURIComponent(vehicleId)}/recovery`;
+
+export function getRecoverySettings() {
+    return request(() => axiosInstance.get(`${BASE}/recovery/settings`), "Failed to load Recovery Settings");
+}
+
+export function previewRecoverySettings(changes) {
+    return request(() => axiosInstance.post(`${BASE}/recovery/settings/preview`, changes), "Failed to preview the changes");
+}
+
+export function saveRecoverySettings({ changes, expectedVersion, reason }) {
+    return request(
+        () => axiosInstance.put(`${BASE}/recovery/settings`, { ...changes, expected_version: expectedVersion, reason }),
+        "Failed to save Recovery Settings"
+    );
+}
+
+export function getRecoveryDryRun() {
+    return request(() => axiosInstance.get(`${BASE}/recovery/dry-run`), "Failed to calculate the dry run");
+}
+
+export function setRecoveryActivation({ active, expectedVersion, reason }) {
+    return request(
+        () => axiosInstance.put(`${BASE}/recovery/activation`, { active, confirm: true, expected_version: expectedVersion, reason }),
+        "Failed to change activation"
+    );
+}
+
+export function getRecoverySummary() {
+    return request(() => axiosInstance.get(`${BASE}/recovery/summary`), "Failed to load recovery totals");
+}
+
+export function listRecoveryEvents({ limit = 20 } = {}) {
+    return request(() => axiosInstance.get(`${BASE}/recovery/events`, { params: { limit } }), "Failed to load change history");
+}
+
+export function getBatchRecovery(batchId) {
+    return request(() => axiosInstance.get(batchRecoveryUrl(batchId)), "Failed to load batch recovery rules");
+}
+
+export function previewBatchRecovery(batchId, changes, { reset = false } = {}) {
+    return request(
+        () => axiosInstance.post(`${batchRecoveryUrl(batchId)}/preview`, changes || {}, { params: reset ? { reset: true } : undefined }),
+        "Failed to preview the changes"
+    );
+}
+
+export function saveBatchRecovery(batchId, { changes, expectedVersion, reason }) {
+    return request(
+        () => axiosInstance.put(batchRecoveryUrl(batchId), { ...changes, expected_version: expectedVersion, reason }),
+        "Failed to save batch recovery rules"
+    );
+}
+
+export function resetBatchRecovery(batchId, { expectedVersion }) {
+    return request(
+        () => axiosInstance.delete(batchRecoveryUrl(batchId), { params: { expected_version: expectedVersion } }),
+        "Failed to reset batch recovery rules"
+    );
+}
+
+export function previewBulkRecovery(batchId, body) {
+    return request(() => axiosInstance.post(`${batchRecoveryUrl(batchId)}/bulk/preview`, body), "Failed to preview the bulk edit");
+}
+
+export function applyBulkRecovery(batchId, body) {
+    return request(() => axiosInstance.post(`${batchRecoveryUrl(batchId)}/bulk`, body), "Failed to apply the bulk edit");
+}
+
+export function getVehicleRecovery(batchId, vehicleId) {
+    return request(() => axiosInstance.get(vehicleRecoveryUrl(batchId, vehicleId)), "Failed to load the Recovery Price Builder");
+}
+
+export function previewVehicleRecovery(batchId, vehicleId, changes) {
+    return request(() => axiosInstance.post(`${vehicleRecoveryUrl(batchId, vehicleId)}/preview`, changes), "Failed to calculate the total");
+}
+
+export function saveVehicleRecovery(batchId, vehicleId, { changes, expectedVersion, reason }) {
+    return request(
+        () => axiosInstance.put(vehicleRecoveryUrl(batchId, vehicleId), { ...changes, expected_version: expectedVersion, reason }),
+        "Failed to save the vehicle's recovery rules"
+    );
+}
+
+export function resetVehicleRecovery(batchId, vehicleId, { expectedVersion }) {
+    return request(
+        () => axiosInstance.delete(vehicleRecoveryUrl(batchId, vehicleId), { params: { expected_version: expectedVersion } }),
+        "Failed to reset the vehicle's recovery rules"
+    );
+}
+
 // ─── global Scrap price ─────────────────────────────────────────────────
 
 export function getScrapPrice() {

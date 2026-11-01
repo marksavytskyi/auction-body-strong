@@ -7,6 +7,7 @@ vi.mock("@/lib/operations/api", () => ({
     setOperationsVehicleWeight: vi.fn(),
     setOperationsVehicleScrapOverride: vi.fn(),
     getOperationsVehicleCatalytic: vi.fn(() => Promise.resolve({ results: [] })),
+    getVehicleRecovery: vi.fn(() => new Promise(() => {})),
 }));
 
 vi.mock("react-hot-toast", () => ({

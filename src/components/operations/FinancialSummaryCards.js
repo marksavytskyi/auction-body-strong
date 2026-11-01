@@ -115,6 +115,13 @@ export default function FinancialSummaryCards({ batchId, refreshKey }) {
                             emphasis
                         />
                     </>
+                ) : summary.rules_active ? (
+                    <MoneyCard
+                        label="Recovery Total"
+                        value={summary.known_value_total}
+                        hint="Sum of every vehicle's total under the recovery rules"
+                        emphasis
+                    />
                 ) : (
                     <MoneyCard
                         label="Complete Recovery Total"
@@ -124,7 +131,7 @@ export default function FinancialSummaryCards({ batchId, refreshKey }) {
                     />
                 )}
                 <MoneyCard
-                    label="Partial Known Components Subtotal"
+                    label={summary.rules_active ? "Of which on Incomplete Vehicles" : "Partial Known Components Subtotal"}
                     value={summary.partial_known_components_subtotal}
                     hint="Sum of the known components on Partial vehicles — not a full recovery estimate"
                 />
@@ -137,7 +144,7 @@ export default function FinancialSummaryCards({ batchId, refreshKey }) {
                 <MoneyCard label="Scrap Total" value={summary.scrap_value_total} />
             </div>
 
-            {summary.catdb_range_vehicle_count > 0 && (
+            {summary.catdb_range_vehicle_count > 0 && !summary.rules_active && (
                 <div className="rounded-xl border border-violet-500/20 bg-violet-500/[0.03] p-3 sm:p-4">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-violet-200/70">
                         CatDB Estimates: {summary.catdb_range_vehicle_count} vehicle{summary.catdb_range_vehicle_count === 1 ? "" : "s"} with a price range

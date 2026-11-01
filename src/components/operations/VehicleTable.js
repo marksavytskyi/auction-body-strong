@@ -7,7 +7,7 @@ import { listOperationsBatchVehicles } from "@/lib/operations/api";
 import { CatalyticApiError } from "@/lib/catalytic/http";
 import { Input } from "@/components/ui/input";
 import StatusPill from "@/components/catalytic/StatusPill";
-import { OVERALL_STATUS, OVERALL_STATUS_LABEL, OVERALL_STATUS_TONE, LEG_STATUS_TONE, VEHICLE_SORT_FIELDS, PARTS_CONFIDENCE_LABEL } from "@/lib/operations/constants";
+import { CATS_SOURCE_LABEL, OVERALL_STATUS, OVERALL_STATUS_LABEL, OVERALL_STATUS_TONE, LEG_STATUS_TONE, VEHICLE_SORT_FIELDS, PARTS_CONFIDENCE_LABEL } from "@/lib/operations/constants";
 import { formatMoney, formatCatdbPrice, completenessMeta, deriveWeightStatus } from "@/lib/operations/format";
 
 const PAGE_SIZE = 25;
@@ -66,6 +66,24 @@ function WeakPriceTag({ level }) {
         >
             {level === "LOW" ? "Low confidence" : PARTS_CONFIDENCE_LABEL[level]}
         </div>
+    );
+}
+
+// A component's price, marked when the recovery rules exclude it or a manual price replaces it.
+function ComponentPrice({ fin, name, value }) {
+    const recovery = fin.recovery;
+    const excluded = recovery?.excluded_components?.includes(name);
+    return (
+        <>
+            <span className={excluded ? "text-white/30 line-through" : undefined}>{formatMoney(value)}</span>
+            {recovery?.manual_components?.includes(name) && <div className="text-[10px] font-bold text-sky-300/80">Manual</div>}
+            {excluded && <div className="text-[10px] text-white/35">Excluded</div>}
+            {name === "catalytic" && recovery && !excluded && fin.cats_source && fin.cats_source !== "MANUAL" && (
+                <div className={`text-[10px] ${recovery.estimated ? "font-bold text-amber-300/80" : "text-white/35"}`}>
+                    {CATS_SOURCE_LABEL[fin.cats_source] || fin.cats_source} {recovery.valuation_mode}{recovery.estimated ? " · Estimated" : ""}
+                </div>
+            )}
+        </>
     );
 }
 
@@ -252,12 +270,12 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey, selec
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{v.year || "—"}</td>
                                             <td className="px-3 py-2 border-b border-white/5 text-white/80 whitespace-nowrap">{v.make || "—"}</td>
                                             <td className="px-3 py-2 border-b border-white/5 text-white/80 whitespace-nowrap">{v.model || "—"}</td>
-                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(fin.engine_value)}<WeakPriceTag level={v.engine_price_confidence} /></td>
-                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(fin.transmission_value)}<WeakPriceTag level={v.transmission_price_confidence} /></td>
-                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(fin.cats_value)}</td>
+                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap"><ComponentPrice fin={fin} name="engine" value={fin.engine_value} /><WeakPriceTag level={v.engine_price_confidence} /></td>
+                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap"><ComponentPrice fin={fin} name="transmission" value={fin.transmission_value} /><WeakPriceTag level={v.transmission_price_confidence} /></td>
+                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap"><ComponentPrice fin={fin} name="catalytic" value={fin.cats_value} /></td>
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatCatdbPrice(v)}</td>
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(v.ourdb_total_expected)}</td>
-                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(fin.scrap_value)}</td>
+                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap"><ComponentPrice fin={fin} name="scrap" value={fin.scrap_value} /></td>
                                             <td className="px-3 py-2 border-b border-white/5 whitespace-nowrap">
                                                 <span className={fin.total_expected_recovery != null ? "text-emerald-300 font-bold" : "text-white/30"}>
                                                     {formatMoney(fin.total_expected_recovery)}
@@ -313,22 +331,22 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey, selec
                                     <div className="grid grid-cols-3 gap-2 text-xs text-white/80">
                                         <div>
                                             <div className="text-[10px] text-white/35">Engine</div>
-                                            {formatMoney(fin.engine_value)}
+                                            <ComponentPrice fin={fin} name="engine" value={fin.engine_value} />
                                             <WeakPriceTag level={v.engine_price_confidence} />
                                         </div>
                                         <div>
                                             <div className="text-[10px] text-white/35">Transmission</div>
-                                            {formatMoney(fin.transmission_value)}
+                                            <ComponentPrice fin={fin} name="transmission" value={fin.transmission_value} />
                                             <WeakPriceTag level={v.transmission_price_confidence} />
                                         </div>
                                         <div>
                                             <div className="text-[10px] text-white/35">Cats</div>
-                                            {formatMoney(fin.cats_value)}
+                                            <ComponentPrice fin={fin} name="catalytic" value={fin.cats_value} />
                                         </div>
                                     </div>
                                     {fin.total_expected_recovery != null ? (
                                         <div className="text-sm font-bold text-emerald-300">
-                                            {formatMoney(fin.total_expected_recovery)} <span className="text-[10px] font-normal text-white/30">complete recovery</span>
+                                            {formatMoney(fin.total_expected_recovery)} <span className="text-[10px] font-normal text-white/30">{fin.recovery ? "recovery total" : "complete recovery"}</span>
                                         </div>
                                     ) : (
                                         <div className="text-sm font-bold text-amber-300/90">

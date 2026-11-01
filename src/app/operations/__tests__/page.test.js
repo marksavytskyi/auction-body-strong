@@ -10,6 +10,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/components/operations/ScrapPriceControl", () => ({ default: () => <div data-testid="scrap-price" /> }));
+vi.mock("@/components/operations/RecoveryOverview", () => ({ default: () => <div data-testid="recovery-overview" /> }));
 
 vi.mock("@/lib/operations/api", () => ({
     listOperationsBatches: vi.fn(),

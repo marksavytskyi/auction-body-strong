@@ -12,6 +12,7 @@ import { formatDate } from "@/lib/operations/format";
 import StatusPill from "@/components/catalytic/StatusPill";
 import dynamic from "next/dynamic";
 
+import RecoveryOverview from "@/components/operations/RecoveryOverview";
 import ScrapPriceControl from "@/components/operations/ScrapPriceControl";
 
 // Holds the file-drop library; the batch list shouldn't wait for it.
@@ -93,6 +94,8 @@ export default function OperationsOverviewPage() {
                     </button>
                 </div>
             </div>
+
+            <RecoveryOverview />
 
             <ScrapPriceControl />
 

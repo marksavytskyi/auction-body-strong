@@ -96,6 +96,11 @@ export const CATS_SOURCE_LABEL = {
     [CATS_SOURCE.OUR_DATABASE_VERIFIED]: "Our Database",
     [CATS_SOURCE.OUR_DATABASE_ESTIMATE]: "Our Database (estimate)",
     [CATS_SOURCE.NONE]: "No source selected",
+    OUR_DATABASE: "Our Database",
+    CATDB_VIN: "CatDB VIN",
+    CATDB_LOCAL: "CatDB Local",
+    ECOTRADE_LOCAL: "EcoTrade Local",
+    MANUAL: "Manual price",
 };
 
 export const WEIGHT_SOURCE = {
@@ -297,3 +302,61 @@ export const PARTS_CONFIDENCE_TONE = {
     LOW: "warning",
     INSUFFICIENT_DATA: "danger",
 };
+
+// Recovery rules (app/operations/recovery.py).
+export const RECOVERY_COMPONENTS = [
+    { id: "engine", label: "Engine" },
+    { id: "transmission", label: "Transmission" },
+    { id: "scrap", label: "Scrap" },
+    { id: "catalytic", label: "Catalytic Converter" },
+];
+
+export const RECOVERY_MODES = ["LOW", "MID", "HIGH"];
+
+export const RECOVERY_SOURCE_LABEL = {
+    OUR_DATABASE: "Our Database",
+    CATDB_VIN: "CatDB VIN Search",
+    CATDB_LOCAL: "CatDB Local",
+    ECOTRADE_LOCAL: "EcoTrade Local",
+    MANUAL: "Manual price",
+    NONE: "None",
+    MISSING: "Missing",
+    EXCLUDED: "Excluded",
+    PARTS_PRICING: "Parts Pricing",
+    GLOBAL_SCRAP_PRICE: "Global Scrap Price",
+};
+
+export const RECOVERY_STATE_LABEL = {
+    AVAILABLE: "Available",
+    CONFIRMED_ZERO: "Confirmed $0",
+    MISSING: "Missing",
+    EXCLUDED: "Excluded",
+    NONE_SELECTED: "None selected",
+};
+
+export const RECOVERY_STATE_TONE = {
+    AVAILABLE: "success",
+    CONFIRMED_ZERO: "info",
+    MISSING: "warning",
+    EXCLUDED: "neutral",
+    NONE_SELECTED: "neutral",
+};
+
+export const RECOVERY_MATCH_LABEL = {
+    OUR_DATABASE_EXACT: "Exact match",
+    OUR_DATABASE_ESTIMATE: "Estimate",
+    VIN_EXACT: "Exact VIN",
+    YEAR_MAKE_MODEL_ENGINE: "Year, model, engine",
+    YEAR_MAKE_MODEL: "Year and model",
+    MAKE_MODEL_ANY_YEAR: "Model only",
+};
+
+export const RECOVERY_SKIP_LABEL = {
+    DISABLED: "turned off in the priority",
+    NO_RESULT: "no result",
+    UNCERTAIN: "price needs review",
+    APPROXIMATE: "approximate match, not allowed",
+    NO_VALUE_FOR_MODE: "no price for this mode",
+};
+
+export const RECOVERY_ORIGIN_LABEL = { GLOBAL: "Global", BATCH: "Batch", VEHICLE: "This vehicle" };

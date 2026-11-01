@@ -9,6 +9,7 @@ import { CatalyticApiError } from "@/lib/catalytic/http";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import StatusPill from "@/components/catalytic/StatusPill";
+import RecoveryPriceBuilder from "./RecoveryPriceBuilder";
 import VehicleCatalyticResults from "./VehicleCatalyticResults";
 import { LEG_STATUS_TONE, OVERALL_STATUS_LABEL, OVERALL_STATUS_TONE, CATS_SOURCE_LABEL, PARTS_CONFIDENCE_LABEL, PARTS_CONFIDENCE_TONE } from "@/lib/operations/constants";
 import { formatMoney, formatWeight, formatDate, completenessMeta, componentLabel, deriveWeightStatus } from "@/lib/operations/format";
@@ -76,7 +77,7 @@ function PartsEvidence({ vehicle, fin }) {
     );
 }
 
-export default function VehicleDetailModal({ vehicle, onClose, onUpdated }) {
+export default function VehicleDetailModal({ vehicle, onClose, onUpdated, onRecoverySaved }) {
     const [editingWeight, setEditingWeight] = useState(false);
     const [weightInput, setWeightInput] = useState("");
     const [busy, setBusy] = useState(false);
@@ -166,6 +167,8 @@ export default function VehicleDetailModal({ vehicle, onClose, onUpdated }) {
                     </div>
                 )}
 
+                {!fin.recovery && (
+                <>
                 <div className="rounded-xl border border-white/10 bg-black/25 p-4 mb-4">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-[11px] uppercase tracking-wider text-white/40 font-bold">Recovery Estimate</span>
@@ -206,6 +209,10 @@ export default function VehicleDetailModal({ vehicle, onClose, onUpdated }) {
                     <Row label="Scrap" value={formatMoney(fin.scrap_value)} />
                     <Row label="Scrap weight" value={formatWeight(fin.scrap_weight_lb)} />
                 </div>
+                </>
+                )}
+
+                <RecoveryPriceBuilder batchId={vehicle.operations_batch_id} vehicleId={vehicle.id} onSaved={onRecoverySaved} />
 
                 <div className="rounded-xl border border-white/10 bg-black/25 p-4 mb-4">
                     <div className="flex items-center justify-between mb-2">
