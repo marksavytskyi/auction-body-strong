@@ -45,7 +45,7 @@ const ENTRY_DETAIL_LIMIT = 50;
 // CatdbApprovalDialog's own explicit confirm step. Reconciliation here
 // only ever reads back the current state of already-existing CatDBJobs
 // — see reconcileOperationsCatdbResults's own docstring.
-export default function CatdbSection({ batchId, refreshKey, onBatchDataChanged }) {
+export default function CatdbSection({ batchId, refreshKey, onBatchDataChanged, scope, scopeCount, vehicleIds, blockReason }) {
     const [preview, setPreview] = useState(null);
     const [previewLoading, setPreviewLoading] = useState(false);
     const [previewError, setPreviewError] = useState("");
@@ -97,7 +97,7 @@ export default function CatdbSection({ batchId, refreshKey, onBatchDataChanged }
         setPreviewError("");
         setPreviewErrorStatus(null);
         try {
-            const data = await previewOperationsCatdbSearches(batchId);
+            const data = await previewOperationsCatdbSearches(batchId, scope ? { scope, vehicleIds } : undefined);
             setPreview(data);
         } catch (e) {
             setPreview(null);
@@ -155,22 +155,22 @@ export default function CatdbSection({ batchId, refreshKey, onBatchDataChanged }
         <div className="rounded-2xl border border-violet-500/20 bg-violet-500/[0.03] p-4 space-y-4">
             <div>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <h3 className="text-sm font-bold text-white/90">CatDB Paid VIN Searches</h3>
+                    <h3 className="text-sm font-bold text-white/90">CatDB VIN Search</h3>
                     <Button size="sm" variant="outline" className="rounded-xl" onClick={handleReconcile} isLoading={reconcileBusy} disabled={reconcileBusy}>
                         {!reconcileBusy && <RefreshCw className="h-3.5 w-3.5" />} Refresh CatDB Results
                     </Button>
                 </div>
                 <div className="mt-2 rounded-xl border border-sky-500/20 bg-sky-500/[0.04] p-3 text-[11px] text-sky-200/70 inline-flex items-start gap-2">
                     <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                    This is a separate, paid subscription-backed search process — distinct from Our Database (the free local
-                    lookup above). No search is ever started automatically; every new paid search requires explicit approval below.
+                    Searches may consume paid quota. No search starts automatically: previewing spends nothing, and every new search needs explicit approval below.
                 </div>
             </div>
 
-            <div>
+            <div className="flex flex-wrap items-center gap-2">
                 <Button size="sm" className="rounded-xl" onClick={loadPreview} isLoading={previewLoading} disabled={previewLoading}>
-                    {!previewLoading && <Search className="h-3.5 w-3.5" />} Preview CatDB Searches
+                    {!previewLoading && <Search className="h-3.5 w-3.5" />} Start CatDB VIN Search{scopeCount != null ? ` (${scopeCount})` : ""}
                 </Button>
+                <span className="text-[11px] text-white/35">Opens a preview. Nothing is searched yet.</span>
             </div>
 
             {previewError && (
@@ -254,11 +254,13 @@ export default function CatdbSection({ batchId, refreshKey, onBatchDataChanged }
                             size="sm"
                             className="rounded-xl"
                             onClick={() => setDialogOpen(true)}
-                            disabled={preview.max_approvable_new_searches <= 0}
+                            disabled={preview.max_approvable_new_searches <= 0 || Boolean(blockReason)}
                         >
                             Approve New Searches
                         </Button>
-                        {preview.max_approvable_new_searches <= 0 && (
+                        {blockReason ? (
+                            <span className="text-[11px] text-amber-200">{blockReason}</span>
+                        ) : preview.max_approvable_new_searches <= 0 && (
                             <span className="text-[11px] text-white/35">
                                 No quota-eligible new searches available this period.
                             </span>
@@ -271,6 +273,8 @@ export default function CatdbSection({ batchId, refreshKey, onBatchDataChanged }
                 <CatdbApprovalDialog
                     batchId={batchId}
                     preview={preview}
+                    scope={scope}
+                    vehicleIds={vehicleIds}
                     onClose={() => setDialogOpen(false)}
                     onApproved={handleApproved}
                     onStalePreview={handleStalePreview}

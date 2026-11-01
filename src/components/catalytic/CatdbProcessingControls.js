@@ -56,7 +56,7 @@ function fmtDate(value) {
     return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
-function ConfirmDialog({ action, busy, onConfirm, onClose }) {
+export function ConfirmDialog({ action, busy, onConfirm, onClose }) {
     const zIndex = useModalLayer(true, busy ? undefined : onClose);
     return createPortal(
         <div

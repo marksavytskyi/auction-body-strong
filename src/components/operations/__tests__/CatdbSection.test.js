@@ -59,8 +59,8 @@ describe("CatdbSection", () => {
 
     it("labels the section clearly as a separate paid search process, distinct from Our Database", () => {
         render(<CatdbSection batchId={7} />);
-        expect(screen.getByText(/catdb paid vin searches/i)).toBeInTheDocument();
-        expect(screen.getByText(/separate, paid subscription-backed search process/i)).toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: /catdb vin search/i })).toBeInTheDocument();
+        expect(screen.getByText(/searches may consume paid quota/i)).toBeInTheDocument();
     });
 
     it("fetches and renders the preview only after the explicit Preview button is clicked", async () => {
@@ -68,9 +68,9 @@ describe("CatdbSection", () => {
         render(<CatdbSection batchId={7} />);
 
         expect(previewOperationsCatdbSearches).not.toHaveBeenCalled();
-        fireEvent.click(screen.getByRole("button", { name: /preview catdb searches/i }));
+        fireEvent.click(screen.getByRole("button", { name: /start catdb vin search/i }));
 
-        await waitFor(() => expect(previewOperationsCatdbSearches).toHaveBeenCalledWith(7));
+        await waitFor(() => expect(previewOperationsCatdbSearches).toHaveBeenCalledWith(7, undefined));
         expect(await screen.findByText(/quota impact/i)).toBeInTheDocument();
     });
 
@@ -78,7 +78,7 @@ describe("CatdbSection", () => {
         previewOperationsCatdbSearches.mockRejectedValue(new CatalyticApiError("period has not been explicitly reconciled", { status: 503 }));
         render(<CatdbSection batchId={7} />);
 
-        fireEvent.click(screen.getByRole("button", { name: /preview catdb searches/i }));
+        fireEvent.click(screen.getByRole("button", { name: /start catdb vin search/i }));
 
         expect(await screen.findByText(/quota status unknown/i)).toBeInTheDocument();
         expect(screen.queryByText(/quota impact/i)).not.toBeInTheDocument();
@@ -87,7 +87,7 @@ describe("CatdbSection", () => {
     it("disables Approve New Searches when the quota-capped ceiling is zero", async () => {
         previewOperationsCatdbSearches.mockResolvedValue(preview({ max_approvable_new_searches: 0, never_searched_count: 0 }));
         render(<CatdbSection batchId={7} />);
-        fireEvent.click(screen.getByRole("button", { name: /preview catdb searches/i }));
+        fireEvent.click(screen.getByRole("button", { name: /start catdb vin search/i }));
 
         const approveButton = await screen.findByRole("button", { name: /^approve new searches$/i });
         expect(approveButton).toBeDisabled();
@@ -97,7 +97,7 @@ describe("CatdbSection", () => {
     it("opens the approval dialog only on explicit user click, passing the exact fetched preview", async () => {
         previewOperationsCatdbSearches.mockResolvedValue(preview());
         render(<CatdbSection batchId={7} />);
-        fireEvent.click(screen.getByRole("button", { name: /preview catdb searches/i }));
+        fireEvent.click(screen.getByRole("button", { name: /start catdb vin search/i }));
         await screen.findByRole("button", { name: /^approve new searches$/i });
 
         expect(screen.queryByTestId("approval-dialog")).not.toBeInTheDocument();
@@ -111,7 +111,7 @@ describe("CatdbSection", () => {
     it("clears the preview and requires a fresh one after the dialog reports a stale preview", async () => {
         previewOperationsCatdbSearches.mockResolvedValue(preview());
         render(<CatdbSection batchId={7} />);
-        fireEvent.click(screen.getByRole("button", { name: /preview catdb searches/i }));
+        fireEvent.click(screen.getByRole("button", { name: /start catdb vin search/i }));
         await screen.findByRole("button", { name: /^approve new searches$/i });
         fireEvent.click(screen.getByRole("button", { name: /^approve new searches$/i }));
 
@@ -125,7 +125,7 @@ describe("CatdbSection", () => {
         previewOperationsCatdbSearches.mockResolvedValue(preview());
         const onBatchDataChanged = vi.fn();
         render(<CatdbSection batchId={7} onBatchDataChanged={onBatchDataChanged} />);
-        fireEvent.click(screen.getByRole("button", { name: /preview catdb searches/i }));
+        fireEvent.click(screen.getByRole("button", { name: /start catdb vin search/i }));
         await screen.findByRole("button", { name: /^approve new searches$/i });
         fireEvent.click(screen.getByRole("button", { name: /^approve new searches$/i }));
 
@@ -174,7 +174,7 @@ describe("CatdbSection", () => {
             ],
         }));
         render(<CatdbSection batchId={7} />);
-        fireEvent.click(screen.getByRole("button", { name: /preview catdb searches/i }));
+        fireEvent.click(screen.getByRole("button", { name: /start catdb vin search/i }));
 
         const toggle = await screen.findByText(/uncertain \/ blocked vins \(2\)/i);
         fireEvent.click(toggle);
@@ -196,7 +196,7 @@ describe("CatdbSection", () => {
             ],
         }));
         render(<CatdbSection batchId={7} />);
-        fireEvent.click(screen.getByRole("button", { name: /preview catdb searches/i }));
+        fireEvent.click(screen.getByRole("button", { name: /start catdb vin search/i }));
 
         const toggle = await screen.findByText(/uncertain \/ blocked vins \(1\)/i);
         fireEvent.click(toggle);
@@ -212,7 +212,7 @@ describe("CatdbSection", () => {
         const entries = Array.from({ length: 60 }, (_, i) => entry({ vin: `V${i}`, category: "INELIGIBLE" }));
         previewOperationsCatdbSearches.mockResolvedValue(preview({ entries }));
         render(<CatdbSection batchId={7} />);
-        fireEvent.click(screen.getByRole("button", { name: /preview catdb searches/i }));
+        fireEvent.click(screen.getByRole("button", { name: /start catdb vin search/i }));
 
         const toggle = await screen.findByText(/uncertain \/ blocked vins \(60\)/i);
         fireEvent.click(toggle);
@@ -228,7 +228,7 @@ describe("CatdbSection", () => {
         delete withoutEntries.entries;
         previewOperationsCatdbSearches.mockResolvedValue(withoutEntries);
         render(<CatdbSection batchId={7} />);
-        fireEvent.click(screen.getByRole("button", { name: /preview catdb searches/i }));
+        fireEvent.click(screen.getByRole("button", { name: /start catdb vin search/i }));
 
         expect(await screen.findByText(/quota impact/i)).toBeInTheDocument();
         expect(screen.queryByText(/uncertain \/ blocked vins/i)).not.toBeInTheDocument();
@@ -290,5 +290,20 @@ describe("CatdbSection", () => {
 
         expect(previewOperationsCatdbSearches).not.toHaveBeenCalled();
         expect(reconcileOperationsCatdbResults).not.toHaveBeenCalled();
+    });
+
+    it("sends the chosen vehicles to the preview and shows how many are affected", async () => {
+        previewOperationsCatdbSearches.mockResolvedValue(preview());
+        render(<CatdbSection batchId={7} scope="SELECTED" scopeCount={2} vehicleIds={[4, 5]} />);
+        fireEvent.click(screen.getByRole("button", { name: /start catdb vin search \(2\)/i }));
+        await waitFor(() => expect(previewOperationsCatdbSearches).toHaveBeenCalledWith(7, { scope: "SELECTED", vehicleIds: [4, 5] }));
+    });
+
+    it("never offers approval while paid searches are held, and says why", async () => {
+        previewOperationsCatdbSearches.mockResolvedValue(preview());
+        render(<CatdbSection batchId={7} blockReason="CatDB processing is globally paused." />);
+        fireEvent.click(screen.getByRole("button", { name: /start catdb vin search/i }));
+        expect(await screen.findByRole("button", { name: /approve new searches/i })).toBeDisabled();
+        expect(screen.getByText("CatDB processing is globally paused.")).toBeInTheDocument();
     });
 });

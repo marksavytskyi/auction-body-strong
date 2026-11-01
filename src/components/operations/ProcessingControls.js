@@ -103,7 +103,7 @@ export default function ProcessingControls({ batch, progress, refreshKey, onBatc
     };
 
     return (
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className={`grid gap-3 ${batch.run_ourdb ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
             <LegCard
                 icon={Wrench}
                 title="Parts Analysis"
@@ -118,19 +118,19 @@ export default function ProcessingControls({ batch, progress, refreshKey, onBatc
                 )}
             </LegCard>
 
-            <LegCard
-                icon={Database}
-                title="Our Database Analysis"
-                description="Catalytic converter lookup (never a paid CatDB search)"
-                enabled={batch.run_ourdb && !isLegActive(effectiveProgress?.ourdb)}
-                busy={busyLeg === "ourdb"}
-                onStart={() => run("ourdb", startOperationsOurDb, "Our Database analysis")}
-            >
-                {legSummary("ourdb")}
-                {!batch.run_ourdb && (
-                    <span className="text-[11px] text-white/35 inline-flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> disabled for this batch</span>
-                )}
-            </LegCard>
+            {batch.run_ourdb && (
+                <LegCard
+                    icon={Database}
+                    title="Our Database Analysis"
+                    description="Catalytic converter lookup (never a paid CatDB search)"
+                    enabled={batch.run_ourdb && !isLegActive(effectiveProgress?.ourdb)}
+                    busy={busyLeg === "ourdb"}
+                    onStart={() => run("ourdb", startOperationsOurDb, "Our Database analysis")}
+                >
+                    {legSummary("ourdb")}
+                </LegCard>
+
+            )}
 
             <LegCard
                 icon={Gauge}

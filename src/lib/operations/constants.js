@@ -31,7 +31,50 @@ export const OVERALL_STATUS = {
     PROCESSING: "PROCESSING",
     PARTIAL: "PARTIAL",
     DONE: "DONE",
+    REVIEW_REQUIRED: "REVIEW_REQUIRED",
     FAILED: "FAILED",
+};
+
+export const OVERALL_STATUS_LABEL = {
+    PENDING: "Pending",
+    PROCESSING: "Processing",
+    PARTIAL: "Partial",
+    DONE: "Completed",
+    REVIEW_REQUIRED: "Review required",
+    FAILED: "Failed",
+};
+
+export const CATALYTIC_SOURCE_LABEL = {
+    CATDB_VIN: "CatDB VIN Search",
+    CATDB_LOCAL: "CatDB Local Database",
+    ECOTRADE_LOCAL: "EcoTrade Local Database",
+};
+
+export const CATALYTIC_STATUS_LABEL = {
+    NOT_REQUESTED: "Not requested",
+    READY: "Ready",
+    QUEUED: "Queued",
+    PROCESSING: "Running",
+    RUNNING: "Running",
+    COMPLETED: "Completed",
+    DONE: "Completed",
+    NO_MATCH: "No match",
+    NO_RESULT: "No match",
+    SKIPPED_INELIGIBLE: "Not eligible",
+    FAILED: "Failed",
+    CANCELLED: "Cancelled",
+    REVIEW_REQUIRED: "Review required",
+};
+
+export const CATALYTIC_STATUS_TONE = {
+    READY: "info",
+    QUEUED: "progress",
+    PROCESSING: "progress",
+    RUNNING: "progress",
+    COMPLETED: "success",
+    DONE: "success",
+    FAILED: "danger",
+    REVIEW_REQUIRED: "warning",
 };
 
 export const COMPLETENESS = {
@@ -107,6 +150,7 @@ export const OVERALL_STATUS_TONE = {
     [OVERALL_STATUS.PROCESSING]: "progress",
     [OVERALL_STATUS.PARTIAL]: "warning",
     [OVERALL_STATUS.DONE]: "success",
+    [OVERALL_STATUS.REVIEW_REQUIRED]: "warning",
     [OVERALL_STATUS.FAILED]: "danger",
 };
 

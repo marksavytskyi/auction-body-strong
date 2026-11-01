@@ -12,6 +12,8 @@ import { formatDate } from "@/lib/operations/format";
 import StatusPill from "@/components/catalytic/StatusPill";
 import dynamic from "next/dynamic";
 
+import ScrapPriceControl from "@/components/operations/ScrapPriceControl";
+
 // Holds the file-drop library; the batch list shouldn't wait for it.
 const UploadBatchFlow = dynamic(() => import("@/components/operations/UploadBatchFlow"), {
     ssr: false,
@@ -91,6 +93,8 @@ export default function OperationsOverviewPage() {
                     </button>
                 </div>
             </div>
+
+            <ScrapPriceControl />
 
             <UploadBatchFlow onUploaded={(batch) => router.push(`/operations/${batch.id}`)} />
 

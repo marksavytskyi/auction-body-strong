@@ -137,6 +137,25 @@ export default function FinancialSummaryCards({ batchId, refreshKey }) {
                 <MoneyCard label="Scrap Total" value={summary.scrap_value_total} />
             </div>
 
+            {summary.catdb_range_vehicle_count > 0 && (
+                <div className="rounded-xl border border-violet-500/20 bg-violet-500/[0.03] p-3 sm:p-4">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-violet-200/70">
+                        CatDB Estimates: {summary.catdb_range_vehicle_count} vehicle{summary.catdb_range_vehicle_count === 1 ? "" : "s"} with a price range
+                    </div>
+                    <p className="mt-1 text-[11px] text-white/40">Estimates from price ranges. Not included in any total above.</p>
+                    <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                        {[["Low", "low"], ["Mid", "mid"], ["High", "high"]].map(([label, key]) => (
+                            <div key={key} className="min-w-0">
+                                <dt className="text-[10px] uppercase tracking-wider text-white/40">{label}</dt>
+                                <dd className="truncate font-bold text-white/85">{formatMoney(summary[`catdb_${key}_total`])}</dd>
+                                <dd className="mt-1 truncate text-white/60" title="Known components plus this CatDB figure">{formatMoney(summary[`estimated_recovery_${key}_total`])}</dd>
+                            </div>
+                        ))}
+                    </dl>
+                    <p className="mt-1 text-[11px] text-white/35">Top: catalytic only. Bottom: with known engine, transmission and Scrap values.</p>
+                </div>
+            )}
+
             <div className="rounded-xl border border-white/10 bg-black/25 p-3 sm:p-4">
                 <div className="grid grid-cols-5 gap-2">
                     <CountCell label="Total Vehicles" value={summary.total_vehicle_count} />

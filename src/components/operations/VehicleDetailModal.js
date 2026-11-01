@@ -9,7 +9,8 @@ import { CatalyticApiError } from "@/lib/catalytic/http";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import StatusPill from "@/components/catalytic/StatusPill";
-import { LEG_STATUS_TONE, CATS_SOURCE_LABEL, PARTS_CONFIDENCE_LABEL, PARTS_CONFIDENCE_TONE } from "@/lib/operations/constants";
+import VehicleCatalyticResults from "./VehicleCatalyticResults";
+import { LEG_STATUS_TONE, OVERALL_STATUS_LABEL, OVERALL_STATUS_TONE, CATS_SOURCE_LABEL, PARTS_CONFIDENCE_LABEL, PARTS_CONFIDENCE_TONE } from "@/lib/operations/constants";
 import { formatMoney, formatWeight, formatDate, completenessMeta, componentLabel, deriveWeightStatus } from "@/lib/operations/format";
 
 function Row({ label, value, tone }) {
@@ -132,7 +133,7 @@ export default function VehicleDetailModal({ vehicle, onClose, onUpdated }) {
             const updated = await setOperationsVehicleScrapOverride(vehicle.operations_batch_id, vehicle.id, {
                 scrapPercentageOverride: null, scrapRateOverride: null,
             });
-            toast.success("Scrap overrides cleared — using batch defaults");
+            toast.success("Scrap overrides cleared");
             onUpdated?.(updated);
         } catch (e) {
             toast.error(e instanceof CatalyticApiError ? e.message : "Failed to clear scrap overrides");
@@ -194,6 +195,14 @@ export default function VehicleDetailModal({ vehicle, onClose, onUpdated }) {
                     {fin.cats_source && (
                         <div className="text-[10px] text-white/35 text-right -mt-1 mb-1">{CATS_SOURCE_LABEL[fin.cats_source] || fin.cats_source}</div>
                     )}
+                    {fin.catdb_mid != null && (
+                        <div className="mb-1 rounded-lg border border-violet-500/15 bg-violet-500/[0.04] p-2">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-violet-200/70">CatDB estimate, not in the recovery figure</div>
+                            <Row label="Low" value={formatMoney(fin.catdb_low)} />
+                            <Row label="Mid" value={formatMoney(fin.catdb_mid)} />
+                            <Row label="High" value={formatMoney(fin.catdb_high)} />
+                        </div>
+                    )}
                     <Row label="Scrap" value={formatMoney(fin.scrap_value)} />
                     <Row label="Scrap weight" value={formatWeight(fin.scrap_weight_lb)} />
                 </div>
@@ -242,10 +251,12 @@ export default function VehicleDetailModal({ vehicle, onClose, onUpdated }) {
                     <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.05] p-4 mb-4">
                         <div className="text-[11px] uppercase tracking-wider text-amber-300/80 font-bold mb-2">Scrap Overrides Active</div>
                         {vehicle.scrap_percentage_override != null && <Row label="Scrap % override" value={`${Number(vehicle.scrap_percentage_override) * 100}%`} />}
-                        {vehicle.scrap_rate_override != null && <Row label="Scrap rate override" value={`$${vehicle.scrap_rate_override}/lb`} />}
-                        <Button size="sm" variant="outline" className="rounded-xl mt-2" onClick={handleClearScrapOverrides} isLoading={busy}>Clear Overrides (use batch defaults)</Button>
+                        {vehicle.scrap_rate_override != null && <Row label="Old rate, no longer used" value={`$${vehicle.scrap_rate_override}/lb`} />}
+                        <Button size="sm" variant="outline" className="rounded-xl mt-2" onClick={handleClearScrapOverrides} isLoading={busy}>Clear Overrides</Button>
                     </div>
                 )}
+
+                <VehicleCatalyticResults batchId={vehicle.operations_batch_id} vehicleId={vehicle.id} />
 
                 <PartsEvidence vehicle={vehicle} fin={fin} />
 
@@ -253,9 +264,13 @@ export default function VehicleDetailModal({ vehicle, onClose, onUpdated }) {
                     <div className="text-[11px] uppercase tracking-wider text-white/40 font-bold mb-2">Processing Status</div>
                     <div className="flex items-center gap-2 flex-wrap">
                         <StatusPill label={`Parts: ${vehicle.parts_status}`} tone={LEG_STATUS_TONE[vehicle.parts_status] || "neutral"} />
-                        <StatusPill label={`OurDB: ${vehicle.ourdb_status}`} tone={LEG_STATUS_TONE[vehicle.ourdb_status] || "neutral"} />
+                        {vehicle.ourdb_status !== "NOT_REQUESTED" && (
+                            <StatusPill label={`OurDB: ${vehicle.ourdb_status}`} tone={LEG_STATUS_TONE[vehicle.ourdb_status] || "neutral"} />
+                        )}
                         <StatusPill label={`CatDB: ${vehicle.catdb_status}`} tone={LEG_STATUS_TONE[vehicle.catdb_status] || "neutral"} />
-                        <StatusPill label={`Overall: ${vehicle.overall_status}`} tone="neutral" />
+                        <StatusPill label={`Weight: ${vehicle.weight_status}`} tone={LEG_STATUS_TONE[vehicle.weight_status] || "neutral"} />
+                        <StatusPill label={`Scrap: ${vehicle.scrap_status}`} tone={LEG_STATUS_TONE[vehicle.scrap_status] || "neutral"} />
+                        <StatusPill label={`Overall: ${OVERALL_STATUS_LABEL[vehicle.overall_status] || vehicle.overall_status}`} tone={OVERALL_STATUS_TONE[vehicle.overall_status] || "neutral"} />
                     </div>
                     {vehicle.parts_match_reason && <div className="text-[11px] text-white/35 mt-2">Parts match: {vehicle.parts_match_reason}</div>}
                 </div>

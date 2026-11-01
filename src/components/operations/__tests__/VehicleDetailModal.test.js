@@ -6,6 +6,7 @@ import VehicleDetailModal from "../VehicleDetailModal";
 vi.mock("@/lib/operations/api", () => ({
     setOperationsVehicleWeight: vi.fn(),
     setOperationsVehicleScrapOverride: vi.fn(),
+    getOperationsVehicleCatalytic: vi.fn(() => Promise.resolve({ results: [] })),
 }));
 
 vi.mock("react-hot-toast", () => ({

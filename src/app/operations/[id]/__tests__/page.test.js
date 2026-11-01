@@ -36,7 +36,8 @@ vi.mock("@/components/operations/VehicleTable", () => ({
     default: (props) => <div data-testid="vehicle-table">{props.refreshKey}</div>,
 }));
 vi.mock("@/components/operations/ExportCsvButton", () => ({ default: () => <div data-testid="export-csv-button" /> }));
-vi.mock("@/components/operations/CatdbSection", () => ({ default: () => <div data-testid="catdb-section" /> }));
+vi.mock("@/components/operations/CatalyticProcessingCard", () => ({ default: () => <div data-testid="catalytic-card" /> }));
+vi.mock("@/components/operations/ScrapPriceControl", () => ({ default: () => <div data-testid="scrap-price" /> }));
 vi.mock("@/components/operations/VehicleDetailModal", () => ({ default: () => null }));
 // A minimal stand-in for the real ProcessingControls — exposes a single
 // button per leg that calls onBatchUpdated exactly like the real
@@ -87,7 +88,8 @@ describe("OperationsBatchDetailPage", () => {
         expect(screen.getByTestId("financial-summary")).toBeInTheDocument();
         expect(screen.getByTestId("processing-progress")).toBeInTheDocument();
         expect(screen.getByTestId("export-csv-button")).toBeInTheDocument();
-        expect(screen.getByTestId("catdb-section")).toBeInTheDocument();
+        expect(screen.getByTestId("catalytic-card")).toBeInTheDocument();
+        expect(screen.getByTestId("scrap-price")).toBeInTheDocument();
         expect(screen.getByTestId("vehicle-table")).toBeInTheDocument();
     });
 

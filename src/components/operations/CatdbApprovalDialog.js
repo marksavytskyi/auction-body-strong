@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label";
 // "Approve" click below — there is no path that reaches
 // approveOperationsCatdbSearches without the user clicking this
 // specific button in this specific dialog.
-export default function CatdbApprovalDialog({ batchId, preview, onClose, onApproved, onStalePreview }) {
+export default function CatdbApprovalDialog({ batchId, preview, scope, vehicleIds, onClose, onApproved, onStalePreview }) {
     const [maxNewSearches, setMaxNewSearches] = useState(String(preview.max_approvable_new_searches ?? 0));
     const [acknowledged, setAcknowledged] = useState(false);
     const [busy, setBusy] = useState(false);
@@ -39,6 +39,8 @@ export default function CatdbApprovalDialog({ batchId, preview, onClose, onAppro
                 previewFingerprint: preview.fingerprint,
                 maxNewSearches: parsedMax,
                 confirm: true,
+                scope,
+                vehicleIds,
             });
             toast.success("CatDB approval submitted");
             onApproved?.(approval);

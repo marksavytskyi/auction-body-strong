@@ -14,7 +14,8 @@ import ProcessingControls from "@/components/operations/ProcessingControls";
 import FinancialSummaryCards from "@/components/operations/FinancialSummaryCards";
 import ProcessingProgress from "@/components/operations/ProcessingProgress";
 import ExportCsvButton from "@/components/operations/ExportCsvButton";
-import CatdbSection from "@/components/operations/CatdbSection";
+import CatalyticProcessingCard from "@/components/operations/CatalyticProcessingCard";
+import ScrapPriceControl from "@/components/operations/ScrapPriceControl";
 import VehicleTable from "@/components/operations/VehicleTable";
 import dynamic from "next/dynamic";
 
@@ -34,6 +35,8 @@ export default function OperationsBatchDetailPage() {
     const [error, setError] = useState("");
     const [refreshKey, setRefreshKey] = useState(0);
     const [selectedVehicle, setSelectedVehicle] = useState(null);
+    const [selectedVehicleIds, setSelectedVehicleIds] = useState([]);
+    const bumpRefresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
     // pollRef holds the pending setTimeout handle; pollingRef is the
     // single source of truth for "is a poll chain currently running" —
@@ -191,17 +194,30 @@ export default function OperationsBatchDetailPage() {
                 <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">{batch.error_message}</div>
             )}
 
+            <ScrapPriceControl onChanged={bumpRefresh} />
+
             <FinancialSummaryCards batchId={batch.id} refreshKey={refreshKey} />
 
             <ProcessingProgress batchId={batch.id} refreshKey={refreshKey} />
 
             <ProcessingControls batch={batch} refreshKey={refreshKey} onBatchUpdated={handleBatchUpdated} />
 
-            <CatdbSection batchId={batch.id} refreshKey={refreshKey} onBatchDataChanged={() => setRefreshKey((k) => k + 1)} />
+            <CatalyticProcessingCard
+                batchId={batch.id}
+                refreshKey={refreshKey}
+                selectedVehicleIds={selectedVehicleIds}
+                onChanged={bumpRefresh}
+            />
 
             <div id="vehicles" className="scroll-mt-2">
                 <h2 className="text-sm font-bold text-white/70 uppercase tracking-wide mb-3">Vehicles</h2>
-                <VehicleTable batchId={batch.id} onOpenVehicle={setSelectedVehicle} refreshKey={refreshKey} />
+                <VehicleTable
+                    batchId={batch.id}
+                    onOpenVehicle={setSelectedVehicle}
+                    refreshKey={refreshKey}
+                    selectedIds={selectedVehicleIds}
+                    onSelectedIdsChange={setSelectedVehicleIds}
+                />
             </div>
 
             {selectedVehicle && (

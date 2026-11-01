@@ -27,9 +27,62 @@ export function uploadOperationsBatch(file, options = {}) {
     if (options.defaultCatsSourcePolicy !== undefined) params.default_cats_source_policy = options.defaultCatsSourcePolicy;
     if (options.runCatdb !== undefined) params.run_catdb = options.runCatdb;
     if (options.runOurdb !== undefined) params.run_ourdb = options.runOurdb;
+    if (options.runCatdbLocal !== undefined) params.run_catdb_local = options.runCatdbLocal;
+    if (options.runEcotradeLocal !== undefined) params.run_ecotrade_local = options.runEcotradeLocal;
     return request(
         () => axiosInstance.post(`${BASE}/batches`, form, { headers: { "Content-Type": "multipart/form-data" }, params }),
         "Failed to upload Operations batch CSV"
+    );
+}
+
+// ─── global Scrap price ─────────────────────────────────────────────────
+
+export function getScrapPrice() {
+    return request(() => axiosInstance.get(`${BASE}/scrap-price`), "Failed to load the Scrap price");
+}
+
+// The price travels as a string so it is never rounded through a float.
+export function setScrapPrice({ price, weightUnit, expectedVersion }) {
+    return request(
+        () => axiosInstance.put(`${BASE}/scrap-price`, { price, weight_unit: weightUnit, expected_version: expectedVersion }),
+        "Failed to update the Scrap price"
+    );
+}
+
+// ─── catalytic sources ──────────────────────────────────────────────────
+
+export function getOperationsCatalytic(batchId) {
+    return request(
+        () => axiosInstance.get(`${BASE}/batches/${encodeURIComponent(batchId)}/catalytic`),
+        "Failed to load catalytic processing"
+    );
+}
+
+export function saveOperationsCatalyticSources(batchId, sources) {
+    return request(
+        () => axiosInstance.put(`${BASE}/batches/${encodeURIComponent(batchId)}/catalytic/sources`, sources),
+        "Failed to save catalytic sources"
+    );
+}
+
+export function runOperationsLocalSearch(batchId, { scope, vehicleIds }) {
+    return request(
+        () => axiosInstance.post(`${BASE}/batches/${encodeURIComponent(batchId)}/catalytic/local-search`, { scope, vehicle_ids: vehicleIds }),
+        "Failed to run the local search"
+    );
+}
+
+export function cancelOperationsCatalyticRemaining(batchId) {
+    return request(
+        () => axiosInstance.post(`${BASE}/batches/${encodeURIComponent(batchId)}/catalytic/cancel-remaining`),
+        "Failed to cancel remaining searches"
+    );
+}
+
+export function getOperationsVehicleCatalytic(batchId, vehicleId) {
+    return request(
+        () => axiosInstance.get(`${BASE}/batches/${encodeURIComponent(batchId)}/vehicles/${encodeURIComponent(vehicleId)}/catalytic`),
+        "Failed to load catalytic results"
     );
 }
 
@@ -218,9 +271,12 @@ export async function downloadOperationsBatchExportCsv(batchId) {
 // explicit confirm:true plus a fingerprint from a just-fetched preview
 // — there is no "default" approval this client can trigger by itself.
 
-export function previewOperationsCatdbSearches(batchId) {
+export function previewOperationsCatdbSearches(batchId, { scope, vehicleIds } = {}) {
+    const params = {};
+    if (scope) params.scope = scope;
+    if (vehicleIds) params.vehicle_ids = vehicleIds;
     return request(
-        () => axiosInstance.get(`${BASE}/batches/${encodeURIComponent(batchId)}/catdb/preview`),
+        () => axiosInstance.get(`${BASE}/batches/${encodeURIComponent(batchId)}/catdb/preview`, { params, paramsSerializer: { indexes: null } }),
         "Failed to load CatDB preview"
     );
 }
@@ -230,12 +286,14 @@ export function previewOperationsCatdbSearches(batchId) {
 // fields — never renamed, never defaulted here. confirm must be passed
 // as true explicitly by the caller; this function never supplies a
 // default for it.
-export function approveOperationsCatdbSearches(batchId, { previewFingerprint, maxNewSearches, confirm }) {
+export function approveOperationsCatdbSearches(batchId, { previewFingerprint, maxNewSearches, confirm, scope, vehicleIds }) {
     return request(
         () => axiosInstance.post(`${BASE}/batches/${encodeURIComponent(batchId)}/catdb/approve`, {
             preview_fingerprint: previewFingerprint,
             max_new_searches: maxNewSearches,
             confirm,
+            ...(scope ? { scope } : {}),
+            ...(vehicleIds ? { vehicle_ids: vehicleIds } : {}),
         }),
         "Failed to submit CatDB approval"
     );

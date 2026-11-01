@@ -7,18 +7,14 @@ import { listOperationsBatchVehicles } from "@/lib/operations/api";
 import { CatalyticApiError } from "@/lib/catalytic/http";
 import { Input } from "@/components/ui/input";
 import StatusPill from "@/components/catalytic/StatusPill";
-import { OVERALL_STATUS, OVERALL_STATUS_TONE, LEG_STATUS_TONE, VEHICLE_SORT_FIELDS, PARTS_CONFIDENCE_LABEL } from "@/lib/operations/constants";
+import { OVERALL_STATUS, OVERALL_STATUS_LABEL, OVERALL_STATUS_TONE, LEG_STATUS_TONE, VEHICLE_SORT_FIELDS, PARTS_CONFIDENCE_LABEL } from "@/lib/operations/constants";
 import { formatMoney, formatCatdbPrice, completenessMeta, deriveWeightStatus } from "@/lib/operations/format";
 
 const PAGE_SIZE = 25;
 
 const STATUS_FILTERS = [
     { id: "", label: "All" },
-    { id: OVERALL_STATUS.PENDING, label: "Pending" },
-    { id: OVERALL_STATUS.PROCESSING, label: "Processing" },
-    { id: OVERALL_STATUS.PARTIAL, label: "Partial" },
-    { id: OVERALL_STATUS.DONE, label: "Done" },
-    { id: OVERALL_STATUS.FAILED, label: "Failed" },
+    ...Object.values(OVERALL_STATUS).map((id) => ({ id, label: OVERALL_STATUS_LABEL[id] })),
 ];
 
 const COLUMNS = [
@@ -52,6 +48,7 @@ const COLUMNS = [
     // misleading "sorts by A, displays A-or-B" behavior.
     { id: "total_expected_recovery", label: "Complete Recovery", sortable: true },
     { id: "known_components_subtotal", label: "Known Subtotal", sortable: true },
+    { id: "overall_status", label: "Overall", sortable: true },
     { id: "completeness", label: "Estimate", sortable: false },
     { id: "parts_status", label: "Parts", sortable: false },
     { id: "ourdb_status", label: "OurDB", sortable: false },
@@ -85,7 +82,7 @@ function useDebounced(value, delayMs) {
 // sort or search client-side (see spec Section 10). Stable row key is
 // the OperationsBatchVehicle id, never the VIN (duplicate VINs are
 // legitimate, distinct rows).
-export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
+export default function VehicleTable({ batchId, onOpenVehicle, refreshKey, selectedIds, onSelectedIdsChange }) {
     const [page, setPage] = useState(0);
     const [search, setSearch] = useState("");
     const [status, setStatus] = useState("");
@@ -139,6 +136,21 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
     };
 
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const selectable = Boolean(onSelectedIdsChange);
+    const isSelected = (id) => selectable && selectedIds.includes(id);
+    const toggleSelected = (id) => onSelectedIdsChange(
+        isSelected(id) ? selectedIds.filter((other) => other !== id) : [...selectedIds, id]
+    );
+    const selectCheckbox = (v) => (
+        <input
+            type="checkbox"
+            aria-label={`Select vehicle lot ${v.lot_number || v.id}`}
+            checked={isSelected(v.id)}
+            onChange={() => toggleSelected(v.id)}
+            onClick={(e) => e.stopPropagation()}
+            className="h-4 w-4"
+        />
+    );
 
     const headerCell = (col) => {
         const sortField = VEHICLE_SORT_FIELDS.has(col.id) ? col.id : null;
@@ -218,7 +230,10 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
                     <div className="hidden lg:block overflow-x-auto rounded-2xl border border-white/10 bg-black/25">
                         <table className="w-full text-xs">
                             <thead className="bg-black/40">
-                                <tr>{COLUMNS.map(headerCell)}</tr>
+                                <tr>
+                                    {selectable && <th className="px-3 py-2.5 border-b border-white/10"><span className="sr-only">Select</span></th>}
+                                    {COLUMNS.map(headerCell)}
+                                </tr>
                             </thead>
                             <tbody>
                                 {rows.map((v) => {
@@ -231,6 +246,7 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
                                             className="odd:bg-white/[0.02] hover:bg-white/[0.06] cursor-pointer transition-colors"
                                             onClick={() => onOpenVehicle?.(v)}
                                         >
+                                            {selectable && <td className="px-3 py-2 border-b border-white/5">{selectCheckbox(v)}</td>}
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{v.lot_number || "—"}</td>
                                             <td className="px-3 py-2 border-b border-white/5 text-white/35 font-mono whitespace-nowrap">{v.full_vin || "—"}</td>
                                             <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{v.year || "—"}</td>
@@ -252,6 +268,7 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
                                                     {formatMoney(fin.known_components_subtotal)}
                                                 </span>
                                             </td>
+                                            <td className="px-3 py-2 border-b border-white/5"><StatusPill label={OVERALL_STATUS_LABEL[v.overall_status] || v.overall_status} tone={OVERALL_STATUS_TONE[v.overall_status] || "neutral"} /></td>
                                             <td className="px-3 py-2 border-b border-white/5"><StatusPill label={cm.label} tone={cm.tone} /></td>
                                             <td className="px-3 py-2 border-b border-white/5"><StatusPill label={v.parts_status} tone={LEG_STATUS_TONE[v.parts_status] || "neutral"} /></td>
                                             <td className="px-3 py-2 border-b border-white/5"><StatusPill label={v.ourdb_status} tone={LEG_STATUS_TONE[v.ourdb_status] || "neutral"} /></td>
@@ -276,9 +293,11 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
                             const fin = v.financials || {};
                             const cm = completenessMeta(fin.completeness_status);
                             return (
+                                <div key={v.id} className="flex items-start gap-2">
+                                    {selectable && <div className="flex h-11 w-7 shrink-0 items-center justify-center">{selectCheckbox(v)}</div>}
+                                    <div className="min-w-0 flex-1">
                                 <button
                                     type="button"
-                                    key={v.id}
                                     onClick={() => onOpenVehicle?.(v)}
                                     className="w-full text-left rounded-xl border border-white/10 bg-black/25 p-3 space-y-1.5"
                                 >
@@ -286,7 +305,7 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
                                         <div className="text-sm font-bold text-white/90 truncate">
                                             {[v.year, v.make, v.model].filter(Boolean).join(" ") || "Unknown vehicle"}
                                         </div>
-                                        <StatusPill label={cm.label} tone={cm.tone} />
+                                        <StatusPill label={OVERALL_STATUS_LABEL[v.overall_status] || v.overall_status} tone={OVERALL_STATUS_TONE[v.overall_status] || "neutral"} />
                                     </div>
                                     <div className="text-[11px] text-white/40 font-mono truncate">
                                         {v.full_vin || "—"} · Lot {v.lot_number || "—"}
@@ -317,12 +336,19 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey }) {
                                         </div>
                                     )}
                                 </button>
+                                    </div>
+                                </div>
                             );
                         })}
                     </div>
 
                     <div className="flex items-center justify-between gap-3 text-xs text-white/40">
-                        <span>{total} vehicle{total === 1 ? "" : "s"} · page {page + 1} of {totalPages}</span>
+                        <span>
+                            {total} vehicle{total === 1 ? "" : "s"} · page {page + 1} of {totalPages}
+                            {selectable && selectedIds.length > 0 && (
+                                <> · {selectedIds.length} selected <button type="button" className="underline" onClick={() => onSelectedIdsChange([])}>Clear</button></>
+                            )}
+                        </span>
                         <div className="flex items-center gap-2">
                             <button
                                 type="button"

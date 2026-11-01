@@ -66,49 +66,33 @@ describe("UploadBatchFlow", () => {
 
     // ─── Phase K.10: catalytic source checkboxes ────────────────────────
 
-    it("defaults to CatDB checked and Our Database unchecked, and sends that selection", async () => {
-        uploadOperationsBatch.mockResolvedValue({ id: 1, total_vehicles: 1 });
-        render(<UploadBatchFlow onUploaded={vi.fn()} />);
-
-        expect(screen.getByLabelText(/catdb vin search/i)).toBeChecked();
-        expect(screen.getByLabelText(/our database/i)).not.toBeChecked();
-
-        const input = document.querySelector('input[type="file"]');
-        fireEvent.change(input, { target: { files: [makeFile()] } });
+    async function chooseFile() {
+        fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [makeFile()] } });
         await screen.findByText("batch.csv");
-        fireEvent.click(screen.getByRole("button", { name: /upload/i }));
+    }
 
-        await waitFor(() => expect(uploadOperationsBatch).toHaveBeenCalledWith(
-            expect.anything(), { runCatdb: true, runOurdb: false },
-        ));
+    it("starts with no source selected and uploads with none", async () => {
+        uploadOperationsBatch.mockResolvedValue({ id: 1, total_vehicles: 1 });
+        render(<UploadBatchFlow />);
+        for (const label of [/catdb vin search/i, /catdb local/i, /ecotrade local/i]) {
+            expect(screen.getByLabelText(label)).not.toBeChecked();
+        }
+        expect(screen.getByText(/no source selected is valid/i)).toBeInTheDocument();
+        await chooseFile();
+        fireEvent.click(screen.getByRole("button", { name: /upload/i }));
+        await waitFor(() => expect(uploadOperationsBatch).toHaveBeenCalled());
+        expect(uploadOperationsBatch.mock.calls[0][1]).toEqual({ runCatdb: false, runCatdbLocal: false, runEcotradeLocal: false });
     });
 
-    it("allows selecting both sources and sends both as true", async () => {
+    it("sends exactly the chosen sources and no longer offers Our Database", async () => {
         uploadOperationsBatch.mockResolvedValue({ id: 1, total_vehicles: 1 });
-        render(<UploadBatchFlow onUploaded={vi.fn()} />);
-
-        fireEvent.click(screen.getByLabelText(/our database/i));
-        expect(screen.getByLabelText(/catdb vin search/i)).toBeChecked();
-        expect(screen.getByLabelText(/our database/i)).toBeChecked();
-
-        const input = document.querySelector('input[type="file"]');
-        fireEvent.change(input, { target: { files: [makeFile()] } });
-        await screen.findByText("batch.csv");
+        render(<UploadBatchFlow />);
+        expect(screen.queryByLabelText(/our database/i)).toBeNull();
+        fireEvent.click(screen.getByLabelText(/catdb local/i));
+        fireEvent.click(screen.getByLabelText(/ecotrade local/i));
+        await chooseFile();
         fireEvent.click(screen.getByRole("button", { name: /upload/i }));
-
-        await waitFor(() => expect(uploadOperationsBatch).toHaveBeenCalledWith(
-            expect.anything(), { runCatdb: true, runOurdb: true },
-        ));
-    });
-
-    it("never allows unchecking the last remaining catalytic source", async () => {
-        render(<UploadBatchFlow onUploaded={vi.fn()} />);
-        // CatDB is checked by default, OurDB unchecked -- unchecking CatDB
-        // (the only one checked) must flip OurDB on instead of leaving
-        // neither selected.
-        fireEvent.click(screen.getByLabelText(/catdb vin search/i));
-        expect(screen.getByLabelText(/our database/i)).toBeChecked();
-        expect(screen.getByLabelText(/catdb vin search/i)).not.toBeChecked();
-        expect(screen.queryByText(/at least one catalytic source/i)).not.toBeInTheDocument();
+        await waitFor(() => expect(uploadOperationsBatch).toHaveBeenCalled());
+        expect(uploadOperationsBatch.mock.calls[0][1]).toEqual({ runCatdb: false, runCatdbLocal: true, runEcotradeLocal: true });
     });
 });

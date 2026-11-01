@@ -118,7 +118,7 @@ describe("previewOperationsCatdbSearches", () => {
 
         const result = await previewOperationsCatdbSearches(7);
 
-        expect(axiosInstance.get).toHaveBeenCalledWith("/operations/batches/7/catdb/preview");
+        expect(axiosInstance.get).toHaveBeenCalledWith("/operations/batches/7/catdb/preview", { params: {}, paramsSerializer: { indexes: null } });
         expect(result).toBe(body);
     });
 });

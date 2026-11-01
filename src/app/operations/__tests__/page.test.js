@@ -9,6 +9,8 @@ vi.mock("next/navigation", () => ({
     useRouter: () => ({ push: vi.fn() }),
 }));
 
+vi.mock("@/components/operations/ScrapPriceControl", () => ({ default: () => <div data-testid="scrap-price" /> }));
+
 vi.mock("@/lib/operations/api", () => ({
     listOperationsBatches: vi.fn(),
     uploadOperationsBatch: vi.fn(),
