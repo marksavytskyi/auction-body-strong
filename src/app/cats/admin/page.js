@@ -139,20 +139,6 @@ export default function AdminOverviewPage() {
                     <StatCard icon={Cpu} label="Machines Online" value={machinesOnline ?? (catdbMachines === null ? "—" : null)} sub={catdbMachines ? `of ${catdbMachines.length} total` : undefined} href="/cats/admin/catdb" />
                 </div>
             </div>
-
-            {catdbStats?.recent_errors?.length > 0 && (
-                <div className="rounded-2xl border border-rose-500/20 bg-rose-500/[0.04] p-4">
-                    <div className="text-xs font-bold uppercase tracking-wider text-rose-300 mb-2">Recent CatDB Errors</div>
-                    <div className="space-y-1.5">
-                        {catdbStats.recent_errors.slice(0, 5).map((e, i) => (
-                            <div key={i} className="text-xs text-white/60 flex items-center justify-between gap-2">
-                                <span className="font-mono">{e.vin}</span>
-                                <span className="text-rose-300/80 truncate max-w-[60%]">{e.error_message}</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
