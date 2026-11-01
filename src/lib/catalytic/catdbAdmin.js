@@ -63,3 +63,33 @@ export function setMachineActive(id, isActive) {
 export function rotateMachineToken(id) {
     return request(() => axiosInstance.post(`${BASE}/workers/${encodeURIComponent(id)}/rotate-token`), "Failed to rotate machine token");
 }
+
+// Phase K.42 — dispatch controls. "Stop" is a request: only the device itself can
+// confirm it stopped, reported back as stop_state WORKER_STOPPED.
+export function getControlStatus() {
+    return request(() => axiosInstance.get(`${BASE}/control`), "Failed to load CatDB processing status");
+}
+
+export function pauseProcessing(reason = "") {
+    return request(() => axiosInstance.post(`${BASE}/control/pause`, { reason }), "Failed to pause processing");
+}
+
+export function resumeProcessing() {
+    return request(() => axiosInstance.post(`${BASE}/control/resume`), "Failed to resume processing");
+}
+
+export function cancelJob(id) {
+    return request(() => axiosInstance.post(`${BASE}/jobs/${encodeURIComponent(id)}/cancel`), "Failed to cancel job");
+}
+
+export function cancelAllPending() {
+    return request(() => axiosInstance.post(`${BASE}/jobs/cancel-all`, { confirm: true }), "Failed to cancel jobs");
+}
+
+export function stopWorker(id) {
+    return request(() => axiosInstance.post(`${BASE}/workers/${encodeURIComponent(id)}/stop`), "Failed to send stop request");
+}
+
+export function clearWorkerStop(id) {
+    return request(() => axiosInstance.post(`${BASE}/workers/${encodeURIComponent(id)}/clear-stop`), "Failed to clear stop request");
+}

@@ -12,7 +12,9 @@ import {
     rotateMachineToken,
     listJobs,
     enqueueJob,
+    cancelJob,
 } from "@/lib/catalytic/catdbAdmin";
+import CatdbProcessingControls from "@/components/catalytic/CatdbProcessingControls";
 import { CatalyticApiError } from "@/lib/catalytic/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -88,6 +90,7 @@ export default function CatdbAdminPage() {
     const [machines, setMachines] = useState(null);
     const [jobs, setJobs] = useState(null);
     const [jobsError, setJobsError] = useState("");
+    const [cancellingId, setCancellingId] = useState(null);
     const [vin, setVin] = useState("");
     const [enqueuing, setEnqueuing] = useState(false);
 
@@ -132,6 +135,30 @@ export default function CatdbAdminPage() {
         }
     };
 
+    const handleCancelJob = async (job) => {
+        if (!confirm(`Cancel job #${job.id} (${job.vin})? It won't be retried. Completed results are kept. A search already submitted can't be stopped.`)) return;
+        setCancellingId(job.id);
+        try {
+            const result = await cancelJob(job.id);
+            const messages = {
+                CANCELLED: "Job cancelled",
+                ALREADY_CANCELLED: "Job was already cancelled",
+                ALREADY_FINISHED: "Job had already finished, so nothing changed",
+            };
+            if (result.outcome === "SEARCH_ALREADY_SUBMITTED") {
+                toast.error("Not cancelled: its search was already submitted. The result will still be saved, and it won't retry.");
+            } else {
+                toast.success(messages[result.outcome] || result.outcome);
+            }
+            loadJobs();
+            loadStats();
+        } catch (error) {
+            toast.error(error instanceof CatalyticApiError ? error.message : "Failed to cancel job");
+        } finally {
+            setCancellingId(null);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div>
@@ -140,6 +167,8 @@ export default function CatdbAdminPage() {
                 </h1>
                 <p className="text-xs text-white/40 mt-1">Admin-only. Workers never see this — CatDB pricing/status is not exposed to the WORKER role.</p>
             </div>
+
+            <CatdbProcessingControls onChanged={() => { loadJobs(); loadStats(); loadMachines(); }} />
 
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 {[
@@ -255,7 +284,7 @@ export default function CatdbAdminPage() {
                         <table className="w-full text-xs">
                             <thead className="bg-black/40 sticky top-0">
                                 <tr>
-                                    {["VIN", "Status", "Attempts", "Worker", "Queued", "Error"].map((h) => (
+                                    {["VIN", "Status", "Attempts", "Worker", "Queued", "Error", ""].map((h) => (
                                         <th key={h} className="px-3 py-2 text-left uppercase tracking-wider text-white/50 font-bold border-b border-white/10 whitespace-nowrap">{h}</th>
                                     ))}
                                 </tr>
@@ -269,6 +298,18 @@ export default function CatdbAdminPage() {
                                         <td className="px-3 py-2 border-b border-white/5 text-white/60 whitespace-nowrap">{j.worker_id ?? "—"}</td>
                                         <td className="px-3 py-2 border-b border-white/5 text-white/40 whitespace-nowrap">{fmtDate(j.queued_at)}</td>
                                         <td className="px-3 py-2 border-b border-white/5 text-rose-300/80 max-w-[220px] truncate" title={j.error_message}>{j.error_message}</td>
+                                        <td className="px-3 py-2 border-b border-white/5 whitespace-nowrap">
+                                            {["PENDING", "LEASED", "RUNNING"].includes(j.status) && (
+                                                <button
+                                                    type="button"
+                                                    disabled={cancellingId === j.id}
+                                                    onClick={() => handleCancelJob(j)}
+                                                    className="rounded-lg border border-rose-500/40 px-2 py-1 font-bold text-rose-300 disabled:opacity-40"
+                                                >
+                                                    Cancel Job
+                                                </button>
+                                            )}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
