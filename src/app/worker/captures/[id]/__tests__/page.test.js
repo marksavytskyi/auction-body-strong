@@ -12,12 +12,16 @@ import {
     deletePhoto,
     submitCapture,
     reopenCapture,
+    cancelCapture,
+    updateCapture,
 } from "@/lib/catalytic/workerCaptures";
 import { CatalyticApiError } from "@/lib/catalytic/api";
 
+const pushMock = vi.fn();
+
 vi.mock("next/navigation", () => ({
     useParams: () => ({ id: "1" }),
-    useRouter: () => ({ push: vi.fn() }),
+    useRouter: () => ({ push: pushMock }),
 }));
 
 vi.mock("@/lib/catalytic/workerCaptures", async () => {
@@ -33,6 +37,8 @@ vi.mock("@/lib/catalytic/workerCaptures", async () => {
         deletePhoto: vi.fn(),
         submitCapture: vi.fn(),
         reopenCapture: vi.fn(),
+        cancelCapture: vi.fn(),
+        updateCapture: vi.fn(),
     };
 });
 
@@ -234,7 +240,7 @@ describe("WorkerCaptureBuilderPage — photo upload", () => {
     });
 });
 
-describe("WorkerCaptureBuilderPage — submit → read-only PENDING_REVIEW", () => {
+describe("WorkerCaptureBuilderPage — submit → PENDING_REVIEW", () => {
     it("submits via the review modal and shows the pending state", async () => {
         const ready = baseCapture({ catalysts: [catalyst({ photos: [{ id: 1, view_url: "https://x/1" }] })] });
         getCapture.mockResolvedValueOnce(ready).mockResolvedValueOnce(baseCapture({ status: "PENDING_REVIEW", catalysts: ready.catalysts, submitted_at: "2026-01-01T00:00:00Z" }));
@@ -247,8 +253,9 @@ describe("WorkerCaptureBuilderPage — submit → read-only PENDING_REVIEW", () 
         fireEvent.click(within(dialog).getByRole("button", { name: /submit for review/i }));
 
         await waitFor(() => expect(submitCapture).toHaveBeenCalledWith("1"));
-        await waitFor(() => expect(screen.getByText(/nothing left to do here/i)).toBeInTheDocument());
-        // No editable controls once PENDING_REVIEW.
+        await waitFor(() => expect(screen.getByRole("button", { name: /edit submission/i })).toBeInTheDocument());
+        expect(screen.queryByText(/nothing left to do here/i)).not.toBeInTheDocument();
+        // The draft controls are gone: changes now go through Edit Submission.
         expect(screen.queryByRole("button", { name: /add another catalyst/i })).not.toBeInTheDocument();
         expect(screen.queryByRole("button", { name: /delete draft/i })).not.toBeInTheDocument();
     });
@@ -346,8 +353,51 @@ describe("WorkerCaptureBuilderPage — role / moderation controls", () => {
         getCapture.mockResolvedValue(baseCapture({ status: "PENDING_REVIEW", catalysts: [catalyst()] }));
         render(<WorkerCaptureBuilderPage />);
 
-        await waitFor(() => expect(screen.getByText(/nothing left to do here/i)).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByRole("button", { name: /edit submission/i })).toBeInTheDocument());
         expect(screen.queryByRole("button", { name: /approve/i })).not.toBeInTheDocument();
         expect(screen.queryByRole("button", { name: /^reject$/i })).not.toBeInTheDocument();
+    });
+});
+
+describe("WorkerCaptureBuilderPage — pending actions", () => {
+    it("opens the editor from Edit Submission", async () => {
+        getCapture.mockResolvedValue(baseCapture({ status: "PENDING_REVIEW", catalysts: [catalyst()] }));
+        render(<WorkerCaptureBuilderPage />);
+        fireEvent.click(await screen.findByRole("button", { name: /edit submission/i }));
+        expect(pushMock).toHaveBeenCalledWith("/worker/captures/1/edit");
+    });
+
+    it("confirms, then cancels with the revision read, and shows the record", async () => {
+        getCapture
+            .mockResolvedValueOnce(baseCapture({ status: "PENDING_REVIEW", revision: 3, catalysts: [catalyst()] }))
+            .mockResolvedValueOnce(baseCapture({ status: "CANCELLED", cancelled_at: "2026-11-01T00:00:00Z", catalysts: [catalyst()] }));
+        cancelCapture.mockResolvedValue({});
+        render(<WorkerCaptureBuilderPage />);
+        fireEvent.click(await screen.findByRole("button", { name: /cancel submission/i }));
+        const dialog = screen.getByRole("dialog", { name: "Cancel this submission?" });
+        expect(cancelCapture).not.toHaveBeenCalled();
+        fireEvent.click(within(dialog).getByRole("button", { name: "Cancel Submission" }));
+        await waitFor(() => expect(cancelCapture).toHaveBeenCalledWith(1, { expectedRevision: 3 }));
+        expect(await screen.findByText(/kept as a record/)).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /edit submission/i })).not.toBeInTheDocument();
+        expect(screen.getByText("ABC123")).toBeInTheDocument();
+    });
+
+    it("offers no Edit or Cancel once approved", async () => {
+        getCapture.mockResolvedValue(baseCapture({ status: "APPROVED", catalysts: [catalyst()] }));
+        render(<WorkerCaptureBuilderPage />);
+        await screen.findByText(/thank you/i);
+        expect(screen.queryByRole("button", { name: /edit submission/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /cancel submission/i })).not.toBeInTheDocument();
+    });
+
+    it("edits a draft's vehicle in place", async () => {
+        getCapture.mockResolvedValue(baseCapture({ catalysts: [catalyst()] }));
+        updateCapture.mockResolvedValue({});
+        render(<WorkerCaptureBuilderPage />);
+        fireEvent.click(await screen.findByLabelText("Edit vehicle"));
+        fireEvent.change(screen.getByLabelText("Make"), { target: { value: "GMC" } });
+        fireEvent.click(screen.getByRole("button", { name: "Save Vehicle" }));
+        await waitFor(() => expect(updateCapture).toHaveBeenCalledWith(1, expect.objectContaining({ make: "GMC", year: 2017 })));
     });
 });

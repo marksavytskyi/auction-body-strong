@@ -51,7 +51,7 @@ export default function CatalystForm({ initial, onSubmit, onCancel, isSubmitting
                 placeholder="STAMPED CODE"
                 className="h-14 rounded-xl bg-white/5 border-white/10 font-mono uppercase text-lg tracking-wider"
             />
-            <label className="inline-flex items-center gap-2 text-xs text-white/50">
+            <label className="inline-flex min-h-11 items-center gap-2 text-xs text-white/50">
                 <input
                     type="checkbox"
                     checked={unreadable}

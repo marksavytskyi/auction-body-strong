@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { ArrowLeft, Loader2, CheckCircle2, Ban, ScrollText, Layers, Camera } from "lucide-react";
+import { ArrowLeft, Loader2, CheckCircle2, Ban, History, ScrollText, Layers, Camera } from "lucide-react";
 
 import { getCaptureDetail, approveCapture, rejectCapture, getReviewLog } from "@/lib/catalytic/moderation";
 import { CatalyticApiError } from "@/lib/catalytic/api";
@@ -22,6 +22,45 @@ function fmtDate(s) {
 // — verified live. Show it the way the worker typed it.
 function humanizePosition(code) {
     return String(code || "").replace(/_/g, " ");
+}
+
+const FIELD_LABEL = {
+    vin: "VIN", year: "Year", make: "Make", model: "Model", engine: "Engine", notes: "Notes",
+    position_code: "Position", physical_code_raw: "Code", code_unreadable: "Unreadable",
+};
+const blank = (value) => (value === "" || value === null || value === undefined ? "blank" : String(value));
+
+// One edit in plain lines. Everything comes from the audit row the save wrote.
+function describeEdit(changes) {
+    const lines = (changes?.vehicle || []).map((c) => `${FIELD_LABEL[c.field] || c.field}: ${blank(c.from)} → ${blank(c.to)}`);
+    for (const c of changes?.catalysts || []) {
+        if (c.action === "ADDED") lines.push(`Catalyst added: ${humanizePosition(c.position_code)} ${c.physical_code_raw || "(unreadable)"}`);
+        if (c.action === "REMOVED") lines.push(`Catalyst removed: ${humanizePosition(c.position_code)} ${c.physical_code_raw || "(unreadable)"}`);
+        if (c.action === "CHANGED") {
+            (c.fields || []).forEach((f) => lines.push(`Catalyst ${FIELD_LABEL[f.field] || f.field}: ${blank(f.from)} → ${blank(f.to)}`));
+            if (c.photos_added?.length) lines.push(`${c.photos_added.length} photo${c.photos_added.length === 1 ? "" : "s"} added`);
+            if (c.photos_removed?.length) lines.push(`${c.photos_removed.length} photo${c.photos_removed.length === 1 ? "" : "s"} removed`);
+        }
+    }
+    return lines;
+}
+
+function UpdatedBanner({ detail, log }) {
+    const edits = (log || []).filter((entry) => entry.action === "EDIT_RESUBMIT").reverse();
+    return (
+        <div className="rounded-2xl border border-sky-500/25 bg-sky-500/[0.06] p-4 space-y-2" data-testid="updated-after-submission">
+            <div className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-sky-300">
+                <History className="h-3.5 w-3.5" /> Updated after submission
+            </div>
+            <div className="text-xs text-white/60">Revision: {detail.revision} · Last updated: {fmtDate(detail.edited_at || detail.submitted_at)}</div>
+            {edits.map((entry) => (
+                <div key={entry.id} className="text-[11px] text-white/60">
+                    <div className="font-bold text-white/70">Revision {entry.revision} · {fmtDate(entry.created_at)}</div>
+                    <ul className="ml-3 list-disc">{describeEdit(entry.changes).map((line, i) => <li key={i}>{line}</li>)}</ul>
+                </div>
+            ))}
+        </div>
+    );
 }
 
 function CatalystReviewRow({ catalyst, suggestions, override, onOverrideChange }) {
@@ -115,6 +154,8 @@ export default function ModerationDetailPage() {
     const [isApproving, setIsApproving] = useState(false);
     const [isRejecting, setIsRejecting] = useState(false);
     const [reviewLog, setReviewLog] = useState(null);
+    const [editLog, setEditLog] = useState(null);
+    const [conflict, setConflict] = useState("");
 
     const load = useCallback(async () => {
         if (!id) return;
@@ -123,6 +164,7 @@ export default function ModerationDetailPage() {
         try {
             const data = await getCaptureDetail(id);
             setDetail(data);
+            setEditLog(data.revision > 1 ? await getReviewLog(id).catch(() => null) : null);
         } catch (e) {
             setError(e instanceof CatalyticApiError ? e.message : "Failed to load capture");
         } finally {
@@ -142,6 +184,18 @@ export default function ModerationDetailPage() {
         return map;
     }, [detail]);
 
+    // The submission changed under this moderator. What they typed was about the old
+    // version, so overrides go, and the page reloads to show what is there now.
+    const handleConflict = (e) => {
+        const isDuplicateVin = e instanceof CatalyticApiError && /VIN .* already has an approved/.test(e.message);
+        if (!(e instanceof CatalyticApiError) || e.status !== 409 || isDuplicateVin) return false;
+        setConflict(e.message);
+        setOverrides({});
+        setShowReject(false);
+        load();
+        return true;
+    };
+
     const handleApprove = async () => {
         setIsApproving(true);
         try {
@@ -153,10 +207,11 @@ export default function ModerationDetailPage() {
                     physical_code_raw: v.physical_code_raw || null,
                 }));
 
-            await approveCapture(id, { moderator_notes: moderatorNotes.trim(), catalyst_overrides });
+            await approveCapture(id, { expected_revision: detail.revision, moderator_notes: moderatorNotes.trim(), catalyst_overrides });
             toast.success("Capture approved");
             router.push("/cats/moderation");
         } catch (e) {
+            if (handleConflict(e)) return;
             toast.error(e instanceof CatalyticApiError ? e.message : "Failed to approve");
         } finally {
             setIsApproving(false);
@@ -167,10 +222,11 @@ export default function ModerationDetailPage() {
         if (!rejectReason.trim()) return;
         setIsRejecting(true);
         try {
-            await rejectCapture(id, rejectReason.trim(), moderatorNotes.trim());
+            await rejectCapture(id, { reason: rejectReason.trim(), moderatorNotes: moderatorNotes.trim(), expectedRevision: detail.revision });
             toast.success("Capture rejected");
             router.push("/cats/moderation");
         } catch (e) {
+            if (handleConflict(e)) return;
             toast.error(e instanceof CatalyticApiError ? e.message : "Failed to reject");
         } finally {
             setIsRejecting(false);
@@ -211,6 +267,20 @@ export default function ModerationDetailPage() {
                 </Button>
                 <CaptureStatusBadge status={detail.status} />
             </div>
+
+            {conflict && (
+                <div role="alert" className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-sm">
+                    {conflict} The latest version is shown below.
+                </div>
+            )}
+
+            {detail.revision > 1 && <UpdatedBanner detail={detail} log={editLog} />}
+
+            {detail.status === "CANCELLED" && (
+                <div className="p-4 rounded-xl border border-white/10 bg-white/[0.03] text-white/60 text-sm">
+                    The worker cancelled this submission {fmtDate(detail.cancelled_at)}. It can&apos;t be reviewed.
+                </div>
+            )}
 
             <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
                 <div className="font-bold text-lg text-white/90">

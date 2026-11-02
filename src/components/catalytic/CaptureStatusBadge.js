@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { PencilLine, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { Ban, PencilLine, Clock, CheckCircle2, XCircle } from "lucide-react";
 import { CAPTURE_STATUS } from "@/lib/catalytic/workerCaptures";
 
 const META = {
@@ -9,6 +9,7 @@ const META = {
     [CAPTURE_STATUS.PENDING_REVIEW]: { label: "Pending Review", tone: "border-amber-500/30 bg-amber-500/10 text-amber-300", icon: Clock },
     [CAPTURE_STATUS.APPROVED]: { label: "Approved", tone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300", icon: CheckCircle2 },
     [CAPTURE_STATUS.REJECTED]: { label: "Rejected", tone: "border-rose-500/30 bg-rose-500/10 text-rose-300", icon: XCircle },
+    [CAPTURE_STATUS.CANCELLED]: { label: "Cancelled", tone: "border-white/15 bg-white/5 text-white/45", icon: Ban },
 };
 
 export default function CaptureStatusBadge({ status }) {

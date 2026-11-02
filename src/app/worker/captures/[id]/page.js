@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { ArrowLeft, Loader2, Trash2, Plus, Send, RotateCcw } from "lucide-react";
+import { ArrowLeft, Ban, Loader2, Pencil, Trash2, Plus, Send, RotateCcw } from "lucide-react";
 
 import {
     getCapture,
@@ -13,16 +13,52 @@ import {
     deleteCatalyst,
     submitCapture,
     reopenCapture,
+    updateCapture,
     captureIsReadyToSubmit,
     firstIncompleteCatalyst,
     CAPTURE_STATUS,
 } from "@/lib/catalytic/workerCaptures";
 import { CatalyticApiError } from "@/lib/catalytic/api";
 import { Button } from "@/components/ui/button";
+import CancelSubmissionDialog from "@/components/catalytic/CancelSubmissionDialog";
 import CaptureStatusBadge from "@/components/catalytic/CaptureStatusBadge";
+import VehicleDetailsFields, { vehicleCanContinue } from "@/components/catalytic/VehicleDetailsFields";
 import CatalystCard from "@/components/catalytic/CatalystCard";
 import CatalystForm from "@/components/catalytic/CatalystForm";
 import ReviewSubmitModal from "@/components/catalytic/ReviewSubmitModal";
+
+function DraftVehicleEditor({ capture, onSaved, onCancel }) {
+    const [vehicle, setVehicle] = useState({
+        vin: capture.vin || "", year: capture.year ? String(capture.year) : "", make: capture.make || "",
+        model: capture.model || "", engine: capture.engine || "",
+    });
+    const [saving, setSaving] = useState(false);
+
+    const save = async () => {
+        setSaving(true);
+        try {
+            await updateCapture(capture.id, {
+                vin: vehicle.vin.trim(), year: vehicle.year ? Number(vehicle.year) : undefined,
+                make: vehicle.make.trim(), model: vehicle.model.trim(), engine: vehicle.engine.trim(),
+            });
+            onSaved();
+        } catch (e) {
+            toast.error(e instanceof CatalyticApiError ? e.message : "Failed to save the vehicle");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="space-y-3">
+            <VehicleDetailsFields value={vehicle} onChange={setVehicle} captureId={capture.id} />
+            <div className="grid grid-cols-2 gap-2">
+                <Button type="button" variant="outline" className="h-12 rounded-xl border-white/15" onClick={onCancel}>Cancel</Button>
+                <Button type="button" className="h-12 rounded-xl" isLoading={saving} disabled={saving || !vehicleCanContinue(vehicle)} onClick={save}>Save Vehicle</Button>
+            </div>
+        </div>
+    );
+}
 
 function fmtDate(s) {
     if (!s) return "—";
@@ -43,6 +79,8 @@ export default function WorkerCaptureBuilderPage() {
     const [pendingPhotos, setPendingPhotos] = useState({}); // catalystId -> [{...}]
     const [isSubmittingCapture, setIsSubmittingCapture] = useState(false);
     const [showReview, setShowReview] = useState(false);
+    const [showCancel, setShowCancel] = useState(false);
+    const [editingVehicle, setEditingVehicle] = useState(false);
 
     const load = useCallback(async () => {
         if (!id) return;
@@ -185,16 +223,36 @@ export default function WorkerCaptureBuilderPage() {
                 <CaptureStatusBadge status={capture.status} />
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-                <div className="text-[10px] uppercase tracking-wider text-white/40 font-bold mb-1">Vehicle</div>
-                <div className="text-lg font-black text-white/90">
-                    {[capture.year, capture.make, capture.model].filter(Boolean).join(" ") || "Not identified"}
+            {editingVehicle ? (
+                <DraftVehicleEditor
+                    capture={capture}
+                    onCancel={() => setEditingVehicle(false)}
+                    onSaved={() => {
+                        setEditingVehicle(false);
+                        load();
+                    }}
+                />
+            ) : (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                    <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                            <div className="text-[10px] uppercase tracking-wider text-white/40 font-bold mb-1">Vehicle</div>
+                            <div className="text-lg font-black text-white/90">
+                                {[capture.year, capture.make, capture.model].filter(Boolean).join(" ") || "Not identified"}
+                            </div>
+                            <div className="text-xs text-white/45 mt-0.5 flex items-center gap-3 flex-wrap">
+                                {capture.engine && <span>{capture.engine}</span>}
+                                {capture.vin && <span className="font-mono break-all">{capture.vin}</span>}
+                            </div>
+                        </div>
+                        {isDraft && (
+                            <button type="button" aria-label="Edit vehicle" onClick={() => setEditingVehicle(true)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white/50">
+                                <Pencil className="h-4 w-4" />
+                            </button>
+                        )}
+                    </div>
                 </div>
-                <div className="text-xs text-white/45 mt-0.5 flex items-center gap-3 flex-wrap">
-                    {capture.engine && <span>{capture.engine}</span>}
-                    {capture.vin && <span className="font-mono">{capture.vin}</span>}
-                </div>
-            </div>
+            )}
 
             {capture.status === CAPTURE_STATUS.REJECTED && (
                 <div className="rounded-2xl border border-rose-500/20 bg-rose-500/[0.05] p-4">
@@ -207,8 +265,25 @@ export default function WorkerCaptureBuilderPage() {
             )}
 
             {capture.status === CAPTURE_STATUS.PENDING_REVIEW && (
-                <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.05] p-4 text-sm text-amber-200/80">
-                    Submitted for review {fmtDate(capture.submitted_at)} — nothing left to do here. A moderator will confirm or send it back.
+                <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.05] p-4 space-y-3">
+                    <p className="text-sm text-amber-200/80">
+                        Submitted for review {fmtDate(capture.submitted_at)}. You can still change or cancel it until a moderator reviews it.
+                        {capture.revision > 1 && ` Last updated ${fmtDate(capture.edited_at || capture.updated_at)}.`}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                        <Button className="h-12 rounded-xl" onClick={() => router.push(`/worker/captures/${id}/edit`)}>
+                            <Pencil className="h-4 w-4 mr-1.5" /> Edit Submission
+                        </Button>
+                        <Button variant="outline" className="h-12 rounded-xl border-white/15" onClick={() => setShowCancel(true)}>
+                            <Ban className="h-4 w-4 mr-1.5" /> Cancel Submission
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {capture.status === CAPTURE_STATUS.CANCELLED && (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/60">
+                    Cancelled {fmtDate(capture.cancelled_at)}. This is kept as a record and can&apos;t be changed.
                 </div>
             )}
 
@@ -262,7 +337,7 @@ export default function WorkerCaptureBuilderPage() {
             </div>
 
             {isDraft && (
-                <div className="space-y-2 sticky bottom-3">
+                <div className="space-y-2 sticky bottom-[max(0.75rem,env(safe-area-inset-bottom))]">
                     <Button
                         className={`w-full h-14 rounded-2xl text-base ${!readyToSubmit ? "opacity-60" : ""}`}
                         onClick={handleSubmitTap}
@@ -276,6 +351,17 @@ export default function WorkerCaptureBuilderPage() {
                         <Trash2 className="h-4 w-4 mr-1.5" /> Delete Draft
                     </Button>
                 </div>
+            )}
+
+            {showCancel && (
+                <CancelSubmissionDialog
+                    capture={capture}
+                    onClose={() => setShowCancel(false)}
+                    onCancelled={() => {
+                        setShowCancel(false);
+                        load();
+                    }}
+                />
             )}
 
             {showReview && (

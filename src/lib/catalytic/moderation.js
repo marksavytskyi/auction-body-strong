@@ -15,17 +15,18 @@ export function getCaptureDetail(id) {
     return request(() => axiosInstance.get(`${BASE}/${encodeURIComponent(id)}`), "Failed to load capture");
 }
 
-// ApproveRequest: { moderator_notes?, year?, make?, model?, engine?,
+// ApproveRequest: { expected_revision, moderator_notes?, year?, make?, model?, engine?,
 // catalyst_overrides?: [{ catalyst_capture_id, position_code?, physical_code_raw? }] }
-// Only include fields the moderator actually changed.
-export function approveCapture(id, payload = {}) {
+// Only include fields the moderator actually changed. expected_revision is the revision on
+// screen: a 409 means the worker changed the submission since it was read.
+export function approveCapture(id, payload) {
     return request(() => axiosInstance.post(`${BASE}/${encodeURIComponent(id)}/approve`, payload), "Failed to approve capture");
 }
 
 // RejectRequest requires a non-empty `reason`.
-export function rejectCapture(id, reason, moderatorNotes = "") {
+export function rejectCapture(id, { reason, moderatorNotes = "", expectedRevision }) {
     return request(
-        () => axiosInstance.post(`${BASE}/${encodeURIComponent(id)}/reject`, { reason, moderator_notes: moderatorNotes }),
+        () => axiosInstance.post(`${BASE}/${encodeURIComponent(id)}/reject`, { reason, moderator_notes: moderatorNotes, expected_revision: expectedRevision }),
         "Failed to reject capture"
     );
 }

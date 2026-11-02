@@ -2,6 +2,8 @@
 // production: POST /worker/captures -> DRAFT, add catalysts while DRAFT,
 // POST .../submit -> PENDING_REVIEW. State-transition rules confirmed live:
 //   - edit/add-catalyst/delete capture: only while status === "DRAFT"
+//   - while status === "PENDING_REVIEW", the whole submission is replaced in one
+//     request (resubmitCapture) or cancelled (cancelCapture), both naming the revision read
 //   - POST .../reopen: only valid from status === "REJECTED" (brings it
 //     back to DRAFT) — calling it on a PENDING_REVIEW capture 400s
 //   - DELETE capture: only while status === "DRAFT"
@@ -16,7 +18,53 @@ export const CAPTURE_STATUS = {
     PENDING_REVIEW: "PENDING_REVIEW",
     APPROVED: "APPROVED",
     REJECTED: "REJECTED",
+    CANCELLED: "CANCELLED",
 };
+
+export function lookupVin(vin) {
+    return request(() => axiosInstance.get(`/worker/vin-lookup/${encodeURIComponent(vin)}`), "VIN lookup failed");
+}
+
+// Saved as one transaction: the id stays, the status stays PENDING_REVIEW and the revision
+// moves on. A 409 means the submission changed since expectedRevision was read.
+export function resubmitCapture(id, payload) {
+    return request(() => axiosInstance.post(`${BASE}/${encodeURIComponent(id)}/resubmit`, payload), "Failed to save your changes");
+}
+
+export function cancelCapture(id, { expectedRevision, reason = "" }) {
+    return request(
+        () => axiosInstance.post(`${BASE}/${encodeURIComponent(id)}/cancel`, { expected_revision: expectedRevision, reason }),
+        "Failed to cancel the submission"
+    );
+}
+
+// A photo for an edit in progress. Moderators can't see it until the save that names it.
+export async function uploadStagedPhoto(captureId, file, { onProgress } = {}) {
+    onProgress?.(0);
+    const { photo_id: photoId, upload_url: uploadUrl } = await request(
+        () => axiosInstance.post(`${BASE}/${encodeURIComponent(captureId)}/staged-photos/upload-url`, {
+            filename: file.name || "photo.jpg",
+            mime_type: file.type || "image/jpeg",
+            size_bytes: file.size,
+        }),
+        "Failed to prepare photo upload"
+    );
+    try {
+        await uploadPhotoBytes(uploadUrl, file, onProgress);
+    } catch (error) {
+        deleteStagedPhoto(captureId, photoId).catch(() => {});
+        throw error;
+    }
+    onProgress?.(100);
+    return photoId;
+}
+
+export function deleteStagedPhoto(captureId, photoId) {
+    return request(
+        () => axiosInstance.delete(`${BASE}/${encodeURIComponent(captureId)}/staged-photos/${encodeURIComponent(photoId)}`),
+        "Failed to remove photo"
+    );
+}
 
 export function listCaptures(params = {}) {
     return request(() => axiosInstance.get(BASE, { params }), "Failed to load captures");

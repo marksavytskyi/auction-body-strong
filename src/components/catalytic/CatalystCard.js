@@ -68,10 +68,10 @@ export default function CatalystCard({
                 </div>
                 {isDraft && (
                     <div className="flex items-center gap-1">
-                        <button type="button" aria-label="Edit catalyst" onClick={() => setIsEditing(true)} className="text-white/30 hover:text-emerald-400 p-1">
+                        <button type="button" aria-label="Edit catalyst" onClick={() => setIsEditing(true)} className="flex h-11 w-11 items-center justify-center text-white/30 hover:text-emerald-400">
                             <Pencil className="h-4 w-4" />
                         </button>
-                        <button type="button" aria-label="Delete catalyst" onClick={() => onDelete(catalyst.id)} className="text-white/30 hover:text-rose-400 p-1">
+                        <button type="button" aria-label="Delete catalyst" onClick={() => onDelete(catalyst.id)} className="flex h-11 w-11 items-center justify-center text-white/30 hover:text-rose-400">
                             <Trash2 className="h-4 w-4" />
                         </button>
                     </div>

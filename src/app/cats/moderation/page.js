@@ -74,6 +74,7 @@ export default function ModerationQueuePage() {
                                     {c.vin && <span className="font-mono">{c.vin}</span>}
                                     <span>{c.catalysts?.length || 0} catalyst{c.catalysts?.length === 1 ? "" : "s"}</span>
                                     <span>submitted by user #{c.submitted_by_user_id}</span>
+                                    {c.revision > 1 && <span className="font-bold text-sky-300">Updated · revision {c.revision}</span>}
                                 </div>
                             </div>
                             <CaptureStatusBadge status={c.status} />
