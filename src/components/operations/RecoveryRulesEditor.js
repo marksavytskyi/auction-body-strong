@@ -7,7 +7,7 @@ import { RECOVERY_COMPONENTS, RECOVERY_MODES } from "@/lib/operations/constants"
 
 const heading = "mb-1.5 text-[10px] font-bold uppercase tracking-wider text-white/40";
 
-// The rule form shared by Global and Batch settings. It holds no state of its own.
+// One batch's rule form. It holds no state of its own.
 export const RULE_KEYS = [
     "include_engine", "include_transmission", "include_scrap", "include_catalytic",
     "allow_approximate", "valuation_mode", "priority",

@@ -98,7 +98,7 @@ export default function BulkRecoveryDialog({ batchId, vehicleIds, onClose, onApp
             <RecoveryPreviewDialog
                 title={`Apply to ${vehicleIds.length} selected vehicle${vehicleIds.length === 1 ? "" : "s"}?`}
                 preview={preview}
-                note={preview.rules_active ? null : "The rules are not active, so this changes no total yet. These figures are what activation would show."}
+                note={preview.rules_active ? null : "This batch's rules are not active, so this changes no total yet. These figures are what activating this batch would show."}
                 busy={busy}
                 error={error}
                 onApply={apply}

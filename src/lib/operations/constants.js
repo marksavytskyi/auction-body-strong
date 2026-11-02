@@ -45,6 +45,7 @@ export const OVERALL_STATUS_LABEL = {
 };
 
 export const CATALYTIC_SOURCE_LABEL = {
+    OUR_DATABASE: "Our Database",
     CATDB_VIN: "CatDB VIN Search",
     CATDB_LOCAL: "CatDB Local Database",
     ECOTRADE_LOCAL: "EcoTrade Local Database",
@@ -52,11 +53,14 @@ export const CATALYTIC_SOURCE_LABEL = {
 
 export const CATALYTIC_STATUS_LABEL = {
     NOT_REQUESTED: "Not requested",
+    NOT_STARTED: "Not Started",
     READY: "Ready",
     QUEUED: "Queued",
-    PROCESSING: "Running",
+    PROCESSING: "Processing",
     RUNNING: "Running",
     COMPLETED: "Completed",
+    COMPLETE: "Complete",
+    PARTIAL: "Partial",
     DONE: "Completed",
     NO_MATCH: "No match",
     NO_RESULT: "No match",
@@ -72,6 +76,8 @@ export const CATALYTIC_STATUS_TONE = {
     PROCESSING: "progress",
     RUNNING: "progress",
     COMPLETED: "success",
+    COMPLETE: "success",
+    PARTIAL: "warning",
     DONE: "success",
     FAILED: "danger",
     REVIEW_REQUIRED: "warning",
@@ -359,4 +365,4 @@ export const RECOVERY_SKIP_LABEL = {
     NO_VALUE_FOR_MODE: "no price for this mode",
 };
 
-export const RECOVERY_ORIGIN_LABEL = { GLOBAL: "Global", BATCH: "Batch", VEHICLE: "This vehicle" };
+export const RECOVERY_ORIGIN_LABEL = { BATCH: "Batch", VEHICLE: "This vehicle" };

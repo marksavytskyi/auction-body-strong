@@ -6,6 +6,7 @@ import {
     cancelOperationsCatalyticRemaining,
     getOperationsCatalytic,
     runOperationsLocalSearch,
+    runOperationsOurDatabaseSearch,
     saveOperationsCatalyticSources,
 } from "@/lib/operations/api";
 import { pauseProcessing, stopWorker } from "@/lib/catalytic/catdbAdmin";
@@ -14,6 +15,7 @@ vi.mock("@/lib/operations/api", () => ({
     cancelOperationsCatalyticRemaining: vi.fn(),
     getOperationsCatalytic: vi.fn(),
     runOperationsLocalSearch: vi.fn(),
+    runOperationsOurDatabaseSearch: vi.fn(),
     saveOperationsCatalyticSources: vi.fn(),
 }));
 vi.mock("@/lib/catalytic/catdbAdmin", () => ({
@@ -161,5 +163,104 @@ describe("CatalyticProcessingCard", () => {
         expect(cancelOperationsCatalyticRemaining).not.toHaveBeenCalled();
         fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel remaining" }));
         await waitFor(() => expect(cancelOperationsCatalyticRemaining).toHaveBeenCalledWith(7));
+    });
+
+    describe("Our Database", () => {
+        const withOurDatabase = (selected, status = "NOT_STARTED", extra = {}) => overview({
+            sources: [
+                { source: "OUR_DATABASE", selected, status, counts: {} },
+                { source: "CATDB_VIN", selected: true, status: "READY", counts: {} },
+                { source: "CATDB_LOCAL", selected: false, status: "NOT_REQUESTED", counts: {} },
+                { source: "ECOTRADE_LOCAL", selected: false, status: "NOT_REQUESTED", counts: {} },
+            ],
+            scope_counts: { ALL: 10, NO_LOCAL_MATCH: 4, FAILED: 0, PAID_FAILED: 0, OURDB_ALL: 8, OURDB_NO_LOCAL_MATCH: 3, OURDB_FAILED: 2 },
+            ...extra,
+        });
+
+        beforeEach(() => {
+            runOperationsOurDatabaseSearch.mockResolvedValue({ vehicles_in_scope: 10, started: 8, skipped: 2 });
+        });
+
+        it("lists it first, keeping a saved unselected state", async () => {
+            getOperationsCatalytic.mockResolvedValue(withOurDatabase(false));
+            render(<CatalyticProcessingCard batchId={7} />);
+            const box = await screen.findByLabelText(/^our database/i);
+            expect(box).not.toBeChecked();
+            expect(screen.getAllByRole("checkbox")[0]).toBe(box);
+            expect(screen.getByRole("button", { name: "Run Our Database (8)" })).toBeDisabled();
+        });
+
+        it.each([
+            ["NOT_STARTED", "Not Started"],
+            ["PROCESSING", "Processing"],
+            ["COMPLETE", "Complete"],
+            ["PARTIAL", "Partial"],
+            ["FAILED", "Failed"],
+        ])("shows status %s", async (status, label) => {
+            getOperationsCatalytic.mockResolvedValue(withOurDatabase(true, status));
+            render(<CatalyticProcessingCard batchId={7} />);
+            expect(await screen.findByText(label)).toBeInTheDocument();
+        });
+
+        it("saving sends the choice and runs nothing", async () => {
+            getOperationsCatalytic.mockResolvedValue(withOurDatabase(false));
+            saveOperationsCatalyticSources.mockResolvedValue(withOurDatabase(true));
+            render(<CatalyticProcessingCard batchId={7} />);
+            fireEvent.click(await screen.findByLabelText(/^our database/i));
+            expect(screen.getByRole("button", { name: "Run Our Database (8)" })).toBeDisabled();
+            fireEvent.click(screen.getByRole("button", { name: "Save Sources" }));
+            await waitFor(() => expect(saveOperationsCatalyticSources).toHaveBeenCalledWith(7, {
+                run_ourdb: true, run_catdb: true, run_catdb_local: false, run_ecotrade_local: false,
+            }));
+            expect(runOperationsOurDatabaseSearch).not.toHaveBeenCalled();
+            expect(runOperationsLocalSearch).not.toHaveBeenCalled();
+        });
+
+        it("runs all vehicles only when asked, and calls nothing else", async () => {
+            getOperationsCatalytic.mockResolvedValue(withOurDatabase(true));
+            render(<CatalyticProcessingCard batchId={7} />);
+            const run = await screen.findByRole("button", { name: "Run Our Database (8)" });
+            expect(runOperationsOurDatabaseSearch).not.toHaveBeenCalled();
+            fireEvent.click(run);
+            await waitFor(() => expect(runOperationsOurDatabaseSearch).toHaveBeenCalledWith(7, { scope: "ALL", vehicleIds: undefined }));
+            expect(runOperationsLocalSearch).not.toHaveBeenCalled();
+            expect(pauseProcessing).not.toHaveBeenCalled();
+        });
+
+        it("uses the shared scope selector", async () => {
+            getOperationsCatalytic.mockResolvedValue(withOurDatabase(true));
+            render(<CatalyticProcessingCard batchId={7} selectedVehicleIds={[3, 4]} />);
+            fireEvent.change(await screen.findByLabelText("Process"), { target: { value: "SELECTED" } });
+            fireEvent.click(screen.getByRole("button", { name: "Run Our Database (2)" }));
+            await waitFor(() => expect(runOperationsOurDatabaseSearch).toHaveBeenCalledWith(7, { scope: "SELECTED", vehicleIds: [3, 4] }));
+        });
+
+        it("counts its own failures for a retry", async () => {
+            getOperationsCatalytic.mockResolvedValue(withOurDatabase(true));
+            render(<CatalyticProcessingCard batchId={7} />);
+            fireEvent.change(await screen.findByLabelText("Process"), { target: { value: "FAILED" } });
+            expect(screen.getByRole("button", { name: "Run Our Database (2)" })).toBeEnabled();
+        });
+
+        it("can't start again while running, or with nothing left to search", async () => {
+            getOperationsCatalytic.mockResolvedValue(withOurDatabase(true, "PROCESSING"));
+            const { unmount } = render(<CatalyticProcessingCard batchId={7} />);
+            expect(await screen.findByRole("button", { name: "Run Our Database (8)" })).toBeDisabled();
+            unmount();
+
+            const done = withOurDatabase(true, "COMPLETE");
+            done.scope_counts.OURDB_ALL = 0;
+            getOperationsCatalytic.mockResolvedValue(done);
+            render(<CatalyticProcessingCard batchId={7} />);
+            expect(await screen.findByRole("button", { name: "Run Our Database (0)" })).toBeDisabled();
+        });
+
+        it("leaves pause, stop and the paid section as they are", async () => {
+            getOperationsCatalytic.mockResolvedValue(withOurDatabase(true, "NOT_STARTED", { global_paused: true, paid_block_reason: PAUSED }));
+            render(<CatalyticProcessingCard batchId={7} />);
+            expect(await screen.findByRole("button", { name: "Paused" })).toBeDisabled();
+            expect(screen.getByTestId("paid").dataset.block).toBe(PAUSED);
+            expect(screen.getByRole("button", { name: "Run Our Database (8)" })).toBeEnabled();
+        });
     });
 });

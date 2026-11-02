@@ -1,68 +1,97 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import RecoverySettingsPage from "@/app/operations/recovery/page";
 import BatchRecoverySettings from "../BatchRecoverySettings";
-import RecoveryOverview from "../RecoveryOverview";
 import * as api from "@/lib/operations/api";
 import { CatalyticApiError } from "@/lib/catalytic/http";
 
 vi.mock("@/lib/operations/api", () => ({
-    getRecoverySettings: vi.fn(), previewRecoverySettings: vi.fn(), saveRecoverySettings: vi.fn(), getRecoveryDryRun: vi.fn(),
-    setRecoveryActivation: vi.fn(), listRecoveryEvents: vi.fn(), getRecoverySummary: vi.fn(),
-    getBatchRecovery: vi.fn(), previewBatchRecovery: vi.fn(), saveBatchRecovery: vi.fn(), resetBatchRecovery: vi.fn(),
-    getScrapPrice: vi.fn(), setScrapPrice: vi.fn(),
+    getBatchRecovery: vi.fn(), previewBatchRecovery: vi.fn(), saveBatchRecovery: vi.fn(),
+    getBatchRecoveryDryRun: vi.fn(), setBatchRecoveryActivation: vi.fn(), listRecoveryEvents: vi.fn(),
 }));
 vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 
 const PRIORITY = ["OUR_DATABASE", "CATDB_VIN", "CATDB_LOCAL", "ECOTRADE_LOCAL"].map((source) => ({ source, enabled: true }));
-const RULES = {
-    include_engine: true, include_transmission: true, include_scrap: true, include_catalytic: true,
-    allow_approximate: false, valuation_mode: "MID", priority: PRIORITY,
+const BATCH = {
+    operations_batch_id: 20, include_engine: true, include_transmission: true, include_scrap: true, include_catalytic: true,
+    allow_approximate: false, valuation_mode: "MID", priority: PRIORITY, default_priority: PRIORITY,
+    rules_active: false, activated_at: null, version: 2, updated_at: null,
 };
-const SETTINGS = { ...RULES, default_priority: PRIORITY, rules_active: false, activated_at: null, version: 2, updated_at: null };
 const PREVIEW = {
-    rules_active: false, vehicles_evaluated: 668, vehicles_affected: 184, batches_affected: 5, current_total: "420000.00", new_total: "448500.00",
-    difference: "28500.00", catalytic_sources: { CATDB_VIN: 198, MISSING: 470 }, missing_values: 900, approximate_included: 12, uncertain_excluded: 42,
-    completeness: { PARTIAL: 600, COMPLETE: 68 },
+    operations_batch_id: 20, rules_active: false, vehicles_evaluated: 44, vehicles_affected: 18, current_total: "42000.00", new_total: "44850.00",
+    difference: "2850.00", catalytic_sources: { CATDB_VIN: 19, MISSING: 25 }, missing_values: 30, approximate_included: 1, uncertain_excluded: 2,
+    completeness: { PARTIAL: 40, COMPLETE: 4 },
+};
+
+const open = async (batchId = 20) => {
+    const onChanged = vi.fn();
+    render(<BatchRecoverySettings batchId={batchId} onChanged={onChanged} />);
+    fireEvent.click(screen.getByRole("button", { name: /Recovery Settings/ }));
+    await screen.findByRole("checkbox", { name: "Engine" });
+    return onChanged;
 };
 
 beforeEach(() => {
     vi.clearAllMocks();
-    api.getRecoverySettings.mockResolvedValue(SETTINGS);
+    api.getBatchRecovery.mockResolvedValue(BATCH);
+    api.previewBatchRecovery.mockResolvedValue(PREVIEW);
+    api.getBatchRecoveryDryRun.mockResolvedValue(PREVIEW);
     api.listRecoveryEvents.mockResolvedValue({ items: [] });
-    api.getScrapPrice.mockResolvedValue({ price: "0.0800", currency: "USD", weight_unit: "LB", version: 1, updated_at: "2026-11-01T10:00:00" });
-    api.previewRecoverySettings.mockResolvedValue(PREVIEW);
-    api.getRecoveryDryRun.mockResolvedValue(PREVIEW);
 });
 
-describe("Recovery Settings page", () => {
-    it("preview comes before saving, and shows the backend's figures", async () => {
-        api.saveRecoverySettings.mockResolvedValue({ ...SETTINGS, include_engine: false, version: 3 });
-        render(<RecoverySettingsPage />);
-        const engine = await screen.findByRole("checkbox", { name: "Engine" });
+describe("BatchRecoverySettings", () => {
+    it("has no global options left", async () => {
+        await open();
+        for (const name of ["Customize This Batch", "Reset Batch to Global Defaults"]) {
+            expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+        }
+        expect(screen.queryByText(/global settings/i)).not.toBeInTheDocument();
+    });
+
+    it("is editable straight away, and previews before saving this batch", async () => {
+        api.saveBatchRecovery.mockResolvedValue({ ...BATCH, include_engine: false, version: 3 });
+        const onChanged = await open();
+        const engine = screen.getByRole("checkbox", { name: "Engine" });
+        expect(engine).toBeEnabled();
         expect(screen.getByRole("button", { name: "Preview Changes" })).toBeDisabled();
         fireEvent.click(engine);
         fireEvent.click(screen.getByRole("button", { name: "Preview Changes" }));
-        await screen.findByRole("dialog", { name: "Preview recovery changes" });
-        expect(api.saveRecoverySettings).not.toHaveBeenCalled();
-        expect(screen.getByText("$420,000.00")).toBeInTheDocument();
-        expect(screen.getByText("$448,500.00")).toBeInTheDocument();
-        expect(screen.getByText("+$28,500.00")).toBeInTheDocument();
-        expect(screen.getByText("184 of 668")).toBeInTheDocument();
-        expect(screen.getByText("198 vehicles")).toBeInTheDocument();
-        expect(screen.getByText(/saving changes no total yet/)).toBeInTheDocument();
-        fireEvent.click(screen.getByRole("button", { name: "Save Priority and Rules" }));
-        await waitFor(() => expect(api.saveRecoverySettings).toHaveBeenCalledTimes(1));
-        const sent = api.saveRecoverySettings.mock.calls[0][0];
+        const dialog = await screen.findByRole("dialog", { name: "Preview changes to Batch #20" });
+        expect(api.previewBatchRecovery.mock.calls[0][0]).toBe(20);
+        expect(api.saveBatchRecovery).not.toHaveBeenCalled();
+        expect(within(dialog).getByText("$42,000.00")).toBeInTheDocument();
+        expect(within(dialog).getByText("$44,850.00")).toBeInTheDocument();
+        expect(within(dialog).getByText("+$2,850.00")).toBeInTheDocument();
+        expect(within(dialog).getByText("18 of 44")).toBeInTheDocument();
+        expect(within(dialog).queryByText("Batches affected")).not.toBeInTheDocument();
+        expect(within(dialog).getByText(/saving changes no total yet/)).toBeInTheDocument();
+        fireEvent.click(within(dialog).getByRole("button", { name: "Save Rules" }));
+        await waitFor(() => expect(api.saveBatchRecovery).toHaveBeenCalledTimes(1));
+        const [batchId, sent] = api.saveBatchRecovery.mock.calls[0];
+        expect(batchId).toBe(20);
         expect(sent.changes.include_engine).toBe(false);
         expect(sent.expectedVersion).toBe(2);
+        await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    });
+
+    it("each batch loads and saves only its own rules", async () => {
+        await open(17);
+        expect(api.getBatchRecovery).toHaveBeenCalledWith(17);
+        expect(api.getBatchRecovery).not.toHaveBeenCalledWith(20);
+        expect(api.listRecoveryEvents).toHaveBeenCalledWith({ batchId: 17 });
+    });
+
+    it("shows the saved rules of the batch, not defaults", async () => {
+        api.getBatchRecovery.mockResolvedValue({ ...BATCH, include_scrap: false, valuation_mode: "HIGH", allow_approximate: true });
+        await open();
+        expect(screen.getByRole("checkbox", { name: "Scrap" })).not.toBeChecked();
+        expect(screen.getByRole("radio", { name: "HIGH" })).toBeChecked();
+        expect(screen.getByRole("checkbox", { name: /Allow approximate/ })).toBeChecked();
     });
 
     it("Cancel restores the saved order; Reset to Default restores the default one", async () => {
-        api.getRecoverySettings.mockResolvedValue({ ...SETTINGS, priority: [...PRIORITY].reverse() });
-        render(<RecoverySettingsPage />);
-        await screen.findByRole("checkbox", { name: "Engine" });
+        api.getBatchRecovery.mockResolvedValue({ ...BATCH, priority: [...PRIORITY].reverse() });
+        await open();
         const first = () => screen.getAllByRole("listitem")[0];
         expect(first()).toHaveTextContent("EcoTrade Local");
         fireEvent.click(screen.getByRole("button", { name: "Reset to Default" }));
@@ -72,108 +101,79 @@ describe("Recovery Settings page", () => {
     });
 
     it("can't preview with every source off", async () => {
-        render(<RecoverySettingsPage />);
+        await open();
         for (const name of ["Our Database", "CatDB VIN Search", "CatDB Local", "EcoTrade Local"]) {
-            fireEvent.click(await screen.findByRole("checkbox", { name }));
+            fireEvent.click(screen.getByRole("checkbox", { name }));
         }
         expect(screen.getByRole("button", { name: "Preview Changes" })).toBeDisabled();
     });
 
-    it("activation shows the dry run first, then sends the version read", async () => {
-        api.setRecoveryActivation.mockResolvedValue({ ...SETTINGS, rules_active: true, activated_at: "2026-11-01T10:00:00", version: 3 });
-        render(<RecoverySettingsPage />);
-        fireEvent.click(await screen.findByRole("button", { name: "Review and Activate" }));
-        await screen.findByRole("dialog", { name: "Activate the recovery rules?" });
-        expect(api.setRecoveryActivation).not.toHaveBeenCalled();
-        expect(screen.getByText(/No search runs and no stored price changes/)).toBeInTheDocument();
-        fireEvent.click(screen.getByRole("button", { name: "Activate Rules" }));
-        await waitFor(() => expect(api.setRecoveryActivation).toHaveBeenCalledWith({ active: true, expectedVersion: 2 }));
-        expect(await screen.findByText(/Rules active/i)).toBeInTheDocument();
-    });
-
-    it("turning off asks first and needs no dry run", async () => {
-        api.getRecoverySettings.mockResolvedValue({ ...SETTINGS, rules_active: true, activated_at: "2026-11-01T10:00:00" });
-        api.setRecoveryActivation.mockResolvedValue(SETTINGS);
-        render(<RecoverySettingsPage />);
-        fireEvent.click(await screen.findByRole("button", { name: "Turn Off Rules" }));
-        expect(api.getRecoveryDryRun).not.toHaveBeenCalled();
-        fireEvent.click(screen.getByRole("button", { name: "Turn Off" }));
-        await waitFor(() => expect(api.setRecoveryActivation).toHaveBeenCalledWith({ active: false, expectedVersion: 2 }));
-    });
-
     it("a save conflict stays open and reloads", async () => {
-        api.saveRecoverySettings.mockRejectedValue(new CatalyticApiError("These rules were changed by someone else.", { status: 409 }));
-        render(<RecoverySettingsPage />);
-        fireEvent.click(await screen.findByRole("checkbox", { name: "Scrap" }));
+        api.saveBatchRecovery.mockRejectedValue(new CatalyticApiError("These rules were changed by someone else.", { status: 409 }));
+        await open();
+        fireEvent.click(screen.getByRole("checkbox", { name: "Scrap" }));
         fireEvent.click(screen.getByRole("button", { name: "Preview Changes" }));
-        fireEvent.click(await screen.findByRole("button", { name: "Save Priority and Rules" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Save Rules" }));
         expect(await screen.findByRole("alert")).toHaveTextContent("changed by someone else");
-        expect(api.getRecoverySettings).toHaveBeenCalledTimes(2);
+        expect(api.getBatchRecovery).toHaveBeenCalledTimes(2);
     });
 
-    it("shows recent changes", async () => {
+    it("shows this batch's recent changes", async () => {
         api.listRecoveryEvents.mockResolvedValue({ items: [{ id: 1, action: "ACTIVATE", created_at: "2026-11-01T10:00:00", reason: "go" }] });
-        render(<RecoverySettingsPage />);
+        await open();
         expect(await screen.findByText(/Rules activated · go/)).toBeInTheDocument();
     });
 });
 
-describe("BatchRecoverySettings", () => {
-    const BATCH = {
-        operations_batch_id: 20, rules_active: false, customized: false, own_rules: {}, effective: RULES,
-        origin: {}, version: 0,
-    };
-    const open = async () => {
-        const onChanged = vi.fn();
-        render(<BatchRecoverySettings batchId={20} onChanged={onChanged} />);
-        fireEvent.click(screen.getByRole("button", { name: /Recovery Settings/ }));
-        await screen.findByRole("checkbox", { name: "Engine" });
-        return onChanged;
-    };
-
-    beforeEach(() => {
-        api.getBatchRecovery.mockResolvedValue(BATCH);
-        api.previewBatchRecovery.mockResolvedValue(PREVIEW);
+describe("activation", () => {
+    it("the collapsed header says whether this batch is active", async () => {
+        api.getBatchRecovery.mockResolvedValue({ ...BATCH, rules_active: true, activated_at: "2026-11-01T10:00:00" });
+        render(<BatchRecoverySettings batchId={20} />);
+        expect(await screen.findByText("Rules active")).toBeInTheDocument();
     });
 
-    it("stays read-only until Customize, then previews before saving", async () => {
-        api.saveBatchRecovery.mockResolvedValue({ ...BATCH, customized: true, version: 1 });
+    it("shows this batch's dry run first, then activates only this batch", async () => {
+        api.setBatchRecoveryActivation.mockResolvedValue({ ...BATCH, rules_active: true, activated_at: "2026-11-01T10:00:00", version: 3 });
         const onChanged = await open();
-        expect(screen.getByRole("checkbox", { name: "Engine" })).toBeDisabled();
-        expect(screen.queryByRole("button", { name: "Reset Batch to Global Defaults" })).not.toBeInTheDocument();
-        fireEvent.click(screen.getByRole("button", { name: "Customize This Batch" }));
-        fireEvent.click(screen.getByRole("checkbox", { name: "Engine" }));
-        fireEvent.click(screen.getByRole("button", { name: "Preview Changes" }));
-        await screen.findByRole("dialog");
-        expect(api.saveBatchRecovery).not.toHaveBeenCalled();
-        fireEvent.click(screen.getByRole("button", { name: "Apply Changes" }));
-        await waitFor(() => expect(api.saveBatchRecovery).toHaveBeenCalledTimes(1));
-        expect(api.saveBatchRecovery.mock.calls[0][1].changes.include_engine).toBe(false);
-        expect(api.saveBatchRecovery.mock.calls[0][1].expectedVersion).toBe(0);
+        fireEvent.click(screen.getByRole("button", { name: "Review and Activate" }));
+        const dialog = await screen.findByRole("dialog", { name: "Activate the rules for Batch #20?" });
+        expect(api.getBatchRecoveryDryRun).toHaveBeenCalledWith(20);
+        expect(api.setBatchRecoveryActivation).not.toHaveBeenCalled();
+        expect(within(dialog).getByText(/No other batch is affected, no search runs and no stored price changes/)).toBeInTheDocument();
+        fireEvent.click(within(dialog).getByRole("button", { name: "Activate for This Batch" }));
+        await waitFor(() => expect(api.setBatchRecoveryActivation).toHaveBeenCalledWith(20, { active: true, expectedVersion: 2 }));
+        expect(await screen.findByText(/Batch #20 rules active/)).toBeInTheDocument();
         await waitFor(() => expect(onChanged).toHaveBeenCalled());
     });
 
-    it("Reset returns to the global settings after a preview", async () => {
-        api.getBatchRecovery.mockResolvedValue({ ...BATCH, customized: true, version: 4 });
-        api.resetBatchRecovery.mockResolvedValue(BATCH);
+    it("turning off asks first and needs no dry run", async () => {
+        api.getBatchRecovery.mockResolvedValue({ ...BATCH, rules_active: true, activated_at: "2026-11-01T10:00:00" });
+        api.setBatchRecoveryActivation.mockResolvedValue(BATCH);
         await open();
-        fireEvent.click(screen.getByRole("button", { name: "Reset Batch to Global Defaults" }));
-        await waitFor(() => expect(api.previewBatchRecovery).toHaveBeenCalledWith(20, null, { reset: true }));
-        fireEvent.click(await screen.findByRole("button", { name: "Apply Changes" }));
-        await waitFor(() => expect(api.resetBatchRecovery).toHaveBeenCalledWith(20, { expectedVersion: 4 }));
+        fireEvent.click(screen.getByRole("button", { name: "Turn Off Rules" }));
+        expect(api.getBatchRecoveryDryRun).not.toHaveBeenCalled();
+        expect(screen.getByText("Turn off the rules for Batch #20?")).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Turn Off" }));
+        await waitFor(() => expect(api.setBatchRecoveryActivation).toHaveBeenCalledWith(20, { active: false, expectedVersion: 2 }));
     });
-});
 
-describe("RecoveryOverview", () => {
-    it("labels the figure by whether the rules are active", async () => {
-        api.getRecoverySummary.mockResolvedValue({ rules_active: false, recovery_total: "1288149.16", vehicles: 668, complete: 0, partial: 506, no_data: 162, batches: [] });
-        const { unmount } = render(<RecoveryOverview />);
-        expect(await screen.findByText("Known value, all batches")).toBeInTheDocument();
-        expect(screen.getByText("$1,288,149.16")).toBeInTheDocument();
-        expect(screen.getByRole("link", { name: "Recovery Settings" })).toHaveAttribute("href", "/operations/recovery");
-        unmount();
-        api.getRecoverySummary.mockResolvedValue({ rules_active: true, recovery_total: "1.00", vehicles: 1, complete: 1, partial: 0, no_data: 0, batches: [] });
-        render(<RecoveryOverview />);
-        expect(await screen.findByText("Recovery Total, all batches")).toBeInTheDocument();
+    it("can't activate over unsaved changes, so the dry run always matches what activates", async () => {
+        await open();
+        const button = screen.getByRole("button", { name: "Review and Activate" });
+        expect(button).toBeEnabled();
+        fireEvent.click(screen.getByRole("checkbox", { name: "Engine" }));
+        expect(button).toBeDisabled();
+        expect(screen.getByText("Save or cancel your changes first.")).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        expect(button).toBeEnabled();
+    });
+
+    it("a failed activation keeps the dialog open and leaves the batch inactive", async () => {
+        api.setBatchRecoveryActivation.mockRejectedValue(new CatalyticApiError("These rules were changed by someone else.", { status: 409 }));
+        await open();
+        fireEvent.click(screen.getByRole("button", { name: "Review and Activate" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Activate for This Batch" }));
+        expect(await screen.findByRole("alert")).toHaveTextContent("changed by someone else");
+        expect(screen.getByText(/Batch #20 rules not active/)).toBeInTheDocument();
     });
 });

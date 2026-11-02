@@ -41,7 +41,7 @@ export default function VehicleCatalyticResults({ batchId, vehicleId }) {
                         </div>
                         {(result.price_low != null || result.price_high != null || result.price_expected != null) && (
                             <div className="mt-1 text-sm font-bold text-white/90">
-                                {priceText(result)} <span className="text-[10px] font-normal text-white/35">estimate</span>
+                                {priceText(result)} {result.match_type !== "OWN_SALES" && <span className="text-[10px] font-normal text-white/35">estimate</span>}
                             </div>
                         )}
                         {result.price_expected != null && (
@@ -72,6 +72,7 @@ export default function VehicleCatalyticResults({ batchId, vehicleId }) {
                                 )}
                                 {result.matched_record.snapshot_id != null && <div className="mt-1">Stored search #{result.matched_record.snapshot_id}</div>}
                                 {result.matched_record.job_id != null && result.matched_record.snapshot_id == null && <div className="mt-1">CatDB job #{result.matched_record.job_id}</div>}
+                                {result.matched_record.sources_used?.length > 0 && <div className="mt-1">Based on: {result.matched_record.sources_used.join(", ")}</div>}
                                 {result.matched_record.error && <div className="mt-1 text-rose-300">{result.matched_record.error}</div>}
                             </details>
                         )}

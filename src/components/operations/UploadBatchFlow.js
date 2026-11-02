@@ -16,6 +16,7 @@ const MAX_BYTES = MAX_MB * 1024 * 1024;
 // truth for every row). The sources are configuration: uploading never starts a
 // lookup or a paid search, and choosing none is valid.
 const SOURCES = [
+    { id: "runOurdb", label: "Our Database", hint: "Free lookup in our own sales records" },
     { id: "runCatdb", label: "CatDB VIN Search", hint: "Paid VIN lookup using Android Worker" },
     { id: "runCatdbLocal", label: "CatDB Local", hint: "Search previously stored CatDB data" },
     { id: "runEcotradeLocal", label: "EcoTrade Local", hint: "Search previously stored EcoTrade data" },
@@ -24,7 +25,7 @@ const SOURCES = [
 export default function UploadBatchFlow({ onUploaded }) {
     const [file, setFile] = useState(null);
     const [uploading, setUploading] = useState(false);
-    const [sources, setSources] = useState({ runCatdb: false, runCatdbLocal: false, runEcotradeLocal: false });
+    const [sources, setSources] = useState({ runOurdb: true, runCatdb: false, runCatdbLocal: false, runEcotradeLocal: false });
 
     const onDrop = useCallback((accepted, rejected) => {
         if (rejected?.length) {

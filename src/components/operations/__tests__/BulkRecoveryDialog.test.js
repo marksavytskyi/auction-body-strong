@@ -9,7 +9,7 @@ vi.mock("@/lib/operations/api", () => ({ applyBulkRecovery: vi.fn(), previewBulk
 vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 
 const PREVIEW = {
-    rules_active: true, vehicles_evaluated: 2, vehicles_affected: 2, batches_affected: 1, current_total: "100.00", new_total: "50.00",
+    rules_active: true, vehicles_evaluated: 2, vehicles_affected: 2, current_total: "100.00", new_total: "50.00",
     difference: "-50.00", catalytic_sources: { CATDB_VIN: 2 }, missing_values: 0, approximate_included: 0, uncertain_excluded: 0, completeness: {},
 };
 

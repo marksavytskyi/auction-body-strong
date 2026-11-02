@@ -47,7 +47,6 @@ export default function RecoveryPreviewDialog({ title, preview, note, applyLabel
                         tone={difference < 0 ? "text-rose-300" : difference > 0 ? "text-emerald-300" : undefined}
                     />
                     <Figure label="Vehicles affected" value={`${preview.vehicles_affected} of ${preview.vehicles_evaluated}`} />
-                    <Figure label="Batches affected" value={preview.batches_affected} />
                     <Figure label="Missing values" value={preview.missing_values} tone={preview.missing_values ? "text-amber-300" : undefined} />
                     <Figure label="Approximate included" value={preview.approximate_included} />
                     <Figure label="Flagged, excluded" value={preview.uncertain_excluded} />

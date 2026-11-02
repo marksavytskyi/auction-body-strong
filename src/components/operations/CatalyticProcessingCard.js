@@ -9,6 +9,7 @@ import {
     cancelOperationsCatalyticRemaining,
     getOperationsCatalytic,
     runOperationsLocalSearch,
+    runOperationsOurDatabaseSearch,
     saveOperationsCatalyticSources,
 } from "@/lib/operations/api";
 import { pauseProcessing, stopWorker } from "@/lib/catalytic/catdbAdmin";
@@ -20,14 +21,16 @@ import { ConfirmDialog } from "@/components/catalytic/CatdbProcessingControls";
 import CatdbSection from "./CatdbSection";
 
 const POLL_MS = 15_000;
+const OUR_DATABASE_POLL_MS = 5_000;
 
 const SOURCE_HINT = {
+    OUR_DATABASE: "Free lookup in our own sales records. No Android Worker, no CatDB quota",
     CATDB_VIN: "Paid VIN lookup using Android Worker",
     CATDB_LOCAL: "Search previously stored CatDB data",
     ECOTRADE_LOCAL: "Search previously stored EcoTrade data",
 };
 
-const SOURCE_FIELD = { CATDB_VIN: "run_catdb", CATDB_LOCAL: "run_catdb_local", ECOTRADE_LOCAL: "run_ecotrade_local" };
+const SOURCE_FIELD = { OUR_DATABASE: "run_ourdb", CATDB_VIN: "run_catdb", CATDB_LOCAL: "run_catdb_local", ECOTRADE_LOCAL: "run_ecotrade_local" };
 
 const ACTIONS = {
     pause: {
@@ -81,6 +84,18 @@ export default function CatalyticProcessingCard({ batchId, refreshKey, selectedV
         return () => clearInterval(timer);
     }, [activeJobs, onChanged]);
 
+    // Runs in the background on the server, so follow it until it settles.
+    const ourDatabaseRunning = overview?.sources.find((s) => s.source === "OUR_DATABASE")?.status === "PROCESSING";
+    useEffect(() => {
+        if (!ourDatabaseRunning) return undefined;
+        const timer = setInterval(() => {
+            if (isPageHidden()) return;
+            if (onChanged) onChanged();
+            else load();
+        }, OUR_DATABASE_POLL_MS);
+        return () => clearInterval(timer);
+    }, [ourDatabaseRunning, onChanged, load]);
+
     const perform = async (name, fn) => {
         if (running.current) return;
         running.current = true;
@@ -123,18 +138,31 @@ export default function CatalyticProcessingCard({ batchId, refreshKey, selectedV
     ];
     const affected = scopes.find((s) => s.id === scope)?.count ?? 0;
     const paidScopeCount = scope === "FAILED" ? counts.PAID_FAILED : affected;
+    const ourDatabaseCount = {
+        ALL: counts.OURDB_ALL,
+        SELECTED: selectedVehicleIds.length,
+        NO_LOCAL_MATCH: counts.OURDB_NO_LOCAL_MATCH,
+        FAILED: counts.OURDB_FAILED,
+    }[scope] ?? 0;
     const stoppable = overview.workers.filter((w) => w.stop_state === "NONE");
 
     const save = () => perform("save", async () => {
-        await saveOperationsCatalyticSources(batchId, {
-            run_catdb: draft.CATDB_VIN, run_catdb_local: draft.CATDB_LOCAL, run_ecotrade_local: draft.ECOTRADE_LOCAL,
-        });
+        await saveOperationsCatalyticSources(
+            batchId,
+            Object.fromEntries(overview.sources.map((s) => [SOURCE_FIELD[s.source], Boolean(draft[s.source])])),
+        );
         toast.success("Sources saved");
     });
 
     const runLocal = () => perform("local", async () => {
         const result = await runOperationsLocalSearch(batchId, { scope, vehicleIds: scope === "SELECTED" ? selectedVehicleIds : undefined });
         toast.success(`Local search finished: ${result.vehicles_searched} vehicle${result.vehicles_searched === 1 ? "" : "s"}`);
+    });
+
+    const runOurDatabase = () => perform("ourdb", async () => {
+        const result = await runOperationsOurDatabaseSearch(batchId, { scope, vehicleIds: scope === "SELECTED" ? selectedVehicleIds : undefined });
+        const skipped = result.skipped ? `; ${result.skipped} already searched` : "";
+        toast.success(result.started ? `Our Database search started: ${result.started} vehicle${result.started === 1 ? "" : "s"}${skipped}` : `Nothing to search${skipped}`);
     });
 
     const confirmAction = () => {
@@ -199,6 +227,15 @@ export default function CatalyticProcessingCard({ batchId, refreshKey, selectedV
                 <div className="flex flex-wrap gap-2">
                     <button
                         type="button"
+                        disabled={!saved.OUR_DATABASE || dirty || !ourDatabaseCount || ourDatabaseRunning || Boolean(busy)}
+                        onClick={runOurDatabase}
+                        className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-500 px-4 text-xs font-bold text-black disabled:opacity-40"
+                    >
+                        {busy === "ourdb" || ourDatabaseRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                        Run Our Database ({ourDatabaseCount})
+                    </button>
+                    <button
+                        type="button"
                         disabled={!localSelected || dirty || !affected || Boolean(busy)}
                         onClick={runLocal}
                         className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-500 px-4 text-xs font-bold text-black disabled:opacity-40"
@@ -207,7 +244,9 @@ export default function CatalyticProcessingCard({ batchId, refreshKey, selectedV
                         Run Local Search ({affected})
                     </button>
                 </div>
+                {!saved.OUR_DATABASE && <p className="text-[11px] text-white/35">Select Our Database and save to run it.</p>}
                 {!localSelected && <p className="text-[11px] text-white/35">Select a local database and save to run a local search.</p>}
+                <p className="text-[11px] text-white/35">Results are saved per vehicle and stored results are kept. Whether a result counts toward Recovery Total is decided in Recovery Settings.</p>
             </div>
 
             <div className="space-y-2 border-t border-white/10 pt-3">

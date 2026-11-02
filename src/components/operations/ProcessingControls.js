@@ -2,18 +2,17 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { Wrench, Database, Gauge, PlayCircle, AlertTriangle } from "lucide-react";
+import { Wrench, Gauge, PlayCircle, AlertTriangle } from "lucide-react";
 
-import { startOperationsParts, startOperationsOurDb, startOperationsWeight, getOperationsBatchProgress } from "@/lib/operations/api";
+import { startOperationsParts, startOperationsWeight, getOperationsBatchProgress } from "@/lib/operations/api";
 import { CatalyticApiError } from "@/lib/catalytic/http";
 import { Button } from "@/components/ui/button";
 import StatusPill from "@/components/catalytic/StatusPill";
 import { summarizeLegProgress, isLegActive } from "@/lib/operations/format";
 
-// Three independent, explicitly-invoked processing legs — never chained
-// or auto-triggered (see spec Section 8). None of these ever touches
-// CatDB; Our Database here means the catalytic-converter lookup table,
-// never a paid CatDB Android VIN search (that's UI-2's approval flow).
+// Independent, explicitly-invoked processing legs — never chained or
+// auto-triggered (see spec Section 8). None of these ever touches CatDB.
+// Catalytic sources, Our Database included, run from CatalyticProcessingCard.
 //
 // The compact summary next to each Start button comes from the real
 // GET .../progress endpoint (see summarizeLegProgress) — never from
@@ -103,7 +102,7 @@ export default function ProcessingControls({ batch, progress, refreshKey, onBatc
     };
 
     return (
-        <div className={`grid gap-3 ${batch.run_ourdb ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+        <div className="grid gap-3 sm:grid-cols-2">
             <LegCard
                 icon={Wrench}
                 title="Parts Analysis"
@@ -117,20 +116,6 @@ export default function ProcessingControls({ batch, progress, refreshKey, onBatc
                     <span className="text-[11px] text-white/35 inline-flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> disabled for this batch</span>
                 )}
             </LegCard>
-
-            {batch.run_ourdb && (
-                <LegCard
-                    icon={Database}
-                    title="Our Database Analysis"
-                    description="Catalytic converter lookup (never a paid CatDB search)"
-                    enabled={batch.run_ourdb && !isLegActive(effectiveProgress?.ourdb)}
-                    busy={busyLeg === "ourdb"}
-                    onStart={() => run("ourdb", startOperationsOurDb, "Our Database analysis")}
-                >
-                    {legSummary("ourdb")}
-                </LegCard>
-
-            )}
 
             <LegCard
                 icon={Gauge}

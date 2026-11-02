@@ -251,7 +251,7 @@ export default function RecoveryPriceBuilder({ batchId, vehicleId, onSaved }) {
                 <StatusPill label={completeness.label} tone={completeness.tone} />
             </div>
             {!view.rules_active && (
-                <p className="mb-2 text-[11px] text-amber-200/80">The rules are not active yet. What you save here applies once they are activated in Recovery Settings.</p>
+                <p className="mb-2 text-[11px] text-amber-200/80">The rules for this batch are not active yet. What you save here applies once this batch is activated in its Recovery Settings.</p>
             )}
 
             {RECOVERY_COMPONENTS.map(({ id, label }) => (

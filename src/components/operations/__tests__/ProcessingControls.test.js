@@ -2,11 +2,10 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import ProcessingControls from "../ProcessingControls";
-import { startOperationsParts, startOperationsOurDb, startOperationsWeight, getOperationsBatchProgress } from "@/lib/operations/api";
+import { startOperationsParts, startOperationsWeight, getOperationsBatchProgress } from "@/lib/operations/api";
 
 vi.mock("@/lib/operations/api", () => ({
     startOperationsParts: vi.fn(),
-    startOperationsOurDb: vi.fn(),
     startOperationsWeight: vi.fn(),
     getOperationsBatchProgress: vi.fn(),
 }));
@@ -23,50 +22,43 @@ const baseProgress = { parts: { ...emptyLeg }, ourdb: { ...emptyLeg }, weight: {
 describe("ProcessingControls", () => {
     beforeEach(() => {
         startOperationsParts.mockReset();
-        startOperationsOurDb.mockReset();
         startOperationsWeight.mockReset();
         getOperationsBatchProgress.mockReset();
         getOperationsBatchProgress.mockResolvedValue(baseProgress);
     });
 
-    it("starting Parts only calls the Parts endpoint, never OurDB or Weight", async () => {
+    it("starting Parts only calls the Parts endpoint, never Weight", async () => {
         startOperationsParts.mockResolvedValue({ ...baseBatch, parts_job_status: "processing" });
         render(<ProcessingControls batch={baseBatch} onBatchUpdated={vi.fn()} />);
 
         fireEvent.click(screen.getAllByRole("button", { name: /^start$/i })[0]);
 
         await waitFor(() => expect(startOperationsParts).toHaveBeenCalledWith(1));
-        expect(startOperationsOurDb).not.toHaveBeenCalled();
         expect(startOperationsWeight).not.toHaveBeenCalled();
     });
 
-    it("starting Our Database only calls the OurDB endpoint, never Parts or Weight — and never CatDB", async () => {
-        startOperationsOurDb.mockResolvedValue(baseBatch);
+    it("leaves Our Database to the Catalytic Processing card", async () => {
         render(<ProcessingControls batch={baseBatch} onBatchUpdated={vi.fn()} />);
-
-        fireEvent.click(screen.getAllByRole("button", { name: /^start$/i })[1]);
-
-        await waitFor(() => expect(startOperationsOurDb).toHaveBeenCalledWith(1));
-        expect(startOperationsParts).not.toHaveBeenCalled();
-        expect(startOperationsWeight).not.toHaveBeenCalled();
+        await waitFor(() => expect(getOperationsBatchProgress).toHaveBeenCalled());
+        expect(screen.queryByText(/our database/i)).toBeNull();
+        expect(screen.getAllByRole("button", { name: /^start$/i })).toHaveLength(2);
     });
 
     it("starting Weight only calls the Weight endpoint", async () => {
         startOperationsWeight.mockResolvedValue(baseBatch);
         render(<ProcessingControls batch={baseBatch} onBatchUpdated={vi.fn()} />);
 
-        fireEvent.click(screen.getAllByRole("button", { name: /^start$/i })[2]);
+        fireEvent.click(screen.getAllByRole("button", { name: /^start$/i })[1]);
 
         await waitFor(() => expect(startOperationsWeight).toHaveBeenCalledWith(1));
         expect(startOperationsParts).not.toHaveBeenCalled();
-        expect(startOperationsOurDb).not.toHaveBeenCalled();
     });
 
     it("disables Start for a leg the batch has disabled", async () => {
         render(<ProcessingControls batch={{ ...baseBatch, run_weight: false }} onBatchUpdated={vi.fn()} />);
         await waitFor(() => expect(getOperationsBatchProgress).toHaveBeenCalled());
         const buttons = screen.getAllByRole("button", { name: /^start$/i });
-        expect(buttons[2]).toBeDisabled();
+        expect(buttons[1]).toBeDisabled();
         expect(screen.getByText(/disabled for this batch/i)).toBeInTheDocument();
     });
 
@@ -136,7 +128,7 @@ describe("ProcessingControls", () => {
         render(<ProcessingControls batch={baseBatch} progress={progress} onBatchUpdated={vi.fn()} />);
         const buttons = await screen.findAllByRole("button", { name: /^start$/i });
         expect(buttons[0]).toBeDisabled(); // Parts
-        expect(buttons[1]).not.toBeDisabled(); // OurDB — untouched by Parts' own activity
+        expect(buttons[1]).not.toBeDisabled(); // Weight — untouched by Parts' own activity
     });
 
     it("re-enables Start (allowing a rerun) once a DONE/FAILED leg is no longer active", async () => {

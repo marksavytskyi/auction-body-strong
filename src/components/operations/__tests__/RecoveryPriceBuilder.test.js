@@ -16,7 +16,7 @@ vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() 
 
 function component(name, price, overrides = {}) {
     return {
-        name, included: true, included_origin: "GLOBAL", state: "AVAILABLE", effective_price: price, automatic_price: price,
+        name, included: true, included_origin: "BATCH", state: "AVAILABLE", effective_price: price, automatic_price: price,
         manual_price: null, is_manual: false, source: name === "scrap" ? "GLOBAL_SCRAP_PRICE" : "PARTS_PRICING", ...overrides,
     };
 }
@@ -39,7 +39,7 @@ function view(overrides = {}) {
         included_components: ["engine", "transmission", "scrap", "catalytic"],
         catalytic: {
             selected_source: null, candidate_code: null, effective_source: "CATDB_VIN", valuation_mode: "MID",
-            valuation_mode_origin: "GLOBAL", allow_approximate: false, allow_approximate_origin: "GLOBAL",
+            valuation_mode_origin: "BATCH", allow_approximate: false, allow_approximate_origin: "BATCH",
             approximate: false, uncertain: false, reason: null, skipped: [],
             options: [
                 option("OUR_DATABASE"),
@@ -175,7 +175,7 @@ describe("RecoveryPriceBuilder", () => {
     it("says when the rules are not active yet", async () => {
         getVehicleRecovery.mockResolvedValue(view({ rules_active: false }));
         await setup();
-        expect(screen.getByText(/rules are not active yet/)).toBeInTheDocument();
+        expect(screen.getByText(/rules for this batch are not active yet/)).toBeInTheDocument();
     });
 
     it("Reset to Batch Rules asks first", async () => {

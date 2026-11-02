@@ -43,47 +43,17 @@ const batchRecoveryUrl = (batchId) => `${BASE}/batches/${encodeURIComponent(batc
 const vehicleRecoveryUrl = (batchId, vehicleId) =>
     `${BASE}/batches/${encodeURIComponent(batchId)}/vehicles/${encodeURIComponent(vehicleId)}/recovery`;
 
-export function getRecoverySettings() {
-    return request(() => axiosInstance.get(`${BASE}/recovery/settings`), "Failed to load Recovery Settings");
-}
-
-export function previewRecoverySettings(changes) {
-    return request(() => axiosInstance.post(`${BASE}/recovery/settings/preview`, changes), "Failed to preview the changes");
-}
-
-export function saveRecoverySettings({ changes, expectedVersion, reason }) {
-    return request(
-        () => axiosInstance.put(`${BASE}/recovery/settings`, { ...changes, expected_version: expectedVersion, reason }),
-        "Failed to save Recovery Settings"
-    );
-}
-
-export function getRecoveryDryRun() {
-    return request(() => axiosInstance.get(`${BASE}/recovery/dry-run`), "Failed to calculate the dry run");
-}
-
-export function setRecoveryActivation({ active, expectedVersion, reason }) {
-    return request(
-        () => axiosInstance.put(`${BASE}/recovery/activation`, { active, confirm: true, expected_version: expectedVersion, reason }),
-        "Failed to change activation"
-    );
-}
-
-export function getRecoverySummary() {
-    return request(() => axiosInstance.get(`${BASE}/recovery/summary`), "Failed to load recovery totals");
-}
-
-export function listRecoveryEvents({ limit = 20 } = {}) {
-    return request(() => axiosInstance.get(`${BASE}/recovery/events`, { params: { limit } }), "Failed to load change history");
+export function listRecoveryEvents({ batchId, limit = 20 }) {
+    return request(() => axiosInstance.get(`${BASE}/recovery/events`, { params: { batch_id: batchId, limit } }), "Failed to load change history");
 }
 
 export function getBatchRecovery(batchId) {
     return request(() => axiosInstance.get(batchRecoveryUrl(batchId)), "Failed to load batch recovery rules");
 }
 
-export function previewBatchRecovery(batchId, changes, { reset = false } = {}) {
+export function previewBatchRecovery(batchId, changes) {
     return request(
-        () => axiosInstance.post(`${batchRecoveryUrl(batchId)}/preview`, changes || {}, { params: reset ? { reset: true } : undefined }),
+        () => axiosInstance.post(`${batchRecoveryUrl(batchId)}/preview`, changes),
         "Failed to preview the changes"
     );
 }
@@ -95,10 +65,14 @@ export function saveBatchRecovery(batchId, { changes, expectedVersion, reason })
     );
 }
 
-export function resetBatchRecovery(batchId, { expectedVersion }) {
+export function getBatchRecoveryDryRun(batchId) {
+    return request(() => axiosInstance.get(`${batchRecoveryUrl(batchId)}/dry-run`), "Failed to calculate the dry run");
+}
+
+export function setBatchRecoveryActivation(batchId, { active, expectedVersion, reason }) {
     return request(
-        () => axiosInstance.delete(batchRecoveryUrl(batchId), { params: { expected_version: expectedVersion } }),
-        "Failed to reset batch recovery rules"
+        () => axiosInstance.put(`${batchRecoveryUrl(batchId)}/activation`, { active, confirm: true, expected_version: expectedVersion, reason }),
+        "Failed to change activation"
     );
 }
 
@@ -169,6 +143,13 @@ export function runOperationsLocalSearch(batchId, { scope, vehicleIds }) {
     );
 }
 
+export function runOperationsOurDatabaseSearch(batchId, { scope, vehicleIds }) {
+    return request(
+        () => axiosInstance.post(`${BASE}/batches/${encodeURIComponent(batchId)}/catalytic/ourdb-search`, { scope, vehicle_ids: vehicleIds }),
+        "Failed to start the Our Database search"
+    );
+}
+
 export function cancelOperationsCatalyticRemaining(batchId) {
     return request(
         () => axiosInstance.post(`${BASE}/batches/${encodeURIComponent(batchId)}/catalytic/cancel-remaining`),
@@ -218,13 +199,6 @@ export function startOperationsParts(batchId) {
     return request(
         () => axiosInstance.post(`${BASE}/batches/${encodeURIComponent(batchId)}/parts/start`),
         "Failed to start Parts analysis"
-    );
-}
-
-export function startOperationsOurDb(batchId) {
-    return request(
-        () => axiosInstance.post(`${BASE}/batches/${encodeURIComponent(batchId)}/ourdb/start`),
-        "Failed to start Our Database analysis"
     );
 }
 

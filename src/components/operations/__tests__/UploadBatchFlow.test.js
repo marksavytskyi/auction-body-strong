@@ -71,28 +71,29 @@ describe("UploadBatchFlow", () => {
         await screen.findByText("batch.csv");
     }
 
-    it("starts with no source selected and uploads with none", async () => {
+    it("can upload with no source selected", async () => {
         uploadOperationsBatch.mockResolvedValue({ id: 1, total_vehicles: 1 });
         render(<UploadBatchFlow />);
-        for (const label of [/catdb vin search/i, /catdb local/i, /ecotrade local/i]) {
+        fireEvent.click(screen.getByLabelText(/our database/i));
+        for (const label of [/our database/i, /catdb vin search/i, /catdb local/i, /ecotrade local/i]) {
             expect(screen.getByLabelText(label)).not.toBeChecked();
         }
         expect(screen.getByText(/no source selected is valid/i)).toBeInTheDocument();
         await chooseFile();
         fireEvent.click(screen.getByRole("button", { name: /upload/i }));
         await waitFor(() => expect(uploadOperationsBatch).toHaveBeenCalled());
-        expect(uploadOperationsBatch.mock.calls[0][1]).toEqual({ runCatdb: false, runCatdbLocal: false, runEcotradeLocal: false });
+        expect(uploadOperationsBatch.mock.calls[0][1]).toEqual({ runOurdb: false, runCatdb: false, runCatdbLocal: false, runEcotradeLocal: false });
     });
 
-    it("sends exactly the chosen sources and no longer offers Our Database", async () => {
+    it("sends exactly the chosen sources, with Our Database on by default", async () => {
         uploadOperationsBatch.mockResolvedValue({ id: 1, total_vehicles: 1 });
         render(<UploadBatchFlow />);
-        expect(screen.queryByLabelText(/our database/i)).toBeNull();
+        expect(screen.getByLabelText(/our database/i)).toBeChecked();
         fireEvent.click(screen.getByLabelText(/catdb local/i));
         fireEvent.click(screen.getByLabelText(/ecotrade local/i));
         await chooseFile();
         fireEvent.click(screen.getByRole("button", { name: /upload/i }));
         await waitFor(() => expect(uploadOperationsBatch).toHaveBeenCalled());
-        expect(uploadOperationsBatch.mock.calls[0][1]).toEqual({ runCatdb: false, runCatdbLocal: true, runEcotradeLocal: true });
+        expect(uploadOperationsBatch.mock.calls[0][1]).toEqual({ runOurdb: true, runCatdb: false, runCatdbLocal: true, runEcotradeLocal: true });
     });
 });

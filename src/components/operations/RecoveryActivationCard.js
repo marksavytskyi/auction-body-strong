@@ -6,21 +6,15 @@ import { Loader2, ShieldCheck } from "lucide-react";
 
 import RecoveryPreviewDialog from "./RecoveryPreviewDialog";
 import { ConfirmDialog } from "@/components/catalytic/CatdbProcessingControls";
-import { getRecoveryDryRun, setRecoveryActivation } from "@/lib/operations/api";
+import { getBatchRecoveryDryRun, setBatchRecoveryActivation } from "@/lib/operations/api";
 import { CatalyticApiError } from "@/lib/catalytic/http";
 import { formatDate } from "@/lib/operations/format";
 
-const TURN_OFF_ACTION = {
-    title: "Turn off the recovery rules?",
-    body: "Every total goes back to the existing valuation. Saved rules and manual prices are kept, and no stored price changes.",
-    confirm: "Turn Off",
-};
-
 const message = (error, fallback) => (error instanceof CatalyticApiError ? error.message : fallback);
 
-// The one switch between the existing figures and the rules. Either direction shows the
-// effect first, and neither changes a stored price.
-export default function RecoveryActivationCard({ settings, onChanged }) {
+// This batch's one switch between the existing figures and its rules. Either direction shows
+// the effect first, and neither changes a stored price or another batch.
+export default function RecoveryActivationCard({ batchId, settings, disabledReason, onChanged }) {
     const [preview, setPreview] = useState(null);
     const [confirmingOff, setConfirmingOff] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -28,12 +22,17 @@ export default function RecoveryActivationCard({ settings, onChanged }) {
     const [error, setError] = useState("");
     const running = useRef(false);
     const active = settings.rules_active;
+    const turnOffAction = {
+        title: `Turn off the rules for Batch #${batchId}?`,
+        body: "This batch's totals go back to the existing valuation. Its saved rules and manual prices are kept, no stored price changes, and no other batch is affected.",
+        confirm: "Turn Off",
+    };
 
     const openPreview = async () => {
         setLoading(true);
         setError("");
         try {
-            setPreview(await getRecoveryDryRun());
+            setPreview(await getBatchRecoveryDryRun(batchId));
         } catch (e) {
             toast.error(message(e, "Failed to calculate the dry run"));
         } finally {
@@ -47,8 +46,8 @@ export default function RecoveryActivationCard({ settings, onChanged }) {
         setSaving(true);
         setError("");
         try {
-            const updated = await setRecoveryActivation({ active: !active, expectedVersion: settings.version });
-            toast.success(active ? "Recovery rules turned off" : "Recovery rules are now active");
+            const updated = await setBatchRecoveryActivation(batchId, { active: !active, expectedVersion: settings.version });
+            toast.success(active ? `Rules turned off for Batch #${batchId}` : `Rules are now active for Batch #${batchId}`);
             setPreview(null);
             onChanged(updated);
         } catch (e) {
@@ -66,31 +65,32 @@ export default function RecoveryActivationCard({ settings, onChanged }) {
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
                     <div className={`inline-flex items-center gap-1.5 text-sm font-black uppercase ${active ? "text-emerald-300" : "text-amber-300"}`}>
-                        <ShieldCheck className="h-4 w-4" /> Rules {active ? "active" : "not active"}
+                        <ShieldCheck className="h-4 w-4" /> Batch #{batchId} rules {active ? "active" : "not active"}
                     </div>
                     <p className="mt-1 text-xs text-white/55">
                         {active
-                            ? `Every total follows these rules. Active since ${formatDate(settings.activated_at)}.`
-                            : "Totals keep the existing valuation. You can save rules now; they change no total until you activate them."}
+                            ? `This batch's totals follow these rules. Active since ${formatDate(settings.activated_at)}.`
+                            : "This batch's totals keep the existing valuation. You can save rules now; they change no total until you activate them."}
                     </p>
                 </div>
                 <button
                     type="button"
-                    disabled={loading}
+                    disabled={loading || Boolean(disabledReason)}
                     onClick={active ? () => setConfirmingOff(true) : openPreview}
-                    className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-bold ${active ? "border border-white/15 text-white/85" : "bg-emerald-500 text-black"} disabled:opacity-60`}
+                    className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-bold ${active ? "border border-white/15 text-white/85" : "bg-emerald-500 text-black"} disabled:opacity-40`}
                 >
                     {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                     {active ? "Turn Off Rules" : "Review and Activate"}
                 </button>
             </div>
-            {confirmingOff && <ConfirmDialog action={TURN_OFF_ACTION} busy={saving} onConfirm={apply} onClose={() => setConfirmingOff(false)} />}
+            {disabledReason && <p className="mt-2 text-[11px] text-white/45">{disabledReason}</p>}
+            {confirmingOff && <ConfirmDialog action={turnOffAction} busy={saving} onConfirm={apply} onClose={() => setConfirmingOff(false)} />}
             {preview && (
                 <RecoveryPreviewDialog
-                    title="Activate the recovery rules?"
+                    title={`Activate the rules for Batch #${batchId}?`}
                     preview={preview}
-                    note="Every vehicle, batch, dashboard and export total changes to the new figures. No search runs and no stored price changes. You can turn this off again."
-                    applyLabel="Activate Rules"
+                    note="Only this batch's vehicle, batch and export totals change to the new figures. No other batch is affected, no search runs and no stored price changes. You can turn this off again."
+                    applyLabel="Activate for This Batch"
                     busy={saving}
                     error={error}
                     onApply={apply}

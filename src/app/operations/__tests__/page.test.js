@@ -10,7 +10,6 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/components/operations/ScrapPriceControl", () => ({ default: () => <div data-testid="scrap-price" /> }));
-vi.mock("@/components/operations/RecoveryOverview", () => ({ default: () => <div data-testid="recovery-overview" /> }));
 
 vi.mock("@/lib/operations/api", () => ({
     listOperationsBatches: vi.fn(),
@@ -36,6 +35,15 @@ describe("OperationsOverviewPage", () => {
         expect(await screen.findByText("Batch #1")).toBeInTheDocument();
         expect(screen.getByText("Batch #2")).toBeInTheDocument();
         expect(screen.getByText(/400/)).toBeInTheDocument();
+    });
+
+    it("has no all-batches recovery figure and no link to global settings", async () => {
+        listOperationsBatches.mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 });
+        render(<OperationsOverviewPage />);
+        await screen.findByText(/no operations batches yet/i);
+        expect(screen.queryByText(/known value/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/recovery settings/i)).not.toBeInTheDocument();
+        expect(screen.getByTestId("scrap-price")).toBeInTheDocument();
     });
 
     it("shows an explicit empty state, never a fabricated batch, when there are none", async () => {

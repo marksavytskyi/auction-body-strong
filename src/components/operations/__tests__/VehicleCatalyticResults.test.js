@@ -36,4 +36,23 @@ describe("VehicleCatalyticResults", () => {
         expect(await screen.findByText("No match")).toBeInTheDocument();
         expect(screen.queryByText(/estimate/)).toBeNull();
     });
+
+    it("shows Our Database with the other sources, and only calls a reference match an estimate", async () => {
+        getOperationsVehicleCatalytic.mockResolvedValue({
+            results: [
+                {
+                    source: "OUR_DATABASE", status: "DONE", match_type: "OWN_SALES", confidence: "HIGH",
+                    price_low: "400", price_expected: "500", price_high: "600",
+                    matched_record: { sources_used: ["regime:our_observations"] },
+                },
+                { source: "CATDB_VIN", status: "NOT_REQUESTED" },
+            ],
+        });
+        render(<VehicleCatalyticResults batchId={7} vehicleId={3} />);
+        expect(await screen.findByText("Our Database")).toBeInTheDocument();
+        expect(screen.getByText(/\$400\.00–\$600\.00/)).toBeInTheDocument();
+        expect(screen.getByText(/own sales · high confidence/i)).toBeInTheDocument();
+        expect(screen.queryByText("estimate")).toBeNull();
+        expect(screen.getByText(/regime:our_observations/)).toBeInTheDocument();
+    });
 });
