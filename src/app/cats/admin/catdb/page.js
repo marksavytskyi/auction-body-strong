@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { Loader2, Cpu, Plus, RefreshCw, KeyRound, Copy } from "lucide-react";
+import { Loader2, Cpu, Plus, RefreshCw, KeyRound, Copy, ChevronLeft, ChevronRight } from "lucide-react";
 
 import {
     getStats,
@@ -10,7 +10,7 @@ import {
     createMachine,
     setMachineActive,
     rotateMachineToken,
-    listJobs,
+    listJobsPage,
     enqueueJob,
     cancelJob,
 } from "@/lib/catalytic/catdbAdmin";
@@ -18,6 +18,11 @@ import CatdbProcessingControls from "@/components/catalytic/CatdbProcessingContr
 import { CatalyticApiError } from "@/lib/catalytic/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import PageSizeSelect from "@/components/ui/PageSizeSelect";
+import LoadMoreRows from "@/components/ui/LoadMoreRows";
+import usePageSize from "@/hooks/usePageSize";
+import usePagedRows from "@/hooks/usePagedRows";
+import { isAll, showingLabel } from "@/lib/pagination";
 
 const MACHINE_STATUS_TONE = {
     ONLINE: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
@@ -88,8 +93,22 @@ function NewMachineForm({ onCreated }) {
 export default function CatdbAdminPage() {
     const [stats, setStats] = useState(null);
     const [machines, setMachines] = useState(null);
-    const [jobs, setJobs] = useState(null);
-    const [jobsError, setJobsError] = useState("");
+    const [jobsPage, setJobsPage] = useState(0);
+    // 100 was the fixed number shown before; older jobs weren't reachable at all.
+    const [jobsPageSize, setJobsPageSize] = usePageSize("catdb:jobs:page-size", 100);
+    const [jobsRefresh, setJobsRefresh] = useState(0);
+    const fetchJobsPage = useCallback((limit, offset) => listJobsPage({ limit, offset }), []);
+    const {
+        rows: jobs, total: jobsTotal, loadingMore: loadingMoreJobs, loadMoreFailed: loadMoreJobsFailed,
+        error: jobsLoadError, hasMore: moreJobs, loadMore: loadMoreJobs,
+    } = usePagedRows({ fetchPage: fetchJobsPage, pageSize: jobsPageSize, page: jobsPage, refreshKey: jobsRefresh });
+    const jobsError = jobsLoadError ? (jobsLoadError instanceof CatalyticApiError ? jobsLoadError.message : "Failed to load jobs") : "";
+    const allJobs = isAll(jobsPageSize);
+    const jobsTotalPages = allJobs ? 1 : Math.max(1, Math.ceil(jobsTotal / jobsPageSize));
+    const changeJobsPageSize = (next) => {
+        setJobsPage(0);
+        setJobsPageSize(next);
+    };
     const [cancellingId, setCancellingId] = useState(null);
     const [vin, setVin] = useState("");
     const [enqueuing, setEnqueuing] = useState(false);
@@ -102,17 +121,13 @@ export default function CatdbAdminPage() {
         listMachines().then((d) => setMachines(Array.isArray(d) ? d : [])).catch(() => setMachines(null));
     }, []);
 
-    const loadJobs = useCallback(() => {
-        listJobs({ limit: 100 })
-            .then((d) => { setJobs(Array.isArray(d) ? d : []); setJobsError(""); })
-            .catch((e) => { setJobs(null); setJobsError(e instanceof CatalyticApiError ? e.message : "Failed to load jobs"); });
-    }, []);
+    // Reloads in place, keeping however many jobs are shown.
+    const loadJobs = useCallback(() => setJobsRefresh((key) => key + 1), []);
 
     useEffect(() => {
         loadStats();
         loadMachines();
-        loadJobs();
-    }, [loadStats, loadMachines, loadJobs]);
+    }, [loadStats, loadMachines]);
 
     const handleEnqueue = async (e) => {
         e.preventDefault();
@@ -314,6 +329,41 @@ export default function CatdbAdminPage() {
                                 ))}
                             </tbody>
                         </table>
+                        <LoadMoreRows hasMore={moreJobs} loading={loadingMoreJobs} failed={loadMoreJobsFailed} onLoadMore={loadMoreJobs} loadedCount={jobs.length} />
+                    </div>
+                )}
+
+                {jobs && jobs.length > 0 && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-white/40">
+                        <span>
+                            {showingLabel({ pageSize: jobsPageSize, page: jobsPage, shown: jobs.length, total: jobsTotal, noun: "job" })}
+                            {!allJobs && jobsTotalPages > 1 && <> · page {jobsPage + 1} of {jobsTotalPages}</>}
+                        </span>
+                        <div className="flex items-center gap-2">
+                            <PageSizeSelect value={jobsPageSize} onChange={changeJobsPageSize} />
+                            {!allJobs && (
+                                <>
+                                    <button
+                                        type="button"
+                                        disabled={jobsPage === 0}
+                                        onClick={() => setJobsPage((p) => Math.max(0, p - 1))}
+                                        aria-label="Previous page"
+                                        className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed sm:h-8 sm:w-8"
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={jobsPage + 1 >= jobsTotalPages}
+                                        onClick={() => setJobsPage((p) => p + 1)}
+                                        aria-label="Next page"
+                                        className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed sm:h-8 sm:w-8"
+                                    >
+                                        <ChevronRight className="h-4 w-4" />
+                                    </button>
+                                </>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>

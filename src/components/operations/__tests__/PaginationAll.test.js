@@ -129,12 +129,18 @@ describe("Parts results", () => {
         expect(numbers).toEqual(["1", "2", "3"]);
     });
 
-    it("says when a sort only covers the rows loaded so far, and nothing once all are in", () => {
-        const { rerender } = render(<ResultsSection {...props({ rows: [row(1), row(2)], totalRows: 250, pageSize: ALL, hasMore: true, onLoadMore: vi.fn() })} />);
+    it("sorting asks the server, and rows stay in the order it sent them", () => {
+        const onSortChange = vi.fn();
+        const rows = [row(3), row(1), row(2)];
+        const { rerender } = render(<ResultsSection {...props({ rows, totalRows: 250, pageSize: ALL, hasMore: true, onLoadMore: vi.fn(), onSortChange })} />);
         fireEvent.click(screen.getAllByTitle("Sort by column")[2]);
-        expect(screen.getByText(/sorted within the loaded rows/)).toBeInTheDocument();
-        rerender(<ResultsSection {...props({ rows: [row(1), row(2)], totalRows: 2, pageSize: ALL, hasMore: false, onLoadMore: vi.fn() })} />);
-        expect(screen.getByText("Showing all 2 of 2 rows")).toBeInTheDocument();
+        expect(onSortChange).toHaveBeenLastCalledWith({ key: "avg_engine_price_usd", direction: "asc" });
+        const sorted = { key: "avg_engine_price_usd", direction: "asc" };
+        rerender(<ResultsSection {...props({ rows, totalRows: 250, pageSize: ALL, hasMore: true, onLoadMore: vi.fn(), onSortChange, sortConfig: sorted })} />);
+        fireEvent.click(screen.getAllByTitle("Sort by column")[2]);
+        expect(onSortChange).toHaveBeenLastCalledWith({ key: "avg_engine_price_usd", direction: "desc" });
+        const vins = screen.getAllByRole("row").slice(1).map((tr) => within(tr).getAllByRole("cell")[2].textContent);
+        expect(vins).toEqual(["VIN3", "VIN1", "VIN2"]);
         expect(screen.queryByText(/sorted within the loaded rows/)).not.toBeInTheDocument();
     });
 });

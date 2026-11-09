@@ -19,6 +19,19 @@ export function listJobs(params = {}) {
     return request(() => axiosInstance.get(`${BASE}/jobs`, { params }), "Failed to load CatDB jobs");
 }
 
+// One page of jobs, newest first, with how many there are in all (X-Total-Count).
+// Only reads: listing never starts, retries or changes a job.
+export function listJobsPage({ limit, offset, ...params }) {
+    return request(
+        () => axiosInstance.get(`${BASE}/jobs`, { params: { ...params, limit, offset } }).then((res) => {
+            const items = Array.isArray(res.data) ? res.data : [];
+            const header = Number(res.headers?.["x-total-count"]);
+            return { data: { items, total: Number.isFinite(header) ? header : offset + items.length } };
+        }),
+        "Failed to load CatDB jobs"
+    );
+}
+
 export function enqueueJob({ vin, priority = 0, maxAttempts = null, force = false }) {
     return request(
         () => axiosInstance.post(`${BASE}/jobs`, { vin, priority, max_attempts: maxAttempts, force }),

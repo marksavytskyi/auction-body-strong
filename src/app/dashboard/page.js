@@ -80,6 +80,8 @@ export default function Page() {
     const [debouncedQuery, setDebouncedQuery] = useState("");
     const [pageSize, setPageSize] = useState(25);
     const [page, setPage] = useState(1);
+    // Sorted by the server across every matching row, so pages and All agree.
+    const [sortConfig, setSortConfigState] = useState({ key: null, direction: "asc" });
 
     const [jobRows, setJobRows] = useState(0);
     const [jobCols, setJobCols] = useState(0);
@@ -102,6 +104,11 @@ export default function Page() {
     const previewQueryRef = useRef(debouncedQuery);
     const previewTickRef = useRef(0);
     const previewRowCountRef = useRef(0);
+    const previewSortRef = useRef({ key: null, direction: "asc" });
+    const setSortConfig = useCallback((next) => {
+        previewSortRef.current = next;
+        setSortConfigState(next);
+    }, []);
     // Every fresh preview load starts a new generation; rows loaded for an older one are dropped.
     const previewGenerationRef = useRef(0);
     const loadingMoreRef = useRef(false);
@@ -218,6 +225,7 @@ export default function Page() {
         setQuery("");
         setDebouncedQuery("");
         setPage(1);
+        setSortConfig({ key: null, direction: "asc" });
 
         setJobRows(0);
         setJobCols(0);
@@ -235,7 +243,7 @@ export default function Page() {
 
         stopTimer();
         setElapsedSec(0);
-    }, [stopTimer]);
+    }, [stopTimer, setSortConfig]);
 
     const onDrop = useCallback(
         async (acceptedFiles, rejections) => {
@@ -333,8 +341,12 @@ export default function Page() {
         // All starts from the first chunk; loadMorePreview asks for the next ones.
         const all = isAll(nextPageSize);
         const generation = append ? previewGenerationRef.current : ++previewGenerationRef.current;
+        const sort = previewSortRef.current;
         const res = await axiosInstance.get(`/csv-vehicle/jobs/${id}/preview`, {
-            params: { page: all && !append ? 1 : nextPage, page_size: all ? PREVIEW_ALL_CHUNK : nextPageSize, query: nextQuery || "" },
+            params: {
+                page: all && !append ? 1 : nextPage, page_size: all ? PREVIEW_ALL_CHUNK : nextPageSize, query: nextQuery || "",
+                ...(sort.key ? { sort: sort.key, direction: sort.direction } : {}),
+            },
         });
         if (generation !== previewGenerationRef.current) return res.data || {};
 
@@ -627,11 +639,11 @@ export default function Page() {
         fetchPreviewPage(jobId, page, pageSize, debouncedQuery).catch(() => {
             // do not interrupt UI due to transient preview errors
         });
-    }, [jobId, jobStatus, page, pageSize, debouncedQuery, fetchPreviewPage]);
+    }, [jobId, jobStatus, page, pageSize, debouncedQuery, sortConfig, fetchPreviewPage]);
 
     useEffect(() => {
         setPage(1);
-    }, [debouncedQuery, pageSize]);
+    }, [debouncedQuery, pageSize, sortConfig]);
 
     const hasMorePreview = isAll(pageSize) && rows.length < totalRows;
 
@@ -756,6 +768,8 @@ export default function Page() {
                             pageSize={pageSize}
                             setPageSize={setPageSize}
                             pageSizeOptions={PREVIEW_PAGE_SIZE_OPTIONS}
+                            sortConfig={sortConfig}
+                            onSortChange={setSortConfig}
                             hasMore={hasMorePreview}
                             loadingMore={loadingMorePreview}
                             loadMoreFailed={loadMorePreviewFailed}

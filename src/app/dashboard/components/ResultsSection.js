@@ -26,31 +26,6 @@ import { columnLabel, columnMatches } from "@/lib/parts/columnLabels";
 
 const VISIBLE_COLUMNS_STORAGE_KEY = "dashboard:visible-columns";
 
-function sortRows(rows, sortConfig) {
-    if (!sortConfig?.key) return rows;
-
-    const directionMult = sortConfig.direction === "asc" ? 1 : -1;
-
-    return [...rows].sort((a, b) => {
-        const aVal = a?.[sortConfig.key];
-        const bVal = b?.[sortConfig.key];
-
-        const aNum = Number(String(aVal ?? "").replace(/[^\d.-]/g, ""));
-        const bNum = Number(String(bVal ?? "").replace(/[^\d.-]/g, ""));
-
-        if (Number.isFinite(aNum) && Number.isFinite(bNum) && String(aVal ?? "").trim() !== "" && String(bVal ?? "").trim() !== "") {
-            return (aNum - bNum) * directionMult;
-        }
-
-        const aStr = String(aVal ?? "").toLowerCase();
-        const bStr = String(bVal ?? "").toLowerCase();
-
-        if (aStr < bStr) return -1 * directionMult;
-        if (aStr > bStr) return 1 * directionMult;
-        return 0;
-    });
-}
-
 export default function ResultsSection({
     jobId,
     jobStatus,
@@ -70,6 +45,8 @@ export default function ResultsSection({
     loadingMore = false,
     loadMoreFailed = false,
     onLoadMore,
+    sortConfig = { key: null, direction: "asc" },
+    onSortChange,
     isProcessing,
     elapsedSec,
     downloadResult,
@@ -78,7 +55,6 @@ export default function ResultsSection({
     const [visibleColumns, setVisibleColumns] = useState(new Set());
     const [showColumnToggle, setShowColumnToggle] = useState(false);
     const [columnSearch, setColumnSearch] = useState("");
-    const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
     const [isTableFullscreen, setIsTableFullscreen] = useState(false);
 
     const inlineColumnMenuRef = useRef(null);
@@ -150,16 +126,12 @@ export default function ResultsSection({
         };
     }, [showColumnToggle]);
 
+    // The server sorts every matching row before paging, so the rows arrive in order.
     const handleSort = (column) => {
-        setSortConfig((prev) => {
-            if (prev.key === column) {
-                return { key: column, direction: prev.direction === "asc" ? "desc" : "asc" };
-            }
-            return { key: column, direction: "asc" };
-        });
+        onSortChange?.(sortConfig.key === column
+            ? { key: column, direction: sortConfig.direction === "asc" ? "desc" : "asc" }
+            : { key: column, direction: "asc" });
     };
-
-    const sortedRows = useMemo(() => sortRows(rows, sortConfig), [rows, sortConfig]);
 
     const toggleColumn = (column) => {
         setVisibleColumns((prev) => {
@@ -257,7 +229,7 @@ export default function ResultsSection({
                 </thead>
 
                 <tbody>
-                    {sortedRows.map((r, ridx) => {
+                    {rows.map((r, ridx) => {
                         const globalIndex = all ? ridx + 1 : (safePage - 1) * pageSize + ridx + 1;
                         const lotUrlIdx = headers.findIndex((h) => String(h || "").toLowerCase() === "lot url");
                         const lotUrlKey = lotUrlIdx >= 0 ? headers[lotUrlIdx] : null;
@@ -420,8 +392,6 @@ export default function ResultsSection({
             {all ? (
                 <div className="text-xs text-white/60 text-center sm:text-left">
                     {showingLabel({ pageSize, shown: rows.length, total: totalRows })}
-                    {/* Sorting here is in the browser, so until every row is loaded it covers the loaded ones. */}
-                    {hasMore && sortConfig.key && <> · sorted within the loaded rows</>}
                 </div>
             ) : (
             <div className="text-xs text-white/60 text-center sm:text-left">
