@@ -8,8 +8,13 @@ import { CatalyticApiError } from "@/lib/catalytic/http";
 import { formatDate } from "@/lib/operations/format";
 import { CATDB_APPROVAL_STATUS_LABEL, CATDB_APPROVAL_STATUS_TONE } from "@/lib/operations/constants";
 import StatusPill from "@/components/catalytic/StatusPill";
+import PageSizeSelect from "@/components/ui/PageSizeSelect";
+import LoadMoreRows from "@/components/ui/LoadMoreRows";
+import usePageSize from "@/hooks/usePageSize";
+import usePagedRows from "@/hooks/usePagedRows";
+import { isAll, showingLabel } from "@/lib/pagination";
 
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 10;
 
 // Read-only — GET .../catdb/approvals never resumes, completes, or
 // otherwise changes any approval row (see
@@ -20,35 +25,27 @@ const PAGE_SIZE = 10;
 // individually rather than summed into one invented "total" figure.
 export default function CatdbApprovalHistory({ batchId, refreshKey, onApprovalsLoaded }) {
     const [page, setPage] = useState(0);
-    const [items, setItems] = useState(null);
-    const [total, setTotal] = useState(0);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [pageSize, setPageSize] = usePageSize("operations:catdb-approvals:page-size", DEFAULT_PAGE_SIZE);
 
-    const load = useCallback(async () => {
-        setLoading(true);
-        setError("");
-        try {
-            const data = await listOperationsCatdbApprovals(batchId, { limit: PAGE_SIZE, offset: page * PAGE_SIZE });
-            const loadedItems = Array.isArray(data?.items) ? data.items : [];
-            setItems(loadedItems);
-            setTotal(data?.total ?? 0);
-            // Lets the parent (CatdbSection) decide whether to keep
-            // refreshing this list on the page's own poll tick — see
-            // that component's own docstring on why NEEDS_RECONCILIATION
-            // alone must never keep that poll going indefinitely.
-            onApprovalsLoaded?.(loadedItems);
-        } catch (e) {
-            setError(e instanceof CatalyticApiError ? e.message : "Failed to load CatDB approval history");
-            setItems(null);
-        } finally {
-            setLoading(false);
-        }
-    }, [batchId, page, onApprovalsLoaded]);
+    const fetchPage = useCallback((limit, offset) => listOperationsCatdbApprovals(batchId, { limit, offset }), [batchId]);
+    const { rows: items, total, loading, loadingMore, loadMoreFailed, error: loadError, hasMore, loadMore, reload } = usePagedRows({ fetchPage, pageSize, page, refreshKey });
+    const error = loadError ? (loadError instanceof CatalyticApiError ? loadError.message : "Failed to load CatDB approval history") : "";
+    const load = () => reload({ keep: true });
 
-    useEffect(() => { load(); }, [load, refreshKey]);
+    // Lets the parent (CatdbSection) decide whether to keep
+    // refreshing this list on the page's own poll tick — see
+    // that component's own docstring on why NEEDS_RECONCILIATION
+    // alone must never keep that poll going indefinitely.
+    useEffect(() => {
+        if (items) onApprovalsLoaded?.(items);
+    }, [items, onApprovalsLoaded]);
 
-    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const all = isAll(pageSize);
+    const totalPages = all ? 1 : Math.max(1, Math.ceil(total / pageSize));
+    const changePageSize = (next) => {
+        setPage(0);
+        setPageSize(next);
+    };
 
     return (
         <div className="space-y-3">
@@ -109,9 +106,16 @@ export default function CatdbApprovalHistory({ batchId, refreshKey, onApprovalsL
                         </table>
                     </div>
 
-                    <div className="flex items-center justify-between gap-3 text-xs text-white/40">
-                        <span>{total} approval{total === 1 ? "" : "s"} · page {page + 1} of {totalPages}</span>
+                    <LoadMoreRows hasMore={hasMore} loading={loadingMore} failed={loadMoreFailed} onLoadMore={loadMore} loadedCount={items.length} />
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-white/40">
+                        <span>
+                            {showingLabel({ pageSize, page, shown: items.length, total, noun: "approval" })}
+                            {!all && totalPages > 1 && <> · page {page + 1} of {totalPages}</>}
+                        </span>
                         <div className="flex items-center gap-2">
+                            <PageSizeSelect value={pageSize} onChange={changePageSize} />
+                            {!all && (<>
                             <button
                                 type="button"
                                 disabled={page === 0}
@@ -128,6 +132,7 @@ export default function CatdbApprovalHistory({ batchId, refreshKey, onApprovalsL
                             >
                                 <ChevronRight className="h-4 w-4" />
                             </button>
+                            </>)}
                         </div>
                     </div>
                 </>

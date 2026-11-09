@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
 import ModuleSwitcher from "@/components/shell/ModuleSwitcher";
 import { setLastModule } from "@/lib/moduleStorage";
+import { ALL, isAll, parsePageSize } from "@/lib/pagination";
+import { downloadName } from "@/lib/parts/downloadName";
 
 import { DebugTable } from "@/components/dashboard/DebugTable";
 import UploadCard from "./components/UploadCard";
@@ -25,6 +27,11 @@ const MAX_BYTES = MAX_MB * 1024 * 1024;
 const PAGE_SIZE_STORAGE_KEY = "dashboard:page-size";
 const ACTIVE_JOB_STORAGE_KEY = "dashboard:active-job-id";
 const LIVE_PREVIEW_STATUSES = new Set(["queued", "processing", "done"]);
+const PREVIEW_PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 200, ALL];
+// Each preview row carries its debug_json for View Details (about 60 KB in a real
+// job), so All loads fewer rows per request than the other tables.
+const PREVIEW_ALL_CHUNK = 100;
+
 
 const readPreviewFromFile = (targetFile) =>
     new Promise((resolve) => {
@@ -94,6 +101,12 @@ export default function Page() {
     const previewPageSizeRef = useRef(pageSize);
     const previewQueryRef = useRef(debouncedQuery);
     const previewTickRef = useRef(0);
+    const previewRowCountRef = useRef(0);
+    // Every fresh preview load starts a new generation; rows loaded for an older one are dropped.
+    const previewGenerationRef = useRef(0);
+    const loadingMoreRef = useRef(false);
+    const [loadingMorePreview, setLoadingMorePreview] = useState(false);
+    const [loadMorePreviewFailed, setLoadMorePreviewFailed] = useState(false);
 
     const isProcessing = jobStatus === "queued" || jobStatus === "processing";
 
@@ -118,8 +131,8 @@ export default function Page() {
 
     useEffect(() => {
         if (typeof window === "undefined") return;
-        const stored = Number(window.localStorage.getItem(PAGE_SIZE_STORAGE_KEY));
-        if (stored && [10, 25, 50, 100, 200].includes(stored)) {
+        const stored = parsePageSize(window.localStorage.getItem(PAGE_SIZE_STORAGE_KEY), PREVIEW_PAGE_SIZE_OPTIONS);
+        if (stored !== null) {
             setPageSize(stored);
         }
     }, []);
@@ -316,10 +329,14 @@ export default function Page() {
         return data;
     }, []);
 
-    const fetchPreviewPage = useCallback(async (id, nextPage, nextPageSize, nextQuery) => {
+    const fetchPreviewPage = useCallback(async (id, nextPage, nextPageSize, nextQuery, { append = false } = {}) => {
+        // All starts from the first chunk; loadMorePreview asks for the next ones.
+        const all = isAll(nextPageSize);
+        const generation = append ? previewGenerationRef.current : ++previewGenerationRef.current;
         const res = await axiosInstance.get(`/csv-vehicle/jobs/${id}/preview`, {
-            params: { page: nextPage, page_size: nextPageSize, query: nextQuery || "" },
+            params: { page: all && !append ? 1 : nextPage, page_size: all ? PREVIEW_ALL_CHUNK : nextPageSize, query: nextQuery || "" },
         });
+        if (generation !== previewGenerationRef.current) return res.data || {};
 
         const data = res.data || {};
         const nextHeaders = Array.isArray(data.headers) ? data.headers : [];
@@ -336,7 +353,16 @@ export default function Page() {
         });
 
         setHeaders(nextHeaders);
-        setRows(nextRows);
+        if (append) {
+            setRows((previous) => {
+                const next = [...previous, ...nextRows];
+                previewRowCountRef.current = next.length;
+                return next;
+            });
+        } else {
+            previewRowCountRef.current = nextRows.length;
+            setRows(nextRows);
+        }
         setTotalRows(Number(data.total_rows || 0));
         
         // Use high-water mark for columns
@@ -374,7 +400,9 @@ export default function Page() {
 
                     if (LIVE_PREVIEW_STATUSES.has(status)) {
                         const isTerminal = status === "done";
-                        const shouldRefreshPreview = isTerminal || previewTickRef.current % 4 === 0;
+                        // Refreshing would drop the rows All has loaded beyond the first chunk.
+                        const keepLoadedRows = isAll(previewPageSizeRef.current) && previewRowCountRef.current > PREVIEW_ALL_CHUNK;
+                        const shouldRefreshPreview = isTerminal || (!keepLoadedRows && previewTickRef.current % 4 === 0);
                         previewTickRef.current += 1;
 
                         if (!shouldRefreshPreview) {
@@ -421,12 +449,13 @@ export default function Page() {
                 responseType: "blob",
             });
 
-            const blob = new Blob([res.data], { type: "text/csv;charset=utf-8" });
+            // The bytes as the server sent them: the same file the completion email attaches.
+            const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: "text/csv;charset=utf-8" });
             const url = window.URL.createObjectURL(blob);
 
             const anchor = document.createElement("a");
             anchor.href = url;
-            anchor.download = `enriched_${jobId}.csv`;
+            anchor.download = downloadName(res.headers?.["content-disposition"], `enriched_${jobId}.csv`);
             document.body.appendChild(anchor);
             anchor.click();
             anchor.remove();
@@ -604,6 +633,24 @@ export default function Page() {
         setPage(1);
     }, [debouncedQuery, pageSize]);
 
+    const hasMorePreview = isAll(pageSize) && rows.length < totalRows;
+
+    const loadMorePreview = useCallback(async () => {
+        if (!jobId || loadingMoreRef.current) return;
+        loadingMoreRef.current = true;
+        setLoadingMorePreview(true);
+        setLoadMorePreviewFailed(false);
+        try {
+            const nextPage = Math.floor(previewRowCountRef.current / PREVIEW_ALL_CHUNK) + 1;
+            await fetchPreviewPage(jobId, nextPage, ALL, debouncedQuery, { append: true });
+        } catch {
+            setLoadMorePreviewFailed(true);
+        } finally {
+            loadingMoreRef.current = false;
+            setLoadingMorePreview(false);
+        }
+    }, [jobId, debouncedQuery, fetchPreviewPage]);
+
     const statusBadge = useMemo(() => {
         const status = jobStatus;
         if (!status) return null;
@@ -708,6 +755,11 @@ export default function Page() {
                             setPage={setPage}
                             pageSize={pageSize}
                             setPageSize={setPageSize}
+                            pageSizeOptions={PREVIEW_PAGE_SIZE_OPTIONS}
+                            hasMore={hasMorePreview}
+                            loadingMore={loadingMorePreview}
+                            loadMoreFailed={loadMorePreviewFailed}
+                            onLoadMore={loadMorePreview}
                             isProcessing={isProcessing}
                             elapsedSec={elapsedSec}
                             downloadResult={downloadResult}

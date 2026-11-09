@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import LoadMoreRows from "@/components/ui/LoadMoreRows";
+import { isAll, pageSizeLabel, parsePageSize, showingLabel } from "@/lib/pagination";
 import { clamp, formatDuration, safeJsonParse } from "@/utils/formatters";
 import TableFullscreenModal from "@/components/dashboard/TableFullscreenModal";
 import { columnLabel, columnMatches } from "@/lib/parts/columnLabels";
@@ -63,6 +65,11 @@ export default function ResultsSection({
     setPage,
     pageSize,
     setPageSize,
+    pageSizeOptions = [10, 25, 50, 100, 200],
+    hasMore = false,
+    loadingMore = false,
+    loadMoreFailed = false,
+    onLoadMore,
     isProcessing,
     elapsedSec,
     downloadResult,
@@ -192,7 +199,8 @@ export default function ResultsSection({
         return -1;
     }, [headers]);
 
-    const totalPages = useMemo(() => Math.max(1, Math.ceil(totalRows / pageSize)), [totalRows, pageSize]);
+    const all = isAll(pageSize);
+    const totalPages = useMemo(() => (all ? 1 : Math.max(1, Math.ceil(totalRows / pageSize))), [all, totalRows, pageSize]);
     const safePage = useMemo(() => clamp(page, 1, totalPages), [page, totalPages]);
     const isAllSelected = visibleColumns.size === headers.length;
     const normalizedStatus = String(jobStatus || "").toLowerCase();
@@ -250,7 +258,7 @@ export default function ResultsSection({
 
                 <tbody>
                     {sortedRows.map((r, ridx) => {
-                        const globalIndex = (safePage - 1) * pageSize + ridx + 1;
+                        const globalIndex = all ? ridx + 1 : (safePage - 1) * pageSize + ridx + 1;
                         const lotUrlIdx = headers.findIndex((h) => String(h || "").toLowerCase() === "lot url");
                         const lotUrlKey = lotUrlIdx >= 0 ? headers[lotUrlIdx] : null;
                         const rowKey = `${(lotUrlKey ? r?.[lotUrlKey] : null) || "row"}_${globalIndex}_${ridx}`;
@@ -294,6 +302,7 @@ export default function ResultsSection({
                     })}
                 </tbody>
             </table>
+            {all && <LoadMoreRows hasMore={hasMore} loading={loadingMore} failed={loadMoreFailed} onLoadMore={onLoadMore} loadedCount={rows.length} />}
         </div>
     );
 
@@ -387,13 +396,17 @@ export default function ResultsSection({
                     <div className="text-[11px] text-white/70 whitespace-nowrap">Page size</div>
                     <select
                         className="bg-transparent text-sm text-white outline-none"
-                        value={pageSize}
-                        onChange={(e) => setPageSize(Number(e.target.value))}
+                        aria-label="Page size"
+                        value={String(pageSize)}
+                        onChange={(e) => {
+                            const next = parsePageSize(e.target.value, pageSizeOptions);
+                            if (next !== null) setPageSize(next);
+                        }}
                         disabled={!canReadPreview}
                     >
-                        {[10, 25, 50, 100, 200].map((n) => (
-                            <option key={n} value={n} className="bg-[#090b10]">
-                                {n}
+                        {pageSizeOptions.map((n) => (
+                            <option key={String(n)} value={String(n)} className="bg-[#090b10]">
+                                {pageSizeLabel(n)}
                             </option>
                         ))}
                     </select>
@@ -404,11 +417,20 @@ export default function ResultsSection({
 
     const renderPagination = ({ fullscreen = false } = {}) => (
         <div className={`${fullscreen ? "px-4 py-3 border-t border-white/10 bg-[#090b10]/95" : "mt-4"} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
+            {all ? (
+                <div className="text-xs text-white/60 text-center sm:text-left">
+                    {showingLabel({ pageSize, shown: rows.length, total: totalRows })}
+                    {/* Sorting here is in the browser, so until every row is loaded it covers the loaded ones. */}
+                    {hasMore && sortConfig.key && <> · sorted within the loaded rows</>}
+                </div>
+            ) : (
             <div className="text-xs text-white/60 text-center sm:text-left">
                 Showing <b className="text-white/80">{totalRows === 0 ? 0 : (safePage - 1) * pageSize + 1}</b> - <b className="text-white/80">{Math.min(safePage * pageSize, totalRows)}</b> of{" "}
                 <b className="text-white/80">{totalRows}</b> rows
             </div>
+            )}
 
+            {!all && (
             <div className="flex flex-wrap items-center justify-center gap-2">
                 <div className="flex items-center gap-1">
                     <Button variant="outline" size="sm" className="h-8 rounded-lg border-white/20 px-2 sm:px-3" onClick={() => setPage(1)} disabled={safePage === 1}>
@@ -438,6 +460,7 @@ export default function ResultsSection({
                     </Button>
                 </div>
             </div>
+            )}
         </div>
     );
 

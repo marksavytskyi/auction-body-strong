@@ -9,8 +9,13 @@ import dynamic from "next/dynamic";
 
 const NeonJobClock = dynamic(() => import("./NeonJobClock"), { ssr: false });
 import TableFullscreenModal from "@/components/dashboard/TableFullscreenModal";
+import LoadMoreRows from "@/components/ui/LoadMoreRows";
+import { ALL, isAll, pageSizeLabel, parsePageSize, showingLabel } from "@/lib/pagination";
 
 const MAX_MB = 25;
+const PREVIEW_PAGE_SIZE_OPTIONS = [25, 50, 100, 200, 500, ALL];
+// The whole file is already in the browser; All draws it this many rows at a time.
+const RENDER_STEP = 200;
 
 export default function UploadCard({
     getRootProps,
@@ -40,6 +45,7 @@ export default function UploadCard({
     const [fullscreenQuery, setFullscreenQuery] = useState("");
     const [fullscreenPage, setFullscreenPage] = useState(1);
     const [fullscreenPageSize, setFullscreenPageSize] = useState(50);
+    const [renderedCount, setRenderedCount] = useState(RENDER_STEP);
 
     const hasPreview = Array.isArray(csvPreviewRows) && csvPreviewRows.length > 0;
 
@@ -61,13 +67,16 @@ export default function UploadCard({
     }, [fullscreenAllBodyRows, normalizedFullscreenQuery]);
 
     const fullscreenTotalRows = fullscreenFilteredRows.length;
-    const fullscreenTotalPages = Math.max(1, Math.ceil(fullscreenTotalRows / fullscreenPageSize));
+    const fullscreenAll = isAll(fullscreenPageSize);
+    const fullscreenTotalPages = fullscreenAll ? 1 : Math.max(1, Math.ceil(fullscreenTotalRows / fullscreenPageSize));
     const fullscreenSafePage = Math.min(Math.max(fullscreenPage, 1), fullscreenTotalPages);
 
     const fullscreenPagedRows = useMemo(() => {
+        if (fullscreenAll) return fullscreenFilteredRows.slice(0, renderedCount);
         const start = (fullscreenSafePage - 1) * fullscreenPageSize;
         return fullscreenFilteredRows.slice(start, start + fullscreenPageSize);
-    }, [fullscreenFilteredRows, fullscreenSafePage, fullscreenPageSize]);
+    }, [fullscreenAll, fullscreenFilteredRows, fullscreenSafePage, fullscreenPageSize, renderedCount]);
+    const showMoreRows = useCallback(() => setRenderedCount((count) => count + RENDER_STEP), []);
 
     const parseCsvText = useCallback((text) => {
         const input = String(text || "");
@@ -168,9 +177,10 @@ export default function UploadCard({
 
     useEffect(() => {
         setFullscreenPage(1);
-    }, [fullscreenQuery, fullscreenPageSize]);
+        setRenderedCount(RENDER_STEP);
+    }, [fullscreenQuery, fullscreenPageSize, file]);
 
-    const renderPreviewTable = ({ headerRow, bodyRows, maxHeightClass = "max-h-44", showLoader = false, errorText = "" }) => (
+    const renderPreviewTable = ({ headerRow, bodyRows, maxHeightClass = "max-h-44", showLoader = false, errorText = "", footer = null }) => (
         <div className={`${maxHeightClass} overflow-auto`}>
             {showLoader ? (
                 <div className="px-3 py-8 text-xs text-emerald-300 flex items-center gap-2">
@@ -203,6 +213,7 @@ export default function UploadCard({
                     ))}
                 </tbody>
             </table>
+            {footer}
         </div>
     );
 
@@ -351,13 +362,17 @@ export default function UploadCard({
                                     <div className="text-[11px] text-white/70 whitespace-nowrap">Page size</div>
                                     <select
                                         className="bg-transparent text-sm text-white outline-none"
-                                        value={fullscreenPageSize}
-                                        onChange={(event) => setFullscreenPageSize(Number(event.target.value))}
+                                        aria-label="Page size"
+                                        value={String(fullscreenPageSize)}
+                                        onChange={(event) => {
+                                            const next = parsePageSize(event.target.value, PREVIEW_PAGE_SIZE_OPTIONS);
+                                            if (next !== null) setFullscreenPageSize(next);
+                                        }}
                                         disabled={isFullPreviewLoading || fullscreenHeaderRow.length === 0}
                                     >
-                                        {[25, 50, 100, 200, 500].map((size) => (
-                                            <option key={size} value={size} className="bg-[#090b10]">
-                                                {size}
+                                        {PREVIEW_PAGE_SIZE_OPTIONS.map((size) => (
+                                            <option key={String(size)} value={String(size)} className="bg-[#090b10]">
+                                                {pageSizeLabel(size)}
                                             </option>
                                         ))}
                                     </select>
@@ -373,16 +388,30 @@ export default function UploadCard({
                             maxHeightClass: "h-full",
                             showLoader: isFullPreviewLoading,
                             errorText: fullPreviewError,
+                            footer: fullscreenAll ? (
+                                <LoadMoreRows
+                                    hasMore={fullscreenPagedRows.length < fullscreenTotalRows}
+                                    onLoadMore={showMoreRows}
+                                    loadedCount={fullscreenPagedRows.length}
+                                />
+                            ) : null,
                         })}
                     </div>
 
                     <div className="shrink-0 px-4 py-3 border-t border-white/10 bg-[#090b10]/95 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        {fullscreenAll ? (
+                            <div className="text-xs text-white/60 text-center sm:text-left">
+                                {showingLabel({ pageSize: ALL, shown: fullscreenPagedRows.length, total: fullscreenTotalRows })}
+                            </div>
+                        ) : (
                         <div className="text-xs text-white/60 text-center sm:text-left">
                             Showing <b className="text-white/80">{fullscreenTotalRows === 0 ? 0 : (fullscreenSafePage - 1) * fullscreenPageSize + 1}</b> -{" "}
                             <b className="text-white/80">{Math.min(fullscreenSafePage * fullscreenPageSize, fullscreenTotalRows)}</b> of{" "}
                             <b className="text-white/80">{fullscreenTotalRows}</b> rows
                         </div>
+                        )}
 
+                        {!fullscreenAll && (
                         <div className="flex flex-wrap items-center justify-center gap-2">
                             <div className="flex items-center gap-1">
                                 <Button
@@ -430,6 +459,7 @@ export default function UploadCard({
                                 </Button>
                             </div>
                         </div>
+                        )}
                     </div>
                 </div>
             </TableFullscreenModal>

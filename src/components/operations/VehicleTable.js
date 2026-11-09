@@ -1,16 +1,21 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, Loader2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, AlertTriangle, ListFilter } from "lucide-react";
 
 import { listOperationsBatchVehicles } from "@/lib/operations/api";
 import { CatalyticApiError } from "@/lib/catalytic/http";
 import { Input } from "@/components/ui/input";
+import PageSizeSelect from "@/components/ui/PageSizeSelect";
+import LoadMoreRows from "@/components/ui/LoadMoreRows";
+import usePageSize from "@/hooks/usePageSize";
+import usePagedRows from "@/hooks/usePagedRows";
+import { isAll, showingLabel } from "@/lib/pagination";
 import StatusPill from "@/components/catalytic/StatusPill";
 import { CATS_SOURCE_LABEL, OVERALL_STATUS, OVERALL_STATUS_LABEL, OVERALL_STATUS_TONE, LEG_STATUS_TONE, VEHICLE_SORT_FIELDS, PARTS_CONFIDENCE_LABEL } from "@/lib/operations/constants";
 import { formatMoney, formatCatdbPrice, completenessMeta, deriveWeightStatus } from "@/lib/operations/format";
 
-const PAGE_SIZE = 25;
+const DEFAULT_PAGE_SIZE = 25;
 
 const STATUS_FILTERS = [
     { id: "", label: "All" },
@@ -97,51 +102,35 @@ function useDebounced(value, delayMs) {
 }
 
 // Server-paginated/sorted/filtered — never fetches all 400-800 rows to
-// sort or search client-side (see spec Section 10). Stable row key is
+// sort or search client-side (see spec Section 10). All loads the same
+// server-filtered, server-sorted rows in chunks as you scroll. Stable row key is
 // the OperationsBatchVehicle id, never the VIN (duplicate VINs are
 // legitimate, distinct rows).
 export default function VehicleTable({ batchId, onOpenVehicle, refreshKey, selectedIds, onSelectedIdsChange }) {
     const [page, setPage] = useState(0);
+    const [pageSize, setPageSize] = usePageSize("operations:vehicles:page-size", DEFAULT_PAGE_SIZE);
     const [search, setSearch] = useState("");
     const [status, setStatus] = useState("");
     const [sortBy, setSortBy] = useState("source_row_number");
     const [sortDir, setSortDir] = useState("asc");
 
-    const [rows, setRows] = useState(null);
-    const [total, setTotal] = useState(0);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
-
     const debouncedSearch = useDebounced(search, 350);
 
     useEffect(() => { setPage(0); }, [debouncedSearch, status, sortBy, sortDir]);
+    const changePageSize = (next) => {
+        setPage(0);
+        setPageSize(next);
+    };
 
-    // A slower earlier response must not overwrite the page the user asked for last.
-    const latestRequest = useRef(0);
+    const fetchPage = useCallback((limit, offset) => listOperationsBatchVehicles(batchId, {
+        limit, offset,
+        search: debouncedSearch || undefined, status: status || undefined,
+        sortBy, sortDir,
+    }), [batchId, debouncedSearch, status, sortBy, sortDir]);
 
-    const load = useCallback(async () => {
-        const request = ++latestRequest.current;
-        setLoading(true);
-        setError("");
-        try {
-            const data = await listOperationsBatchVehicles(batchId, {
-                limit: PAGE_SIZE, offset: page * PAGE_SIZE,
-                search: debouncedSearch || undefined, status: status || undefined,
-                sortBy, sortDir,
-            });
-            if (request !== latestRequest.current) return;
-            setRows(Array.isArray(data?.items) ? data.items : []);
-            setTotal(data?.total ?? 0);
-        } catch (e) {
-            if (request !== latestRequest.current) return;
-            setError(e instanceof CatalyticApiError ? e.message : "Failed to load vehicles");
-            setRows(null);
-        } finally {
-            if (request === latestRequest.current) setLoading(false);
-        }
-    }, [batchId, page, debouncedSearch, status, sortBy, sortDir]);
-
-    useEffect(() => { load(); }, [load, refreshKey]);
+    const { rows, total, loading, loadingMore, loadMoreFailed, error: loadError, hasMore, loadMore, reload } = usePagedRows({ fetchPage, pageSize, page, refreshKey });
+    const error = loadError ? (loadError instanceof CatalyticApiError ? loadError.message : "Failed to load vehicles") : "";
+    const load = () => reload({ keep: true });
 
     const toggleSort = (fieldId) => {
         if (!VEHICLE_SORT_FIELDS.has(fieldId)) return;
@@ -153,7 +142,8 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey, selec
         }
     };
 
-    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const all = isAll(pageSize);
+    const totalPages = all ? 1 : Math.max(1, Math.ceil(total / pageSize));
     const selectable = Boolean(onSelectedIdsChange);
     const isSelected = (id) => selectable && selectedIds.includes(id);
     const toggleSelected = (id) => onSelectedIdsChange(
@@ -360,14 +350,19 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey, selec
                         })}
                     </div>
 
-                    <div className="flex items-center justify-between gap-3 text-xs text-white/40">
+                    <LoadMoreRows hasMore={hasMore} loading={loadingMore} failed={loadMoreFailed} onLoadMore={loadMore} loadedCount={rows.length} />
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-white/40">
                         <span>
-                            {total} vehicle{total === 1 ? "" : "s"} · page {page + 1} of {totalPages}
+                            {showingLabel({ pageSize, page, shown: rows.length, total, noun: "vehicle" })}
+                            {!all && totalPages > 1 && <> · page {page + 1} of {totalPages}</>}
                             {selectable && selectedIds.length > 0 && (
                                 <> · {selectedIds.length} selected <button type="button" className="underline" onClick={() => onSelectedIdsChange([])}>Clear</button></>
                             )}
                         </span>
                         <div className="flex items-center gap-2">
+                            <PageSizeSelect value={pageSize} onChange={changePageSize} />
+                            {!all && (<>
                             <button
                                 type="button"
                                 disabled={page === 0}
@@ -386,6 +381,7 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey, selec
                             >
                                 <ChevronRight className="h-4 w-4" />
                             </button>
+                            </>)}
                         </div>
                     </div>
                 </div>

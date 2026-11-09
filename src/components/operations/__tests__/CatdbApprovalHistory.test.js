@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import CatdbApprovalHistory from "../CatdbApprovalHistory";
@@ -29,7 +29,8 @@ describe("CatdbApprovalHistory", () => {
 
         expect(await screen.findByText("#1")).toBeInTheDocument();
         expect(screen.getByText("Complete")).toBeInTheDocument();
-        expect(screen.getByText("10")).toBeInTheDocument(); // requested_max_new_searches
+        // In the table: the rows-per-page choice also offers "10".
+        expect(within(screen.getByRole("table")).getByText("10")).toBeInTheDocument(); // requested_max_new_searches
         expect(screen.getByText("8")).toBeInTheDocument(); // new_search_count
     });
 

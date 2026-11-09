@@ -1,15 +1,20 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Boxes, ArrowRight, RefreshCw, AlertTriangle, Settings2 } from "lucide-react";
+import { Loader2, Boxes, ArrowRight, RefreshCw, AlertTriangle, Settings2, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { listOperationsBatches } from "@/lib/operations/api";
 import { CatalyticApiError } from "@/lib/catalytic/http";
 import { BATCH_STATUS_TONE } from "@/lib/operations/constants";
 import { formatDate } from "@/lib/operations/format";
 import StatusPill from "@/components/catalytic/StatusPill";
+import PageSizeSelect from "@/components/ui/PageSizeSelect";
+import LoadMoreRows from "@/components/ui/LoadMoreRows";
+import usePageSize from "@/hooks/usePageSize";
+import usePagedRows from "@/hooks/usePagedRows";
+import { isAll, showingLabel } from "@/lib/pagination";
 import dynamic from "next/dynamic";
 
 import ScrapPriceControl from "@/components/operations/ScrapPriceControl";
@@ -50,27 +55,21 @@ function BatchRow({ batch }) {
 
 export default function OperationsOverviewPage() {
     const router = useRouter();
-    const [batches, setBatches] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
-
-    const load = useCallback(async () => {
-        setLoading(true);
-        setError("");
-        try {
-            const data = await listOperationsBatches({ limit: 50, offset: 0 });
-            setBatches(Array.isArray(data?.items) ? data.items : []);
-        } catch (e) {
-            setError(e instanceof CatalyticApiError ? e.message : "Failed to load Operations batches");
-            setBatches(null);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        load();
-    }, [load]);
+    const [page, setPage] = useState(0);
+    // 50 was the fixed number shown before; batches beyond it weren't reachable at all.
+    const [pageSize, setPageSize] = usePageSize("operations:batches:page-size", 50);
+    const fetchPage = useCallback((limit, offset) => listOperationsBatches({ limit, offset }), []);
+    const { rows: batches, total, loading: listLoading, loadingMore, loadMoreFailed, error: loadError, hasMore, loadMore, reload } = usePagedRows({ fetchPage, pageSize, page });
+    // Keeps the list on screen while Refresh reloads it.
+    const loading = listLoading && !batches;
+    const error = loadError ? (loadError instanceof CatalyticApiError ? loadError.message : "Failed to load Operations batches") : "";
+    const load = () => reload({ keep: true });
+    const all = isAll(pageSize);
+    const totalPages = all ? 1 : Math.max(1, Math.ceil(total / pageSize));
+    const changePageSize = (next) => {
+        setPage(0);
+        setPageSize(next);
+    };
 
     return (
         <div className="space-y-5">
@@ -118,6 +117,38 @@ export default function OperationsOverviewPage() {
                     {batches.map((b) => (
                         <BatchRow key={b.id} batch={b} />
                     ))}
+                    <LoadMoreRows hasMore={hasMore} loading={loadingMore} failed={loadMoreFailed} onLoadMore={loadMore} loadedCount={batches.length} />
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1 text-xs text-white/40">
+                        <span>
+                            {showingLabel({ pageSize, page, shown: batches.length, total, noun: "batch", plural: "batches" })}
+                            {!all && totalPages > 1 && <> · page {page + 1} of {totalPages}</>}
+                        </span>
+                        <div className="flex items-center gap-2">
+                            <PageSizeSelect value={pageSize} onChange={changePageSize} />
+                            {!all && (
+                                <>
+                                    <button
+                                        type="button"
+                                        disabled={page === 0}
+                                        onClick={() => setPage((p) => Math.max(0, p - 1))}
+                                        aria-label="Previous page"
+                                        className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed sm:h-8 sm:w-8"
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={page + 1 >= totalPages}
+                                        onClick={() => setPage((p) => p + 1)}
+                                        aria-label="Next page"
+                                        className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed sm:h-8 sm:w-8"
+                                    >
+                                        <ChevronRight className="h-4 w-4" />
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
