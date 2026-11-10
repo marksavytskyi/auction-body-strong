@@ -3,6 +3,7 @@
 import React from "react";
 
 import CatalyticPriorityManager from "./CatalyticPriorityManager";
+import InfoTip from "@/components/ui/InfoTip";
 import { RECOVERY_COMPONENTS, RECOVERY_MODES } from "@/lib/operations/constants";
 
 const heading = "mb-1.5 text-[10px] font-bold uppercase tracking-wider text-white/40";
@@ -48,7 +49,12 @@ export default function RecoveryRulesEditor({ value, onChange, defaultPriority, 
 
             <div>
                 <div className="mb-1.5 flex items-center justify-between gap-2">
-                    <span className={`${heading} mb-0`}>Catalytic price priority</span>
+                    <span className={`${heading} mb-0 inline-flex items-center gap-1`}>
+                        Catalytic price priority
+                        <InfoTip label="About catalytic price priority">
+                            Chooses which stored catalytic price counts toward Recovery Total: the first source in this order with an eligible price. It searches nothing. What gets searched is set in Catalytic Processing.
+                        </InfoTip>
+                    </span>
                     <button
                         type="button"
                         disabled={disabled}
@@ -75,6 +81,9 @@ export default function RecoveryRulesEditor({ value, onChange, defaultPriority, 
                     />
                     <span>
                         Allow approximate model matches in Recovery Total
+                        <InfoTip label="About approximate matches">
+                            Off: only exact prices count automatically: Our Database from verified records for this exact vehicle, and CatDB results for this exact VIN. On: estimates count too: Our Database figures borrowed from the same make and model, and CatDB Local or EcoTrade Local catalog matches by year, make and model (and engine when known). Matches never cross models, and no converter code is used. Totals that use them are marked estimated. A price chosen for a vehicle always counts.
+                        </InfoTip>
                         <span className="block text-[11px] text-white/40">
                             A catalog lists every converter known for a model, not the fitted one. These values are labelled as estimated.
                         </span>
@@ -83,7 +92,12 @@ export default function RecoveryRulesEditor({ value, onChange, defaultPriority, 
             </fieldset>
 
             <fieldset disabled={disabled}>
-                <legend className={heading}>Catalytic valuation mode</legend>
+                <legend className={`${heading} inline-flex items-center gap-1`}>
+                    Catalytic valuation mode
+                    <InfoTip label="About LOW, MID and HIGH">
+                        Each source stores a price range. LOW and HIGH are its two ends; MID is Our Database&apos;s expected price, or (LOW + HIGH) ÷ 2 for the other sources. A source with a single price uses it in every mode. Ranges: Our Database, the 10th–90th percentile of our sales; CatDB VIN, the range CatDB shows; catalogs, cheapest to dearest converter listed. Only Recovery Total changes.
+                    </InfoTip>
+                </legend>
                 <div className="flex gap-2">
                     {RECOVERY_MODES.map((mode) => (
                         <label key={mode} className={`flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border text-xs font-bold ${value.valuation_mode === mode ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-white/10 text-white/60"}`}>

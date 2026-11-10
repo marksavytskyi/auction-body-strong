@@ -13,19 +13,14 @@ const MAX_MB = 25;
 const MAX_BYTES = MAX_MB * 1024 * 1024;
 
 // Upload only — never parses the CSV itself (the backend is the sole source of
-// truth for every row). The sources are configuration: uploading never starts a
-// lookup or a paid search, and choosing none is valid.
-const SOURCES = [
-    { id: "runOurdb", label: "Our Database", hint: "Free lookup in our own sales records" },
-    { id: "runCatdb", label: "CatDB VIN Search", hint: "Paid VIN lookup using Android Worker" },
-    { id: "runCatdbLocal", label: "CatDB Local", hint: "Search previously stored CatDB data" },
-    { id: "runEcotradeLocal", label: "EcoTrade Local", hint: "Search previously stored EcoTrade data" },
-];
+// truth for every row), and never starts a lookup or a paid search.
+// Phase K.52: it no longer asks for catalytic sources. Those are chosen where they're
+// used, in the batch's Catalytic Processing; a new batch starts with the backend's
+// defaults (Our Database on, the others off), which the old form also ticked by default.
 
 export default function UploadBatchFlow({ onUploaded }) {
     const [file, setFile] = useState(null);
     const [uploading, setUploading] = useState(false);
-    const [sources, setSources] = useState({ runOurdb: true, runCatdb: false, runCatdbLocal: false, runEcotradeLocal: false });
 
     const onDrop = useCallback((accepted, rejected) => {
         if (rejected?.length) {
@@ -59,7 +54,7 @@ export default function UploadBatchFlow({ onUploaded }) {
         setUploading(true);
         const t = toast.loading("Uploading batch…");
         try {
-            const batch = await uploadOperationsBatch(file, sources);
+            const batch = await uploadOperationsBatch(file);
             toast.success(`Batch #${batch.id} created — ${batch.total_vehicles ?? 0} vehicles`, { id: t });
             setFile(null);
             onUploaded?.(batch);
@@ -106,24 +101,6 @@ export default function UploadBatchFlow({ onUploaded }) {
                 </div>
             </div>
 
-            <div
-                className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/10 pt-3"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <span className="w-full text-[11px] uppercase tracking-wider text-white/40 font-bold">Catalytic sources</span>
-                {SOURCES.map((source) => (
-                    <label key={source.id} title={source.hint} className="inline-flex items-center gap-1.5 text-xs text-white/70 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={sources[source.id]}
-                            onChange={(e) => setSources((current) => ({ ...current, [source.id]: e.target.checked }))}
-                            className="rounded border-white/20 bg-black/40"
-                        />
-                        {source.label}
-                    </label>
-                ))}
-                <span className="w-full text-[11px] text-white/35">No source selected is valid. Nothing starts until you run it from the batch.</span>
-            </div>
         </div>
     );
 }

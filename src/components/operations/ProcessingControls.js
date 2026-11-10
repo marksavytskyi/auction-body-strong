@@ -20,26 +20,19 @@ import { summarizeLegProgress, isLegActive } from "@/lib/operations/format";
 // lives in ProcessingProgress below this component; this one only shows
 // a one-line summary per leg so the Start buttons stay scannable.
 function LegCard({ icon: Icon, title, description, enabled, busy, onStart, children }) {
+    // Phase K.52: one compact row per analysis.
     return (
-        <div className="rounded-2xl border border-white/10 bg-black/25 p-4 flex flex-col gap-3">
-            <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="p-2 rounded-xl border border-white/10 bg-white/5 shrink-0">
-                        <Icon className="h-4 w-4 text-emerald-300" />
-                    </div>
-                    <div className="min-w-0">
-                        <div className="text-sm font-bold text-white/90">{title}</div>
-                        <div className="text-[11px] text-white/40">{description}</div>
-                    </div>
-                </div>
+        <section aria-label={title} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-white/10 bg-black/25 px-3 py-2.5">
+            <Icon className="h-4 w-4 shrink-0 text-emerald-300" />
+            <div className="min-w-0">
+                <div className="text-sm font-bold text-white/90">{title}</div>
+                <div className="text-[11px] text-white/40">{description}</div>
             </div>
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2 flex-wrap">{children}</div>
-                <Button size="sm" className="rounded-xl" disabled={!enabled || busy} isLoading={busy} onClick={onStart}>
-                    {!busy && <PlayCircle className="h-3.5 w-3.5" />} Start
-                </Button>
-            </div>
-        </div>
+            <div className="flex flex-wrap items-center gap-2">{children}</div>
+            <Button size="sm" className="ml-auto rounded-xl" disabled={!enabled || busy} isLoading={busy} onClick={onStart}>
+                {!busy && <PlayCircle className="h-3.5 w-3.5" />} Start
+            </Button>
+        </section>
     );
 }
 
@@ -102,7 +95,7 @@ export default function ProcessingControls({ batch, progress, refreshKey, onBatc
     };
 
     return (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-2 sm:grid-cols-2">
             <LegCard
                 icon={Wrench}
                 title="Parts Analysis"

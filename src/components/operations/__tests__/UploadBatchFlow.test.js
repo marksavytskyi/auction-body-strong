@@ -71,29 +71,19 @@ describe("UploadBatchFlow", () => {
         await screen.findByText("batch.csv");
     }
 
-    it("can upload with no source selected", async () => {
+    it("only imports vehicles: no catalytic source choice, and nothing but the file is sent", async () => {
+        // Phase K.52: sources are chosen in the batch's Catalytic Processing. The backend's
+        // defaults for a new batch (Our Database on, the others off) are what this form
+        // used to tick by default, so an untouched upload behaves exactly as before.
         uploadOperationsBatch.mockResolvedValue({ id: 1, total_vehicles: 1 });
         render(<UploadBatchFlow />);
-        fireEvent.click(screen.getByLabelText(/our database/i));
-        for (const label of [/our database/i, /catdb vin search/i, /catdb local/i, /ecotrade local/i]) {
-            expect(screen.getByLabelText(label)).not.toBeChecked();
+        for (const label of [/our database/i, /catdb vin/i, /catdb local/i, /ecotrade local/i]) {
+            expect(screen.queryByLabelText(label)).toBeNull();
         }
-        expect(screen.getByText(/no source selected is valid/i)).toBeInTheDocument();
+        expect(screen.queryByText(/catalytic sources/i)).toBeNull();
         await chooseFile();
         fireEvent.click(screen.getByRole("button", { name: /upload/i }));
         await waitFor(() => expect(uploadOperationsBatch).toHaveBeenCalled());
-        expect(uploadOperationsBatch.mock.calls[0][1]).toEqual({ runOurdb: false, runCatdb: false, runCatdbLocal: false, runEcotradeLocal: false });
-    });
-
-    it("sends exactly the chosen sources, with Our Database on by default", async () => {
-        uploadOperationsBatch.mockResolvedValue({ id: 1, total_vehicles: 1 });
-        render(<UploadBatchFlow />);
-        expect(screen.getByLabelText(/our database/i)).toBeChecked();
-        fireEvent.click(screen.getByLabelText(/catdb local/i));
-        fireEvent.click(screen.getByLabelText(/ecotrade local/i));
-        await chooseFile();
-        fireEvent.click(screen.getByRole("button", { name: /upload/i }));
-        await waitFor(() => expect(uploadOperationsBatch).toHaveBeenCalled());
-        expect(uploadOperationsBatch.mock.calls[0][1]).toEqual({ runOurdb: true, runCatdb: false, runCatdbLocal: true, runEcotradeLocal: true });
+        expect(uploadOperationsBatch.mock.calls[0]).toHaveLength(1);
     });
 });

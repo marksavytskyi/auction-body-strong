@@ -150,7 +150,7 @@ export default function BatchRecoverySettings({ batchId, onChanged }) {
                                 }}
                             />
                             <p className="text-[11px] text-white/40">
-                                These rules apply to this batch only. They choose among stored prices: nothing here starts a search.
+                                These rules apply to this batch only, and only once activated. They choose among prices already stored; searching happens in Catalytic Processing.
                             </p>
                             <RecoveryRulesEditor
                                 value={draft}

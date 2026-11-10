@@ -200,22 +200,24 @@ export default function OperationsBatchDetailPage() {
 
             <ScrapPriceControl onChanged={bumpRefresh} />
 
-            <FinancialSummaryCards batchId={batch.id} refreshKey={refreshKey} />
-
-            <BatchRecoverySettings batchId={batch.id} onChanged={bumpRefresh} />
-
-            <ProcessingProgress batchId={batch.id} refreshKey={refreshKey} />
-
-            <ImportCheckCard copartImportId={batch.copart_import_id} />
+            {/* Phase K.52: details stay closed until opened; the vehicles stay close to the top. */}
+            <div className="space-y-2">
+                <FinancialSummaryCards batchId={batch.id} refreshKey={refreshKey} />
+                <ProcessingProgress batchId={batch.id} refreshKey={refreshKey} />
+                <BatchRecoverySettings batchId={batch.id} onChanged={bumpRefresh} />
+            </div>
 
             <ProcessingControls batch={batch} refreshKey={refreshKey} onBatchUpdated={handleBatchUpdated} />
 
-            <CatalyticProcessingCard
-                batchId={batch.id}
-                refreshKey={refreshKey}
-                selectedVehicleIds={selectedVehicleIds}
-                onChanged={bumpRefresh}
-            />
+            <div className="space-y-2">
+                <CatalyticProcessingCard
+                    batchId={batch.id}
+                    refreshKey={refreshKey}
+                    selectedVehicleIds={selectedVehicleIds}
+                    onChanged={bumpRefresh}
+                />
+                <ImportCheckCard copartImportId={batch.copart_import_id} />
+            </div>
 
             <div id="vehicles" className="scroll-mt-2">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

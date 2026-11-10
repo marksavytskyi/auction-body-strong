@@ -39,6 +39,7 @@ vi.mock("@/components/operations/ExportCsvButton", () => ({ default: () => <div 
 vi.mock("@/components/operations/CatalyticProcessingCard", () => ({ default: () => <div data-testid="catalytic-card" /> }));
 vi.mock("@/components/operations/ScrapPriceControl", () => ({ default: () => <div data-testid="scrap-price" /> }));
 vi.mock("@/components/operations/VehicleDetailModal", () => ({ default: () => null }));
+vi.mock("@/components/operations/BatchRecoverySettings", () => ({ default: () => <div data-testid="recovery-settings" /> }));
 vi.mock("@/components/operations/ImportCheckCard", () => ({ default: ({ copartImportId }) => <div data-testid="import-check" data-import={copartImportId} /> }));
 // A minimal stand-in for the real ProcessingControls — exposes a single
 // button per leg that calls onBatchUpdated exactly like the real
@@ -240,4 +241,16 @@ describe("OperationsBatchDetailPage", () => {
         const toast = (await import("react-hot-toast")).default;
         expect(toast.success).toHaveBeenCalledWith("Our Database analysis completed — 7 vehicles processed");
     });
+
+    it("lays the page out in the K.52 order, with the vehicles right after processing", async () => {
+        getOperationsBatch.mockResolvedValue(doneBatch());
+        render(<OperationsBatchDetailPage />);
+        await screen.findByTestId("vehicle-table");
+        const order = ["scrap-price", "financial-summary", "processing-progress", "recovery-settings", "processing-controls", "catalytic-card", "import-check", "vehicle-table"];
+        const nodes = order.map((id) => screen.getByTestId(id));
+        for (let i = 1; i < nodes.length; i += 1) {
+            expect(nodes[i - 1].compareDocumentPosition(nodes[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        }
+    });
 });
+

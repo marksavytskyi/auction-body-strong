@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { Loader2, AlertTriangle, DollarSign } from "lucide-react";
+import CollapsibleSection from "./CollapsibleSection";
 
 import { getOperationsBatchFinancialSummary } from "@/lib/operations/api";
 import { CatalyticApiError } from "@/lib/catalytic/http";
@@ -19,13 +20,17 @@ import { formatMoney } from "@/lib/operations/format";
 // categories (COMPLETE/COMPLETE_WITH_ESTIMATES vehicles vs PARTIAL
 // vehicles) and combining them would misrepresent what portion of the
 // batch is actually a complete estimate.
-function MoneyCard({ label, value, hint, emphasis }) {
+function MoneyCard({ label, value, hint, emphasis, emptyText }) {
     return (
         <div className="rounded-xl border border-white/10 bg-black/25 p-3 sm:p-4">
             <div className="text-[10px] uppercase tracking-wider text-white/40 font-bold mb-1">{label}</div>
-            <div className={emphasis ? "text-lg font-black text-emerald-300 sm:text-2xl" : "text-base font-bold text-white/85 sm:text-xl"}>
-                {formatMoney(value)}
-            </div>
+            {emptyText ? (
+                <div className="text-sm font-bold text-white/50">{emptyText}</div>
+            ) : (
+                <div className={emphasis ? "text-lg font-black text-emerald-300 sm:text-2xl" : "text-base font-bold text-white/85 sm:text-xl"}>
+                    {formatMoney(value)}
+                </div>
+            )}
             {hint && <div className="mt-1 hidden text-[11px] text-white/35 sm:block">{hint}</div>}
         </div>
     );
@@ -47,6 +52,20 @@ function CountCell({ label, value, tone }) {
     );
 }
 
+// Phase K.52 — the one line shown while the section is closed. Never a $0.00 that
+// really means "nothing calculated yet".
+export function financialHeadline(summary) {
+    if (!summary) return null;
+    const hasDual = summary.catdb_recovery_total != null && summary.ourdb_recovery_total != null;
+    if (hasDual) return `Recovery Total — CatDB ${formatMoney(summary.catdb_recovery_total)} · Our Database ${formatMoney(summary.ourdb_recovery_total)}`;
+    if (summary.rules_active) {
+        return summary.known_value_total == null ? "Recovery Total not calculated yet" : `Recovery Total ${formatMoney(summary.known_value_total)}`;
+    }
+    const complete = (summary.complete_count || 0) + (summary.complete_with_estimates_count || 0);
+    if (!complete) return "No complete vehicles yet";
+    return `Complete Recovery Total ${formatMoney(summary.complete_recovery_total)} · ${complete} of ${summary.total_vehicle_count} vehicles`;
+}
+
 export default function FinancialSummaryCards({ batchId, refreshKey }) {
     const [summary, setSummary] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -66,25 +85,24 @@ export default function FinancialSummaryCards({ batchId, refreshKey }) {
 
     useEffect(() => { load(); }, [load, refreshKey]);
 
-    if (loading) {
-        return (
-            <div className="rounded-2xl border border-white/10 bg-black/25 p-4 flex items-center gap-2 text-white/50 text-sm">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading financial summary…
-            </div>
-        );
-    }
+    const rulesStatus = summary ? (summary.rules_active ? { label: "Rules active", tone: "success" } : { label: "Rules not active", tone: "neutral" }) : null;
+    const headline = loading ? "Loading…" : error ? null : financialHeadline(summary);
+    return (
+        <CollapsibleSection title="Financial Summary" icon={DollarSign} summary={headline}
+            status={error ? { label: "Couldn't load", tone: "danger" } : rulesStatus}>
+            {loading ? (
+                <div className="flex items-center gap-2 text-white/50 text-sm"><Loader2 className="h-4 w-4 animate-spin" /> Loading financial summary…</div>
+            ) : error ? (
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-medium flex items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-2"><AlertTriangle className="h-4 w-4 shrink-0" /> {error}</span>
+                    <button type="button" onClick={load} className="underline shrink-0">Retry</button>
+                </div>
+            ) : summary ? <SummaryBody summary={summary} /> : null}
+        </CollapsibleSection>
+    );
+}
 
-    if (error) {
-        return (
-            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-medium flex items-center justify-between gap-3">
-                <span className="inline-flex items-center gap-2"><AlertTriangle className="h-4 w-4 shrink-0" /> {error}</span>
-                <button type="button" onClick={load} className="underline shrink-0">Retry</button>
-            </div>
-        );
-    }
-
-    if (!summary) return null;
-
+function SummaryBody({ summary }) {
     // Phase K.10 — present only when the batch has BOTH run_catdb and
     // run_ourdb selected (see app.operations.services.get_batch_financial_summary_dual).
     // Shown INSTEAD of the single Complete Recovery Total card — the two
@@ -93,11 +111,12 @@ export default function FinancialSummaryCards({ batchId, refreshKey }) {
     const isDualSource = summary.catdb_recovery_total !== null && summary.catdb_recovery_total !== undefined
         && summary.ourdb_recovery_total !== null && summary.ourdb_recovery_total !== undefined;
 
+    const completeVehicles = (summary.complete_count || 0) + (summary.complete_with_estimates_count || 0);
     return (
         <div className="space-y-2 sm:space-y-3">
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-white/40 font-bold">
-                <DollarSign className="h-3 w-3" /> Financial Summary
-            </div>
+            {!summary.rules_active && (
+                <p className="text-[11px] text-white/45">Recovery Rules aren&apos;t active for this batch, so these are the standard totals. Activate rules in Recovery Settings to use them.</p>
+            )}
 
             <div className="grid grid-cols-2 gap-2 sm:gap-3">
                 {isDualSource ? (
@@ -119,6 +138,7 @@ export default function FinancialSummaryCards({ batchId, refreshKey }) {
                     <MoneyCard
                         label="Recovery Total"
                         value={summary.known_value_total}
+                        emptyText={summary.known_value_total == null ? "Not calculated yet" : null}
                         hint="Sum of every vehicle's total under the recovery rules"
                         emphasis
                     />
@@ -128,6 +148,7 @@ export default function FinancialSummaryCards({ batchId, refreshKey }) {
                         value={summary.complete_recovery_total}
                         hint="Sum of fully-estimated vehicles only (Complete / Complete with Estimates)"
                         emphasis
+                        emptyText={completeVehicles === 0 ? "Not calculated: no complete vehicles yet" : null}
                     />
                 )}
                 <MoneyCard

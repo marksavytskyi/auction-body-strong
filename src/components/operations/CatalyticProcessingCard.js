@@ -6,36 +6,54 @@ import Link from "next/link";
 import { AlertTriangle, Database, Loader2, Search } from "lucide-react";
 
 import {
+    approveOperationsCatdbSearches,
     cancelOperationsCatalyticRemaining,
     getOperationsCatalytic,
     planOperationsCatalytic,
+    previewOperationsCatdbSearches,
     runOperationsCatalyticAnalysis,
     saveOperationsCatalyticSources,
 } from "@/lib/operations/api";
-import { pauseProcessing, stopWorker } from "@/lib/catalytic/catdbAdmin";
 import { CatalyticApiError } from "@/lib/catalytic/http";
 import { isPageHidden } from "@/lib/pageVisibility";
 import { CATALYTIC_SOURCE_LABEL, CATALYTIC_STATUS_LABEL, CATALYTIC_STATUS_TONE } from "@/lib/operations/constants";
 import StatusPill from "@/components/catalytic/StatusPill";
 import { ConfirmDialog } from "@/components/catalytic/CatdbProcessingControls";
-import CatdbSection from "./CatdbSection";
+import InfoTip from "@/components/ui/InfoTip";
+import CollapsibleSection from "./CollapsibleSection";
+import CatdbApprovalHistory from "./CatdbApprovalHistory";
+import PaidRunDialog, { paidExclusions } from "./PaidRunDialog";
+
+// Phase K.52 — one place to search for catalytic prices, with one Run button.
+//
+// Free sources (Our Database, CatDB Local, EcoTrade Local) run straight away, exactly as
+// K.49's Run Catalytic Analysis did. CatDB VIN is paid: when it is ticked, Run first reads
+// a fresh preview (spends nothing) and asks once. Approving sends that preview's
+// fingerprint and the exact number shown to the existing approval, which does everything
+// K.51 hardened: subscription pinning, quota reservation, never searching a VIN twice.
+// The free lookups then run. Neither part undoes the other.
+//
+// Which stored price counts toward Recovery Total is not chosen here: that is Recovery
+// Settings' price priority.
 
 const POLL_MS = 15_000;
 const OUR_DATABASE_POLL_MS = 5_000;
 
-const SOURCE_HINT = {
-    OUR_DATABASE: "Free lookup in our own sales records. No Android Worker, no CatDB quota",
-    CATDB_VIN: "Paid VIN lookup using Android Worker. Not part of Run Catalytic Analysis: it has its own approval below",
-    CATDB_LOCAL: "Search previously stored CatDB data",
-    ECOTRADE_LOCAL: "Search previously stored EcoTrade data",
-};
-
-// Run Catalytic Analysis looks these up. CatDB VIN Search is paid and never runs from it.
+const ORDER = ["OUR_DATABASE", "CATDB_LOCAL", "ECOTRADE_LOCAL", "CATDB_VIN"];
 const FREE_SOURCES = ["OUR_DATABASE", "CATDB_LOCAL", "ECOTRADE_LOCAL"];
 const SHORT_LABEL = { OUR_DATABASE: "Our Database", CATDB_VIN: "CatDB VIN", CATDB_LOCAL: "CatDB Local", ECOTRADE_LOCAL: "EcoTrade Local" };
-const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const SOURCE_HINT = {
+    OUR_DATABASE: "Our own recorded sales",
+    CATDB_LOCAL: "CatDB data already stored: an earlier VIN search, or the catalog",
+    ECOTRADE_LOCAL: "The stored EcoTrade catalog",
+    CATDB_VIN: "A new search on the Android device, for this VIN",
+};
+const SOURCE_FIELD = { OUR_DATABASE: "run_ourdb", CATDB_VIN: "run_catdb", CATDB_LOCAL: "run_catdb_local", ECOTRADE_LOCAL: "run_ecotrade_local" };
+const RUNNING = ["PROCESSING", "RUNNING", "QUEUED"];
+const UNTOUCHED = ["NOT_REQUESTED", "READY", "NOT_STARTED"];
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : /(s|ch|sh|x)$/.test(word) ? "es" : "s"}`;
 
-// What one source of the last run did, in words that never claim a lookup that didn't happen.
+// What one free source of the last run did, never claiming a lookup that didn't happen.
 function runLine(result) {
     const name = SHORT_LABEL[result.source];
     if (result.state === "ALREADY_RUNNING") return `${name}: already running for this batch, nothing new started`;
@@ -45,27 +63,31 @@ function runLine(result) {
     return `${name}: looked up ${plural(result.vehicles, "vehicle")} · ${result.matched} matched · ${result.no_match} no match · ${result.failed} failed${kept}`;
 }
 
-const SOURCE_FIELD = { OUR_DATABASE: "run_ourdb", CATDB_VIN: "run_catdb", CATDB_LOCAL: "run_catdb_local", ECOTRADE_LOCAL: "run_ecotrade_local" };
+// The collapsed header: real state only.
+export function catalyticHeadline(overview) {
+    if (!overview) return { summary: null, status: null };
+    const sources = overview.sources;
+    const vin = sources.find((s) => s.source === "CATDB_VIN");
+    const priced = sources.filter((s) => s.priced > 0).map((s) => `${SHORT_LABEL[s.source]} ${s.priced}`);
+    const summary = [
+        priced.length ? `Priced: ${priced.join(" · ")}` : null,
+        overview.active_job_count ? `${plural(overview.active_job_count, "paid search")} waiting or running${overview.global_paused ? " (CatDB paused)" : ""}` : null,
+    ].filter(Boolean).join(" · ") || null;
+    let status;
+    if (overview.active_job_count || sources.some((s) => RUNNING.includes(s.status))) status = { label: "Running", tone: "progress" };
+    else if (sources.some((s) => s.status === "FAILED")) status = { label: "Failed", tone: "danger" };
+    else if (vin?.status === "REVIEW_REQUIRED") status = { label: "Requires Review", tone: "warning" };
+    else if (sources.every((s) => UNTOUCHED.includes(s.status))) status = { label: "Not Started", tone: "neutral" };
+    else if (sources.filter((s) => s.selected).every((s) => ["COMPLETED", "COMPLETE", "NO_MATCH"].includes(s.status))) status = { label: "Completed", tone: "success" };
+    else status = { label: "Partial", tone: "warning" };
+    return { summary, status };
+}
 
-const ACTIONS = {
-    pause: {
-        title: "Pause CatDB for all batches?",
-        body: "Devices get no new jobs and no permission to start a search, in every batch. Nothing is cancelled. Resuming is done in CatDB administration.",
-        confirm: "Pause",
-    },
-    stop: {
-        title: "Stop all CatDB devices?",
-        body: "Sends each device a stop request, in every batch. A search already in progress can't be interrupted. Clearing the request is done in CatDB administration.",
-        confirm: "Send stop request",
-    },
-    cancel: {
-        title: "Cancel this batch's remaining searches?",
-        body: "Cancels this batch's jobs that have not submitted a search. Completed results are kept, used quota is not refunded, and a search already submitted is not retried.",
-        confirm: "Cancel remaining",
-    },
-};
-
-const secondary = "h-10 rounded-xl border border-white/15 px-3 text-xs font-bold text-white/85 disabled:opacity-40";
+// What a CatDB VIN preview found with nothing new to search.
+function noPaidWork(preview) {
+    const reasons = paidExclusions(preview).map(([reason, count]) => `${count} ${reason}`);
+    return `CatDB VIN: nothing new to search${reasons.length ? ` (${reasons.join("; ")})` : ""}. Nothing paid was queued.`;
+}
 
 export default function CatalyticProcessingCard({ batchId, refreshKey, selectedVehicleIds = [], onChanged }) {
     const [overview, setOverview] = useState(null);
@@ -73,10 +95,12 @@ export default function CatalyticProcessingCard({ batchId, refreshKey, selectedV
     const [scope, setScope] = useState("ALL");
     const [error, setError] = useState("");
     const [busy, setBusy] = useState("");
-    const [pending, setPending] = useState(null);
     const [plan, setPlan] = useState(null);
     const [planError, setPlanError] = useState("");
     const [lastRun, setLastRun] = useState(null);
+    const [paidPreview, setPaidPreview] = useState(null);
+    const [confirmCancel, setConfirmCancel] = useState(false);
+    const [showHistory, setShowHistory] = useState(false);
     const running = useRef(false);
 
     const load = useCallback(async () => {
@@ -94,7 +118,7 @@ export default function CatalyticProcessingCard({ batchId, refreshKey, selectedV
 
     useEffect(() => { load(); }, [load, refreshKey]);
 
-    // Only while this batch has jobs out, so a settled batch makes no requests.
+    // Only while this batch has paid jobs out, so a settled batch makes no requests.
     const activeJobs = overview?.active_job_count ?? 0;
     useEffect(() => {
         if (!activeJobs) return undefined;
@@ -102,7 +126,7 @@ export default function CatalyticProcessingCard({ batchId, refreshKey, selectedV
         return () => clearInterval(timer);
     }, [activeJobs, onChanged]);
 
-    // Runs in the background on the server, so follow it until it settles.
+    // Our Database runs in the background on the server, so follow it until it settles.
     const ourDatabaseRunning = overview?.sources.find((s) => s.source === "OUR_DATABASE")?.status === "PROCESSING";
     useEffect(() => {
         if (!ourDatabaseRunning) return undefined;
@@ -115,14 +139,18 @@ export default function CatalyticProcessingCard({ batchId, refreshKey, selectedV
     }, [ourDatabaseRunning, onChanged, load]);
 
     const tickedFree = draft ? FREE_SOURCES.filter((source) => draft[source]) : [];
-    const ticked = draft ? Object.keys(draft).filter((source) => draft[source]) : [];
-    const planKey = JSON.stringify([ticked.sort(), scope, scope === "SELECTED" ? selectedVehicleIds : null, refreshKey, overview?.sources?.map((s) => s.status)]);
+    const ticked = draft ? ORDER.filter((source) => draft[source]) : [];
+    const planKey = JSON.stringify([ticked, scope, scope === "SELECTED" ? selectedVehicleIds : null, refreshKey, overview?.sources?.map((s) => s.status)]);
 
-    // The server counts exactly what a run would look up, for the ticked sources and scope.
+    // The server counts what the free sources would look up, for the ticked sources and scope.
     useEffect(() => {
         if (!draft) return undefined;
         if (scope === "SELECTED" && selectedVehicleIds.length === 0) {
-            setPlan({ vehicles_in_scope: 0, vehicles_to_process: 0, sources: [], paid: null, blocked_reason: "Select vehicles in the table first." });
+            setPlan({ vehicles_in_scope: 0, vehicles_to_process: 0, sources: [], blocked_reason: "Select vehicles in the table first." });
+            return undefined;
+        }
+        if (!tickedFree.length) {
+            setPlan({ vehicles_in_scope: null, vehicles_to_process: 0, sources: [], blocked_reason: null });
             return undefined;
         }
         let current = true;
@@ -134,6 +162,44 @@ export default function CatalyticProcessingCard({ batchId, refreshKey, selectedV
         return () => { current = false; clearTimeout(timer); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [batchId, planKey]);
+
+    const { summary, status } = catalyticHeadline(overview);
+
+    if (!overview || !draft) {
+        return (
+            <CollapsibleSection title="Catalytic Processing" icon={Database} label="Catalytic processing" summary={error ? null : "Loading…"}
+                status={error ? { label: "Couldn't load", tone: "danger" } : null}>
+                {error ? (
+                    <span className="flex items-center justify-between gap-3 text-sm text-rose-300">
+                        {error}
+                        <button type="button" onClick={load} className="underline">Retry</button>
+                    </span>
+                ) : <span className="text-sm text-white/50">Loading catalytic processing…</span>}
+            </CollapsibleSection>
+        );
+    }
+
+    const saved = Object.fromEntries(overview.sources.map((s) => [s.source, s.selected]));
+    const counts = overview.scope_counts;
+    const scopes = [
+        { id: "ALL", label: `All vehicles (${counts.ALL})` },
+        { id: "SELECTED", label: `Selected vehicles (${selectedVehicleIds.length})` },
+        { id: "MISSING", label: "Missing results" },
+        { id: "FAILED", label: "Failed lookups" },
+    ];
+    // Paid searches only ever go to never-searched VINs, so "Missing results" is the whole batch for them.
+    const paidScope = scope === "MISSING" ? "ALL" : scope;
+    const vehicleIds = scope === "SELECTED" ? selectedVehicleIds : undefined;
+    const paidTicked = Boolean(draft.CATDB_VIN);
+    const paidBlocked = paidTicked ? overview.paid_block_reason : null;
+    const freeToProcess = plan?.vehicles_to_process ?? 0;
+    const scopeEmpty = scope === "SELECTED" && selectedVehicleIds.length === 0;
+    const freeBlocked = tickedFree.length ? plan?.blocked_reason : null;
+    const canRun = !busy && !scopeEmpty && Boolean(plan) && (freeToProcess > 0 || (paidTicked && !paidBlocked));
+    const sourcesBody = Object.fromEntries(ORDER.map((source) => [SOURCE_FIELD[source], Boolean(draft[source])]));
+    const freeSummary = tickedFree.length
+        ? (freeToProcess > 0 ? `Free sources look up ${plural(freeToProcess, "vehicle")} at no cost.` : `Free sources: ${freeBlocked || "nothing to look up"}`)
+        : null;
 
     const perform = async (name, fn) => {
         if (running.current) return;
@@ -148,217 +214,237 @@ export default function CatalyticProcessingCard({ batchId, refreshKey, selectedV
         } finally {
             running.current = false;
             setBusy("");
-            setPending(null);
         }
     };
 
-    if (!overview || !draft) {
-        return (
-            <section aria-label="Catalytic processing" className="rounded-2xl border border-white/10 bg-black/25 p-4 text-sm text-white/50">
-                {error ? (
-                    <span className="flex items-center justify-between gap-3 text-rose-300">
-                        {error}
-                        <button type="button" onClick={load} className="underline">Retry</button>
-                    </span>
-                ) : "Loading catalytic processing…"}
-            </section>
-        );
-    }
-
-    const saved = Object.fromEntries(overview.sources.map((s) => [s.source, s.selected]));
-    const dirty = overview.sources.some((s) => draft[s.source] !== saved[s.source]);
-    const counts = overview.scope_counts;
-    const scopes = [
-        { id: "ALL", label: `All vehicles (${counts.ALL})` },
-        { id: "SELECTED", label: `Selected vehicles (${selectedVehicleIds.length})` },
-        { id: "MISSING", label: "Missing results" },
-        { id: "FAILED", label: "Failed lookups" },
-    ];
-    // The paid preview has its own classification: it only ever searches never-searched VINs.
-    const paidScope = scope === "MISSING" ? "ALL" : scope;
-    const paidScopeCount = { ALL: counts.ALL, SELECTED: selectedVehicleIds.length, FAILED: counts.PAID_FAILED }[paidScope] ?? 0;
-    const stoppable = overview.workers.filter((w) => w.stop_state === "NONE");
-    const ourDatabase = overview.sources.find((s) => s.source === "OUR_DATABASE");
-    const toProcess = plan?.vehicles_to_process ?? 0;
-    const blockedReason = !tickedFree.length
-        ? (draft.CATDB_VIN ? "CatDB VIN Search is paid and runs only through its own approval below. Tick Our Database, CatDB Local or EcoTrade Local to run an analysis." : "Tick at least one source.")
-        : plan?.blocked_reason;
-    const canRun = Boolean(plan) && toProcess > 0 && !blockedReason && !busy;
-
-    const save = () => perform("save", async () => {
-        await saveOperationsCatalyticSources(
-            batchId,
-            Object.fromEntries(overview.sources.map((s) => [SOURCE_FIELD[s.source], Boolean(draft[s.source])])),
-        );
-        toast.success("Sources saved");
-    });
-
-    const runAnalysis = () => perform("run", async () => {
-        const result = await runOperationsCatalyticAnalysis(batchId, {
-            sources: ticked, scope, vehicleIds: scope === "SELECTED" ? selectedVehicleIds : undefined,
-        });
-        setLastRun(result);
-        const lookedUp = result.sources.some((s) => s.state === "COMPLETED" || s.state === "STARTED");
-        if (lookedUp) toast.success("Catalytic analysis ran. Results are below and in the table.");
-        else toast.error("Nothing was looked up: every source had nothing to do.");
-    });
-
-    const confirmAction = () => {
-        if (pending === "pause") {
-            perform("pause", async () => { await pauseProcessing(); toast.success("CatDB paused"); });
-        } else if (pending === "stop") {
-            perform("stop", async () => {
-                for (const worker of stoppable) await stopWorker(worker.id);
-                toast.success("Stop request sent. Waiting for the device to confirm.");
-            });
-        } else if (pending === "cancel") {
-            perform("cancel", async () => {
-                const result = await cancelOperationsCatalyticRemaining(batchId);
-                const inFlight = result.search_already_submitted_job_ids.length;
-                toast.success(`${result.cancelled_job_ids.length} cancelled${inFlight ? `; ${inFlight} already submitted and can't be stopped` : ""}`);
-            });
+    // Runs what was decided: an approved paid preview (or none), then the free sources.
+    const execute = ({ preview, paidNote }) => perform("run", async () => {
+        const outcome = { free: null, freeError: null, freeNote: null, paid: paidNote || null };
+        if (preview) {
+            try {
+                // An approval needs CatDB VIN saved as a source; saving starts nothing.
+                if (!saved.CATDB_VIN) await saveOperationsCatalyticSources(batchId, sourcesBody);
+                const approval = await approveOperationsCatdbSearches(batchId, {
+                    previewFingerprint: preview.fingerprint,
+                    maxNewSearches: preview.max_approvable_new_searches,
+                    confirm: true,
+                    scope: paidScope,
+                    vehicleIds,
+                });
+                outcome.paid = {
+                    ok: true,
+                    text: `CatDB VIN: ${plural(approval.new_search_count, "paid search")} queued${overview.global_paused ? ". CatDB is paused, so they wait until it is resumed" : ""}.`,
+                };
+            } catch (e) {
+                const message = e instanceof CatalyticApiError ? e.message : "the approval failed";
+                outcome.paid = {
+                    ok: false,
+                    text: e instanceof CatalyticApiError && e.status === 409
+                        ? "CatDB VIN: the batch changed since the count, so nothing paid was queued. Press Run again for a fresh count."
+                        : `CatDB VIN didn't start: ${message}. Nothing paid was queued.`,
+                };
+            }
         }
+        if (tickedFree.length && freeToProcess > 0) {
+            try {
+                outcome.free = await runOperationsCatalyticAnalysis(batchId, { sources: ticked, scope, vehicleIds });
+            } catch (e) {
+                outcome.freeError = e instanceof CatalyticApiError ? e.message : "The free lookups failed";
+            }
+        } else {
+            if (tickedFree.length) outcome.freeNote = `Free sources: ${freeBlocked || "nothing to look up"}`;
+            // Nothing free ran, so save the ticked sources the way a run would have.
+            if (!preview && ORDER.some((source) => Boolean(draft[source]) !== Boolean(saved[source]))) {
+                await saveOperationsCatalyticSources(batchId, sourcesBody);
+            }
+        }
+        setLastRun(outcome);
+        const failed = outcome.freeError || (outcome.paid && outcome.paid.ok === false);
+        if (failed) toast.error("Part of the analysis didn't start. See Last run.");
+        else toast.success("Catalytic analysis started. See Last run.");
+    });
+
+    const run = async () => {
+        if (running.current || !canRun) return;
+        if (!paidTicked) return execute({});
+        if (paidBlocked) return execute({ paidNote: { ok: false, text: `CatDB VIN can't run now: ${paidBlocked}. Nothing paid was queued.` } });
+        setBusy("preview");
+        let preview = null;
+        let paidNote = null;
+        try {
+            preview = await previewOperationsCatdbSearches(batchId, { scope: paidScope, vehicleIds });
+        } catch (e) {
+            paidNote = { ok: false, text: `CatDB VIN couldn't be counted: ${e instanceof CatalyticApiError ? e.message : "preview failed"}. Nothing paid was queued.` };
+        } finally {
+            setBusy("");
+        }
+        if (preview && preview.max_approvable_new_searches > 0) {
+            setPaidPreview(preview);
+            return undefined;
+        }
+        if (preview) paidNote = { ok: true, text: noPaidWork(preview) };
+        if (!tickedFree.length || freeToProcess === 0) {
+            setLastRun({ paid: paidNote, freeNote: tickedFree.length ? `Free sources: ${freeBlocked || "nothing to look up"}` : null });
+            return undefined;
+        }
+        return execute({ paidNote });
     };
+
+    const approvePaid = () => {
+        const preview = paidPreview;
+        setPaidPreview(null); // one approval per preview, never reused
+        execute({ preview });
+    };
+    const freeOnly = () => {
+        setPaidPreview(null);
+        execute({ paidNote: { ok: true, text: "CatDB VIN: skipped this time. Nothing paid was queued." } });
+    };
+
+    const vin = overview.sources.find((s) => s.source === "CATDB_VIN");
+    const vinCounts = vin?.counts || {};
+    const vinLine = [
+        ["QUEUED", "waiting"], ["PROCESSING", "running"], ["DONE", "searched"], ["REVIEW_REQUIRED", "require review"],
+        ["NO_RESULT", "no result"], ["FAILED", "failed"],
+    ].filter(([key]) => vinCounts[key]).map(([key, word]) => `${vinCounts[key]} ${word}`);
+    const showPaidStatus = paidTicked || saved.CATDB_VIN || overview.active_job_count > 0 || vinLine.length > 0;
 
     return (
-        <section aria-label="Catalytic processing" className="space-y-4 rounded-2xl border border-white/10 bg-black/25 p-4">
-            <h2 className="inline-flex items-center gap-2 text-sm font-bold text-white/90">
-                <Database className="h-4 w-4 text-emerald-400" /> Catalytic Processing
-            </h2>
-
+        <CollapsibleSection title="Catalytic Processing" icon={Database} label="Catalytic processing" summary={summary} status={status}>
             <div className="space-y-2">
-                {overview.sources.map((source) => (
-                    <div key={source.source} className="flex flex-wrap items-start justify-between gap-2">
-                        <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2.5 text-xs text-white/85">
-                            <input
-                                type="checkbox"
-                                checked={Boolean(draft[source.source])}
-                                onChange={(e) => setDraft((d) => ({ ...d, [source.source]: e.target.checked }))}
-                                className="mt-0.5 h-4 w-4 shrink-0"
-                            />
-                            <span className="min-w-0">
-                                <span className="font-bold">{CATALYTIC_SOURCE_LABEL[source.source]}</span>
-                                <span className="block text-[11px] text-white/40">{SOURCE_HINT[source.source]}</span>
-                            </span>
-                        </label>
-                        <span className="flex items-center gap-2">
-                            {source.priced > 0 && <span className="text-[11px] text-white/45">{source.priced} priced</span>}
-                            <StatusPill label={CATALYTIC_STATUS_LABEL[source.status] || source.status} tone={CATALYTIC_STATUS_TONE[source.status] || "neutral"} />
-                        </span>
-                    </div>
-                ))}
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <button type="button" disabled={!dirty || Boolean(busy)} onClick={save} className={secondary}>
-                        Save Sources
-                    </button>
-                    <span className="text-[11px] text-white/35">Saving starts nothing and keeps every stored result. Running saves the ticked sources too.</span>
+                <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-white/40">
+                    Search sources
+                    <InfoTip label="About search sources">
+                        Which databases Run looks up. Results from every source are kept side by side. Which one counts toward Recovery Total is set in Recovery Settings → Catalytic price priority.
+                    </InfoTip>
                 </div>
+                {ORDER.map((key) => {
+                    const source = overview.sources.find((s) => s.source === key);
+                    if (!source) return null;
+                    const paid = key === "CATDB_VIN";
+                    return (
+                        <div key={key} className="flex flex-wrap items-center justify-between gap-2">
+                            <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2.5 text-xs text-white/85">
+                                <input
+                                    type="checkbox"
+                                    checked={Boolean(draft[key])}
+                                    disabled={Boolean(busy)}
+                                    onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.checked }))}
+                                    className="mt-0.5 h-4 w-4 shrink-0"
+                                />
+                                <span className="min-w-0">
+                                    <span className="font-bold">{CATALYTIC_SOURCE_LABEL[key]}</span>
+                                    <span className={`ml-2 rounded px-1.5 py-0.5 text-[9px] font-black tracking-wider ${paid ? "bg-amber-400/15 text-amber-200" : "bg-emerald-400/10 text-emerald-300"}`}>{paid ? "PAID" : "FREE"}</span>
+                                    <span className="block text-[11px] text-white/40">{SOURCE_HINT[key]}</span>
+                                </span>
+                            </label>
+                            <span className="flex items-center gap-2">
+                                {source.priced > 0 && <span className="text-[11px] text-white/45">{source.priced} priced</span>}
+                                <StatusPill label={CATALYTIC_STATUS_LABEL[source.status] || source.status} tone={CATALYTIC_STATUS_TONE[source.status] || "neutral"} />
+                            </span>
+                        </div>
+                    );
+                })}
             </div>
 
             <div className="space-y-2 border-t border-white/10 pt-3">
-                <label htmlFor="catalytic-scope" className="block text-[10px] font-bold uppercase tracking-wider text-white/40">Process</label>
+                <label htmlFor="catalytic-scope" className="block text-[10px] font-bold uppercase tracking-wider text-white/40">Scope</label>
                 <select
                     id="catalytic-scope"
                     value={scope}
+                    disabled={Boolean(busy)}
                     onChange={(e) => setScope(e.target.value)}
                     className="h-10 w-full rounded-xl border border-white/10 bg-[#0b0d12] px-3 text-base text-white/85 sm:w-auto sm:text-xs"
                 >
                     {scopes.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
                 </select>
 
-                {plan && tickedFree.length > 0 && (
-                    <div aria-label="What will be looked up" className="space-y-0.5 text-[11px] text-white/55">
-                        <div>
-                            {plural(overview.total_vehicles, "vehicle")} in the batch · {plan.vehicles_in_scope} in this scope · <b className="text-white/80">{plan.vehicles_to_process} to look up</b>
+                <div aria-label="What will be looked up" className="space-y-0.5 text-[11px] text-white/55">
+                    {tickedFree.length > 0 && plan && !scopeEmpty && (
+                        <div>{freeToProcess > 0 ? <b className="text-white/80">{plural(freeToProcess, "vehicle")} to look up in free sources</b> : freeBlocked}</div>
+                    )}
+                    {paidTicked && !paidBlocked && <div className="text-amber-200/80">CatDB VIN is paid: Run counts the VINs it can search and asks you once before anything paid starts.</div>}
+                    {paidBlocked && (
+                        <div role="status" className="flex items-start gap-1.5 text-amber-200">
+                            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                            <span>CatDB VIN can&apos;t run now: {paidBlocked} <Link href="/cats/admin/catdb" className="underline">CatDB Automation</Link></span>
                         </div>
-                        {plan.sources.map((s) => (
-                            <div key={s.source}>
-                                {SHORT_LABEL[s.source]}: {s.to_process} to look up · {s.with_result} already looked up, {s.priced} priced
-                                {s.in_progress > 0 && " · running now"}
-                            </div>
-                        ))}
-                    </div>
-                )}
-                {planError && <p className="text-[11px] text-rose-300">{planError}</p>}
+                    )}
+                    {!ticked.length && <div>Tick at least one source.</div>}
+                    {scopeEmpty && <div>Select vehicles in the table first.</div>}
+                    {planError && <div className="text-rose-300">{planError}</div>}
+                </div>
 
                 <button
                     type="button"
                     disabled={!canRun}
-                    onClick={runAnalysis}
+                    onClick={run}
                     className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-500 px-4 text-xs font-bold text-black disabled:opacity-40"
                 >
-                    {busy === "run" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                    Run Catalytic Analysis ({plural(toProcess, "vehicle")})
+                    {busy === "run" || busy === "preview" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                    Run Catalytic Analysis
                 </button>
-                {blockedReason && <p role="note" className="text-[11px] text-white/45">{blockedReason}</p>}
-                {draft.CATDB_VIN && tickedFree.length > 0 && (
-                    <p className="text-[11px] text-amber-200/80">
-                        CatDB VIN Search is paid, so this run doesn&apos;t include it{overview.paid_block_reason ? `: ${overview.paid_block_reason}` : ". Approve paid searches separately below."}
-                    </p>
-                )}
-                <p className="text-[11px] text-white/35">
-                    Looks up catalytic converters only: no Parts, Weight, Scrap or Recovery Rules. The ticked sources are saved, a stored price is never replaced by an empty result, and whether a result counts toward Recovery Total is decided in Recovery Settings.
-                </p>
 
                 {lastRun && (
                     <div role="status" aria-label="Last catalytic analysis" className="space-y-0.5 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-[11px] text-white/70">
-                        <div className="font-bold text-white/85">Last run · {plural(lastRun.vehicles_to_process, "vehicle")} to look up</div>
-                        {lastRun.sources.map((r) => <div key={r.source}>{runLine(r)}</div>)}
-                        {lastRun.sources.some((r) => r.source === "OUR_DATABASE" && r.state === "STARTED") && ourDatabase && (
-                            <div>
-                                Our Database {ourDatabaseRunning ? "is running" : "has finished"}: {ourDatabase.priced} priced in this batch
-                                {" · "}{ourDatabase.counts.FAILED || 0} failed
-                                {ourDatabaseRunning && <> · {(ourDatabase.counts.QUEUED || 0) + (ourDatabase.counts.NOT_REQUESTED || 0)} still to look up</>}
-                            </div>
-                        )}
+                        <div className="font-bold text-white/85">Last run</div>
+                        {lastRun.free?.sources.map((r) => <div key={r.source}>{runLine(r)}</div>)}
+                        {lastRun.freeError && <div className="text-rose-300">Free sources didn&apos;t run: {lastRun.freeError}</div>}
+                        {lastRun.freeNote && <div>{lastRun.freeNote}</div>}
+                        {lastRun.paid && <div className={lastRun.paid.ok ? "text-white/70" : "text-amber-200"}>{lastRun.paid.text}</div>}
                     </div>
                 )}
             </div>
 
-            <div className="space-y-2 border-t border-white/10 pt-3">
-                {overview.paid_block_reason && (
-                    <p role="status" className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-3 text-xs text-amber-200">
-                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            {showPaidStatus && (
+                <div className="space-y-2 border-t border-white/10 pt-3 text-[11px] text-white/60">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                         <span>
-                            {overview.paid_block_reason}{" "}
-                            <Link href="/cats/admin/catdb" className="underline">Open CatDB administration</Link>
+                            <b className="text-white/80">CatDB VIN</b>: {vinLine.length ? vinLine.join(" · ") : "no paid searches yet"}
+                            {overview.active_job_count > 0 && overview.global_paused && <span className="text-amber-200"> · CatDB is paused</span>}
                         </span>
-                    </p>
-                )}
-                <div className="flex flex-wrap gap-2">
-                    <button type="button" disabled={overview.global_paused || Boolean(busy)} onClick={() => setPending("pause")} className={secondary}>
-                        {overview.global_paused ? "Paused" : "Pause"}
-                    </button>
-                    <button type="button" disabled={stoppable.length === 0 || Boolean(busy)} onClick={() => setPending("stop")} className={secondary}>
-                        {overview.workers.length > 0 && stoppable.length === 0 ? "Stopped" : "Stop"}
-                    </button>
-                    <button
-                        type="button"
-                        disabled={overview.active_job_count === 0 || Boolean(busy)}
-                        onClick={() => setPending("cancel")}
-                        className="h-10 rounded-xl border border-rose-500/40 px-3 text-xs font-bold text-rose-300 disabled:opacity-40"
-                    >
-                        Cancel Remaining ({overview.active_job_count})
-                    </button>
+                        {overview.active_job_count > 0 && (
+                            <button type="button" disabled={Boolean(busy)} onClick={() => setConfirmCancel(true)}
+                                className="h-9 rounded-xl border border-rose-500/40 px-3 text-xs font-bold text-rose-300 disabled:opacity-40">
+                                Cancel remaining ({overview.active_job_count})
+                            </button>
+                        )}
+                        <button type="button" onClick={() => setShowHistory((v) => !v)} aria-expanded={showHistory} className="underline">
+                            {showHistory ? "Hide paid search history" : "Paid search history"}
+                        </button>
+                        <Link href="/cats/admin/catdb" className="underline">CatDB Automation</Link>
+                    </div>
+                    {showHistory && <CatdbApprovalHistory batchId={batchId} refreshKey={refreshKey} />}
                 </div>
-                <p className="text-[11px] text-white/35">Pause and Stop apply to CatDB as a whole, because all batches share its devices. Cancel Remaining applies to this batch.</p>
-            </div>
-
-            {saved.CATDB_VIN && !dirty ? (
-                <CatdbSection
-                    batchId={batchId}
-                    refreshKey={refreshKey}
-                    onBatchDataChanged={onChanged}
-                    scope={paidScope}
-                    scopeCount={paidScopeCount}
-                    vehicleIds={scope === "SELECTED" ? selectedVehicleIds : undefined}
-                    blockReason={overview.paid_block_reason}
-                />
-            ) : (
-                <p className="border-t border-white/10 pt-3 text-[11px] text-white/35">Select CatDB VIN Search and save to preview paid searches.</p>
             )}
 
-            {pending && <ConfirmDialog action={ACTIONS[pending]} busy={Boolean(busy)} onConfirm={confirmAction} onClose={() => setPending(null)} />}
-        </section>
+            {paidPreview && (
+                <PaidRunDialog
+                    preview={paidPreview}
+                    freeSummary={freeSummary}
+                    paused={overview.global_paused}
+                    busy={busy === "run"}
+                    onApprove={approvePaid}
+                    onFreeOnly={tickedFree.length && freeToProcess > 0 ? freeOnly : null}
+                    onClose={() => setPaidPreview(null)}
+                />
+            )}
+            {confirmCancel && (
+                <ConfirmDialog
+                    action={{
+                        title: "Cancel this batch's remaining paid searches?",
+                        body: "Cancels this batch's CatDB jobs that haven't submitted a search. Other batches and CatDB itself aren't affected. Completed results are kept, used quota isn't refunded, and a search already submitted isn't retried.",
+                        confirm: "Cancel remaining",
+                    }}
+                    busy={busy === "cancel"}
+                    onConfirm={() => perform("cancel", async () => {
+                        const result = await cancelOperationsCatalyticRemaining(batchId);
+                        const inFlight = result.search_already_submitted_job_ids.length;
+                        toast.success(`${result.cancelled_job_ids.length} cancelled${inFlight ? `; ${inFlight} already submitted and can't be stopped` : ""}`);
+                        setConfirmCancel(false);
+                    })}
+                    onClose={() => setConfirmCancel(false)}
+                />
+            )}
+        </CollapsibleSection>
     );
 }

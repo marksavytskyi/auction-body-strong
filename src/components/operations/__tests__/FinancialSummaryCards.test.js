@@ -1,7 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-import FinancialSummaryCards from "../FinancialSummaryCards";
+import FinancialSummaryCards, { financialHeadline } from "../FinancialSummaryCards";
 import { getOperationsBatchFinancialSummary } from "@/lib/operations/api";
 
 vi.mock("@/lib/operations/api", () => ({
@@ -30,6 +30,15 @@ function summary(overrides = {}) {
     };
 }
 
+// Phase K.52: the section is closed by default, so each test opens it first.
+async function show() {
+    render(<FinancialSummaryCards batchId={7} refreshKey={0} />);
+    const header = await screen.findByRole("button", { name: /Financial Summary/ });
+    await waitFor(() => expect(header).not.toHaveTextContent("Loading"));
+    fireEvent.click(header);
+    return header;
+}
+
 describe("FinancialSummaryCards", () => {
     beforeEach(() => { getOperationsBatchFinancialSummary.mockReset(); });
 
@@ -37,10 +46,10 @@ describe("FinancialSummaryCards", () => {
         getOperationsBatchFinancialSummary.mockResolvedValue(summary({
             catdb_recovery_total: "950.00", ourdb_recovery_total: "820.00",
         }));
-        render(<FinancialSummaryCards batchId={7} refreshKey={0} />);
+        await show();
 
-        expect(await screen.findByText(/recovery total.*catdb/i)).toBeInTheDocument();
-        expect(await screen.findByText(/recovery total.*our database/i)).toBeInTheDocument();
+        expect(await screen.findByText("Recovery Total — CatDB")).toBeInTheDocument();
+        expect(await screen.findByText("Recovery Total — Our Database")).toBeInTheDocument();
         expect(screen.getByText("$950.00")).toBeInTheDocument();
         expect(screen.getByText("$820.00")).toBeInTheDocument();
         // The single-source "Complete Recovery Total" label must not
@@ -50,7 +59,7 @@ describe("FinancialSummaryCards", () => {
 
     it("renders Complete Recovery Total and Partial Known Components Subtotal as two separate figures, never combined", async () => {
         getOperationsBatchFinancialSummary.mockResolvedValue(summary());
-        render(<FinancialSummaryCards batchId={7} refreshKey={0} />);
+        await show();
 
         expect(await screen.findByText("$900.00")).toBeInTheDocument();
         expect(screen.getByText("$250.00")).toBeInTheDocument();
@@ -60,7 +69,7 @@ describe("FinancialSummaryCards", () => {
 
     it("renders completeness counts straight from the backend, never recomputed client-side", async () => {
         getOperationsBatchFinancialSummary.mockResolvedValue(summary());
-        render(<FinancialSummaryCards batchId={7} refreshKey={0} />);
+        await show();
 
         await screen.findByText("$900.00");
         expect(screen.getByText("10")).toBeInTheDocument(); // total vehicles
@@ -71,7 +80,7 @@ describe("FinancialSummaryCards", () => {
 
     it("renders a null total as an em dash, never $0", async () => {
         getOperationsBatchFinancialSummary.mockResolvedValue(summary({ cats_value_total: null }));
-        render(<FinancialSummaryCards batchId={7} refreshKey={0} />);
+        await show();
 
         await screen.findByText("$900.00");
         expect(screen.getAllByText("—").length).toBeGreaterThan(0);
@@ -80,14 +89,14 @@ describe("FinancialSummaryCards", () => {
 
     it("renders a real zero total as $0.00, distinct from a missing value", async () => {
         getOperationsBatchFinancialSummary.mockResolvedValue(summary({ scrap_value_total: "0.00" }));
-        render(<FinancialSummaryCards batchId={7} refreshKey={0} />);
+        await show();
 
         expect(await screen.findByText("$0.00")).toBeInTheDocument();
     });
 
     it("shows a retryable error state on a failed load", async () => {
         getOperationsBatchFinancialSummary.mockRejectedValue(new Error("boom"));
-        render(<FinancialSummaryCards batchId={7} refreshKey={0} />);
+        await show();
         expect(await screen.findByText(/retry/i)).toBeInTheDocument();
     });
 
@@ -99,4 +108,33 @@ describe("FinancialSummaryCards", () => {
         rerender(<FinancialSummaryCards batchId={7} refreshKey={1} />);
         await waitFor(() => expect(getOperationsBatchFinancialSummary).toHaveBeenCalledTimes(2));
     });
+
+    it("is closed by default, with one honest headline and the rules state", async () => {
+        getOperationsBatchFinancialSummary.mockResolvedValue(summary());
+        render(<FinancialSummaryCards batchId={7} refreshKey={0} />);
+        const header = await screen.findByRole("button", { name: /Financial Summary/ });
+        await waitFor(() => expect(header).toHaveTextContent("Complete Recovery Total $900.00 · 5 of 10 vehicles"));
+        expect(header).toHaveAttribute("aria-expanded", "false");
+        expect(header).toHaveTextContent("Rules not active");
+        expect(screen.queryByText("Engine Total")).toBeNull();
+    });
+
+    it("never shows a $0.00 total that really means nothing is calculated", async () => {
+        expect(financialHeadline(summary({ complete_count: 0, complete_with_estimates_count: 0, complete_recovery_total: "0.00" }))).toBe("No complete vehicles yet");
+        expect(financialHeadline(summary({ rules_active: true, known_value_total: null }))).toBe("Recovery Total not calculated yet");
+        expect(financialHeadline(summary({ rules_active: true, known_value_total: "1234.50" }))).toBe("Recovery Total $1,234.50");
+        getOperationsBatchFinancialSummary.mockResolvedValue(summary({ complete_count: 0, complete_with_estimates_count: 0, complete_recovery_total: "0.00" }));
+        await show();
+        expect(await screen.findByText("Not calculated: no complete vehicles yet")).toBeInTheDocument();
+        expect(screen.getByText(/Recovery Rules aren.t active for this batch/)).toBeInTheDocument();
+    });
+
+    it("an expanded summary keeps every existing figure", async () => {
+        getOperationsBatchFinancialSummary.mockResolvedValue(summary());
+        await show();
+        for (const label of ["Complete Recovery Total", "Partial Known Components Subtotal", "Engine Total", "Transmission Total", "Selected Catalytic Total", "Scrap Total", "Total Vehicles", "Complete", "Partial", "No Data"]) {
+            expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+        }
+    });
 });
+

@@ -28,7 +28,8 @@ describe("ScrapPriceControl", () => {
         render(<ScrapPriceControl />);
         expect(await screen.findByText(/\$0\.0800/)).toBeInTheDocument();
         expect(screen.getByText(/USD per lb/)).toBeInTheDocument();
-        expect(screen.getByText(/^Updated /)).toBeInTheDocument();
+        expect(screen.getByText(/^Used by every batch · updated /)).toBeInTheDocument();
+        expect(screen.getByText("Global Scrap Price")).toBeInTheDocument();
     });
 
     it("saves only after the exact confirmation, as a string with the version read", async () => {

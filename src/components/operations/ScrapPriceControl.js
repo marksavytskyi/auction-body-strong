@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 import { getScrapPrice, setScrapPrice } from "@/lib/operations/api";
 import { CatalyticApiError } from "@/lib/catalytic/http";
 import { formatDate } from "@/lib/operations/format";
+import InfoTip from "@/components/ui/InfoTip";
 import { ConfirmDialog } from "@/components/catalytic/CatdbProcessingControls";
 
 const CONFIRM_ACTION = {
@@ -80,11 +81,16 @@ export default function ScrapPriceControl({ onChanged }) {
         <section aria-label="Scrap price" className="rounded-xl border border-white/10 bg-black/25 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-white/40">Scrap Price</div>
+                    <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-white/40">
+                        Global Scrap Price
+                        <InfoTip label="About the Scrap price">
+                            One price for every batch, not just this one. Scrap values everywhere, older batches included, use the current price whenever totals are shown. Each batch keeps its own Scrap percentage.
+                        </InfoTip>
+                    </div>
                     <div className="text-base font-black text-white/90">
                         ${Number(current.price).toFixed(4)} <span className="text-xs font-bold text-white/50">{current.currency} per {unit}</span>
                     </div>
-                    <div className="text-[11px] text-white/35">Updated {formatDate(current.updated_at)}</div>
+                    <div className="text-[11px] text-white/35">Used by every batch · updated {formatDate(current.updated_at)}</div>
                 </div>
                 {draft === null && (
                     <button
