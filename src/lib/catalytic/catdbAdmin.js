@@ -32,9 +32,10 @@ export function listJobsPage({ limit, offset, ...params }) {
     );
 }
 
-export function enqueueJob({ vin, priority = 0, maxAttempts = null, force = false }) {
+// Only called after the person confirmed the search may be paid (CatDB Automation's dialog).
+export function enqueueJob({ vin, priority = 0, maxAttempts = null }) {
     return request(
-        () => axiosInstance.post(`${BASE}/jobs`, { vin, priority, max_attempts: maxAttempts, force }),
+        () => axiosInstance.post(`${BASE}/jobs`, { vin, priority, max_attempts: maxAttempts, confirm_paid_search: true }),
         "Failed to enqueue CatDB job"
     );
 }
