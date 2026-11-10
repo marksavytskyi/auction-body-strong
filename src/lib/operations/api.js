@@ -136,6 +136,22 @@ export function saveOperationsCatalyticSources(batchId, sources) {
     );
 }
 
+// Phase K.49 — Run Catalytic Analysis over the ticked sources. plan only counts;
+// run saves the ticked sources and looks up the free ones. Neither starts a paid search.
+export function planOperationsCatalytic(batchId, { sources, scope, vehicleIds }) {
+    return request(
+        () => axiosInstance.post(`${BASE}/batches/${encodeURIComponent(batchId)}/catalytic/plan`, { sources, scope, vehicle_ids: vehicleIds }),
+        "Failed to count the vehicles to process"
+    );
+}
+
+export function runOperationsCatalyticAnalysis(batchId, { sources, scope, vehicleIds }) {
+    return request(
+        () => axiosInstance.post(`${BASE}/batches/${encodeURIComponent(batchId)}/catalytic/run`, { sources, scope, vehicle_ids: vehicleIds }),
+        "Failed to run the catalytic analysis"
+    );
+}
+
 export function runOperationsLocalSearch(batchId, { scope, vehicleIds }) {
     return request(
         () => axiosInstance.post(`${BASE}/batches/${encodeURIComponent(batchId)}/catalytic/local-search`, { scope, vehicle_ids: vehicleIds }),

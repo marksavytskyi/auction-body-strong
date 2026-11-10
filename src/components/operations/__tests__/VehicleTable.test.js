@@ -45,17 +45,17 @@ describe("VehicleTable", () => {
         listOperationsBatchVehicles.mockReset();
     });
 
-    it("shows CatDB VIN Price and Our Database Price as two separate columns, never combined", async () => {
+    it("shows CatDB VIN and Our Database as two separate columns, never combined", async () => {
         listOperationsBatchVehicles.mockResolvedValue({
             items: [vehicle({ catdb_total_price: 300, ourdb_total_expected: 85 })],
             total: 1,
         });
-        render(<VehicleTable batchId={1} onOpenVehicle={vi.fn()} refreshKey={0} />);
+        const { container } = render(<VehicleTable batchId={1} onOpenVehicle={vi.fn()} refreshKey={0} />);
 
-        expect(await screen.findByText(/catdb vin price/i)).toBeInTheDocument();
-        expect(screen.getByText(/our database price/i)).toBeInTheDocument();
-        expect(screen.getByText("$300.00")).toBeInTheDocument();
-        expect(screen.getByText("$85.00")).toBeInTheDocument();
+        expect(await screen.findByRole("columnheader", { name: "CatDB VIN" })).toBeInTheDocument();
+        expect(screen.getByRole("columnheader", { name: "Our Database" })).toBeInTheDocument();
+        expect(container.querySelector('tbody [data-source="CATDB_VIN"]')).toHaveTextContent("$300.00");
+        expect(container.querySelector('tbody [data-source="OUR_DATABASE"]')).toHaveTextContent("$85.00");
     });
 
     it("renders duplicate-VIN rows as distinct rows keyed by their stable vehicle id, not the VIN", async () => {

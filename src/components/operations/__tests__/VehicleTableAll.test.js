@@ -70,6 +70,12 @@ describe("VehicleTable — All", () => {
     it("shows all 437 vehicles of a batch, in the server's order, loading at most 200 at a time", { timeout: 120000 }, async () => {
         CHUNK.size = 200;
         expect(ALL_CHUNK_SIZE).toBe(200);
+        // Rows are what this checks: showing only the VIN keeps 437 rows quick to draw.
+        window.localStorage.setItem("operations:vehicles:columns", JSON.stringify(Object.fromEntries(
+            ["year", "make", "model", "engine_value", "transmission_value", "src_our_database", "src_catdb_vin", "src_catdb_local",
+                "src_ecotrade_local", "scrap_value", "total_expected_recovery", "known_components_subtotal", "overall_status",
+                "completeness", "parts_status", "weight", "warnings"].map((id) => [id, false]),
+        )));
         const vehicles = Array.from({ length: 437 }, (_, i) => vehicle(i + 1));
         serve(vehicles);
         const { container } = render(<VehicleTable batchId={1} refreshKey={0} />);

@@ -13,53 +13,88 @@ import usePagedRows from "@/hooks/usePagedRows";
 import { isAll, showingLabel } from "@/lib/pagination";
 import StatusPill from "@/components/catalytic/StatusPill";
 import { CATS_SOURCE_LABEL, OVERALL_STATUS, OVERALL_STATUS_LABEL, OVERALL_STATUS_TONE, LEG_STATUS_TONE, VEHICLE_SORT_FIELDS, PARTS_CONFIDENCE_LABEL } from "@/lib/operations/constants";
-import { formatMoney, formatCatdbPrice, completenessMeta, deriveWeightStatus } from "@/lib/operations/format";
+import { formatMoney, completenessMeta, deriveWeightStatus } from "@/lib/operations/format";
+import CatalyticSourceCell from "./CatalyticSourceCell";
+import ColumnsMenu from "@/components/ui/ColumnsMenu";
+import useColumnVisibility from "@/hooks/useColumnVisibility";
 
 const DEFAULT_PAGE_SIZE = 25;
+
+const CATALYTIC_COLUMNS = [
+    { id: "src_our_database", source: "OUR_DATABASE", label: "Our Database" },
+    { id: "src_catdb_vin", source: "CATDB_VIN", label: "CatDB VIN" },
+    { id: "src_catdb_local", source: "CATDB_LOCAL", label: "CatDB Local" },
+    { id: "src_ecotrade_local", source: "ECOTRADE_LOCAL", label: "EcoTrade Local" },
+];
 
 const STATUS_FILTERS = [
     { id: "", label: "All" },
     ...Object.values(OVERALL_STATUS).map((id) => ({ id, label: OVERALL_STATUS_LABEL[id] })),
 ];
 
+const td = "px-3 py-2 border-b border-white/5";
+
+// Phase K.49 — every column, in table order; the Columns menu shows or hides each.
+// The four catalytic sources each have their own column and read only that source's
+// saved result. "Catalytic (in totals)" is the one value the totals use (CatDB VIN or
+// Our Database, or the Recovery Rules' choice when active), so it stays available.
 const COLUMNS = [
-    { id: "lot", label: "Lot #", sortable: false },
-    { id: "vin", label: "VIN", sortable: false },
-    { id: "year", label: "Year", sortable: true },
-    { id: "make", label: "Make", sortable: true },
-    { id: "model", label: "Model", sortable: true },
-    { id: "engine_value", label: "Engine", sortable: false },
-    { id: "transmission_value", label: "Transmission", sortable: false },
-    { id: "cats_value", label: "Catalytic", sortable: true },
-    // Phase K.10 — the two independent catalytic sources, shown as
-    // their own separate columns (never combined into cats_value above,
-    // which stays whichever one the batch's/vehicle's own precedence or
-    // override selects — see app.operations.finance.select_cats_value).
-    // Both read directly off the vehicle response regardless of this
-    // batch's run_catdb/run_ourdb selection, so a null cell here always
-    // just means "no result for this source", never "hidden".
-    { id: "catdb_total_price", label: "CatDB VIN Price", sortable: false },
-    { id: "ourdb_total_expected", label: "Our Database Price", sortable: false },
-    { id: "scrap_value", label: "Scrap", sortable: true },
+    { id: "lot", label: "Lot #", required: true, cell: (v) => <td key="lot" className={`${td} text-white/70 whitespace-nowrap`}>{v.lot_number || "—"}</td> },
+    { id: "vin", label: "VIN", cell: (v) => <td key="vin" className={`${td} text-white/35 font-mono whitespace-nowrap`}>{v.full_vin || "—"}</td> },
+    { id: "year", label: "Year", cell: (v) => <td key="year" className={`${td} text-white/70 whitespace-nowrap`}>{v.year || "—"}</td> },
+    { id: "make", label: "Make", cell: (v) => <td key="make" className={`${td} text-white/80 whitespace-nowrap`}>{v.make || "—"}</td> },
+    { id: "model", label: "Model", cell: (v) => <td key="model" className={`${td} text-white/80 whitespace-nowrap`}>{v.model || "—"}</td> },
+    { id: "engine_value", label: "Engine", cell: (v, fin) => <td key="engine_value" className={`${td} text-white/70 whitespace-nowrap`}><ComponentPrice fin={fin} name="engine" value={fin.engine_value} /><WeakPriceTag level={v.engine_price_confidence} /></td> },
+    { id: "transmission_value", label: "Transmission", cell: (v, fin) => <td key="transmission_value" className={`${td} text-white/70 whitespace-nowrap`}><ComponentPrice fin={fin} name="transmission" value={fin.transmission_value} /><WeakPriceTag level={v.transmission_price_confidence} /></td> },
+    ...CATALYTIC_COLUMNS.map(({ id, source, label }) => ({
+        id, label, source,
+        cell: (v) => <td key={id} className={`${td} text-white/70 whitespace-nowrap`}><CatalyticSourceCell source={source} vehicle={v} /></td>,
+    })),
+    { id: "cats_value", label: "Catalytic (in totals)", defaultVisible: false, cell: (v, fin) => <td key="cats_value" className={`${td} text-white/70 whitespace-nowrap`}><ComponentPrice fin={fin} name="catalytic" value={fin.cats_value} /></td> },
+    { id: "scrap_value", label: "Scrap", cell: (v, fin) => <td key="scrap_value" className={`${td} text-white/70 whitespace-nowrap`}><ComponentPrice fin={fin} name="scrap" value={fin.scrap_value} /></td> },
     // Two distinct, separately-sortable columns — never one combined
-    // "Total / Known" column. complete_recovery_total and
-    // partial_known_components_subtotal are different financial
-    // categories at the batch level (see FinancialSummaryCards), and the
-    // same distinction holds per-vehicle: total_expected_recovery is only
-    // set for COMPLETE/COMPLETE_WITH_ESTIMATES vehicles, while
-    // known_components_subtotal is the partial figure for everyone else.
-    // Both are real backend sort fields (app.operations.finance.FINANCIAL_SORT_FIELDS),
-    // so each column sorts by exactly the value it displays — no
-    // misleading "sorts by A, displays A-or-B" behavior.
-    { id: "total_expected_recovery", label: "Complete Recovery", sortable: true },
-    { id: "known_components_subtotal", label: "Known Subtotal", sortable: true },
-    { id: "overall_status", label: "Overall", sortable: true },
-    { id: "completeness", label: "Estimate", sortable: false },
-    { id: "parts_status", label: "Parts", sortable: false },
-    { id: "ourdb_status", label: "OurDB", sortable: false },
-    { id: "weight", label: "Weight", sortable: false },
-    { id: "warnings", label: "Warnings", sortable: false },
+    // "Total / Known" column: total_expected_recovery is only set for
+    // COMPLETE/COMPLETE_WITH_ESTIMATES vehicles, known_components_subtotal
+    // is the partial figure for everyone else, and each sorts by the value
+    // it displays (app.operations.finance.FINANCIAL_SORT_FIELDS).
+    { id: "total_expected_recovery", label: "Complete Recovery", cell: (v, fin) => (
+        <td key="total_expected_recovery" className={`${td} whitespace-nowrap`}>
+            <span className={fin.total_expected_recovery != null ? "text-emerald-300 font-bold" : "text-white/30"}>{formatMoney(fin.total_expected_recovery)}</span>
+        </td>
+    ) },
+    { id: "known_components_subtotal", label: "Known Subtotal", cell: (v, fin) => (
+        <td key="known_components_subtotal" className={`${td} whitespace-nowrap`}>
+            <span className={fin.known_components_subtotal != null ? "text-amber-300/90" : "text-white/30"}>{formatMoney(fin.known_components_subtotal)}</span>
+        </td>
+    ) },
+    { id: "overall_status", label: "Status", cell: (v) => <td key="overall_status" className={td}><StatusPill label={OVERALL_STATUS_LABEL[v.overall_status] || v.overall_status} tone={OVERALL_STATUS_TONE[v.overall_status] || "neutral"} /></td> },
+    { id: "completeness", label: "Estimate", cell: (v, fin) => {
+        const cm = completenessMeta(fin.completeness_status);
+        return <td key="completeness" className={td}><StatusPill label={cm.label} tone={cm.tone} /></td>;
+    } },
+    { id: "parts_status", label: "Parts", cell: (v) => <td key="parts_status" className={td}><StatusPill label={v.parts_status} tone={LEG_STATUS_TONE[v.parts_status] || "neutral"} /></td> },
+    { id: "ourdb_status", label: "OurDB status", defaultVisible: false, cell: (v) => <td key="ourdb_status" className={td}><StatusPill label={v.ourdb_status} tone={LEG_STATUS_TONE[v.ourdb_status] || "neutral"} /></td> },
+    { id: "weight", label: "Weight", cell: (v) => {
+        const ws = deriveWeightStatus(v);
+        return <td key="weight" className={td}><StatusPill label={ws.label} tone={ws.tone} /></td>;
+    } },
+    { id: "warnings", label: "Warnings", cell: (v) => {
+        const warnings = warningsFor(v);
+        return <td key="warnings" className={`${td} text-amber-300/80 max-w-[160px] truncate`}>{warnings.length ? warnings.join("; ") : "—"}</td>;
+    } },
 ];
+
+const COLUMN_BY_ID = Object.fromEntries(COLUMNS.map((c) => [c.id, c]));
+
+function warningsFor(v) {
+    try {
+        const parsed = v.warnings_json ? JSON.parse(v.warnings_json) : null;
+        if (!parsed) return [];
+        return Array.isArray(parsed) ? parsed : [String(parsed)];
+    } catch {
+        return [];
+    }
+}
 
 // Only weak prices get a mark, so the table stays clean and they stand out.
 function WeakPriceTag({ level }) {
@@ -142,6 +177,7 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey, selec
         }
     };
 
+    const columns = useColumnVisibility("operations:vehicles:columns", COLUMNS);
     const all = isAll(pageSize);
     const totalPages = all ? 1 : Math.max(1, Math.ceil(total / pageSize));
     const selectable = Boolean(onSelectedIdsChange);
@@ -180,15 +216,6 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey, selec
         );
     };
 
-    const warningsFor = (v) => {
-        try {
-            const parsed = v.warnings_json ? JSON.parse(v.warnings_json) : null;
-            if (!parsed) return [];
-            return Array.isArray(parsed) ? parsed : [String(parsed)];
-        } catch {
-            return [];
-        }
-    };
 
     return (
         <div className="space-y-3">
@@ -209,13 +236,23 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey, selec
                         </button>
                     ))}
                 </div>
-                <div className="relative w-full sm:w-72">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/30" />
-                    <Input
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search VIN, lot, make/model, year"
-                        className="h-10 pl-9 rounded-xl bg-white/5 border-white/10 text-base sm:h-9 sm:text-xs"
+                <div className="flex w-full items-center gap-2 sm:w-auto">
+                    <div className="relative min-w-0 flex-1 sm:w-72 sm:flex-none">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/30" />
+                        <Input
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search VIN, lot, make/model, year"
+                            className="h-10 pl-9 rounded-xl bg-white/5 border-white/10 text-base sm:h-9 sm:text-xs"
+                        />
+                    </div>
+                    <ColumnsMenu
+                        columns={COLUMNS}
+                        isVisible={columns.isVisible}
+                        onToggle={columns.toggle}
+                        onShowAll={columns.showAll}
+                        onHideAll={columns.hideAll}
+                        onReset={columns.reset}
                     />
                 </div>
             </div>
@@ -240,14 +277,12 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey, selec
                             <thead className="bg-black/40">
                                 <tr>
                                     {selectable && <th className="px-3 py-2.5 border-b border-white/10"><span className="sr-only">Select</span></th>}
-                                    {COLUMNS.map(headerCell)}
+                                    {columns.visible.map(headerCell)}
                                 </tr>
                             </thead>
                             <tbody>
                                 {rows.map((v) => {
                                     const fin = v.financials || {};
-                                    const cm = completenessMeta(fin.completeness_status);
-                                    const warnings = warningsFor(v);
                                     return (
                                         <tr
                                             key={v.id}
@@ -255,40 +290,7 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey, selec
                                             onClick={() => onOpenVehicle?.(v)}
                                         >
                                             {selectable && <td className="px-3 py-2 border-b border-white/5">{selectCheckbox(v)}</td>}
-                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{v.lot_number || "—"}</td>
-                                            <td className="px-3 py-2 border-b border-white/5 text-white/35 font-mono whitespace-nowrap">{v.full_vin || "—"}</td>
-                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{v.year || "—"}</td>
-                                            <td className="px-3 py-2 border-b border-white/5 text-white/80 whitespace-nowrap">{v.make || "—"}</td>
-                                            <td className="px-3 py-2 border-b border-white/5 text-white/80 whitespace-nowrap">{v.model || "—"}</td>
-                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap"><ComponentPrice fin={fin} name="engine" value={fin.engine_value} /><WeakPriceTag level={v.engine_price_confidence} /></td>
-                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap"><ComponentPrice fin={fin} name="transmission" value={fin.transmission_value} /><WeakPriceTag level={v.transmission_price_confidence} /></td>
-                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap"><ComponentPrice fin={fin} name="catalytic" value={fin.cats_value} /></td>
-                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatCatdbPrice(v)}</td>
-                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap">{formatMoney(v.ourdb_total_expected)}</td>
-                                            <td className="px-3 py-2 border-b border-white/5 text-white/70 whitespace-nowrap"><ComponentPrice fin={fin} name="scrap" value={fin.scrap_value} /></td>
-                                            <td className="px-3 py-2 border-b border-white/5 whitespace-nowrap">
-                                                <span className={fin.total_expected_recovery != null ? "text-emerald-300 font-bold" : "text-white/30"}>
-                                                    {formatMoney(fin.total_expected_recovery)}
-                                                </span>
-                                            </td>
-                                            <td className="px-3 py-2 border-b border-white/5 whitespace-nowrap">
-                                                <span className={fin.known_components_subtotal != null ? "text-amber-300/90" : "text-white/30"}>
-                                                    {formatMoney(fin.known_components_subtotal)}
-                                                </span>
-                                            </td>
-                                            <td className="px-3 py-2 border-b border-white/5"><StatusPill label={OVERALL_STATUS_LABEL[v.overall_status] || v.overall_status} tone={OVERALL_STATUS_TONE[v.overall_status] || "neutral"} /></td>
-                                            <td className="px-3 py-2 border-b border-white/5"><StatusPill label={cm.label} tone={cm.tone} /></td>
-                                            <td className="px-3 py-2 border-b border-white/5"><StatusPill label={v.parts_status} tone={LEG_STATUS_TONE[v.parts_status] || "neutral"} /></td>
-                                            <td className="px-3 py-2 border-b border-white/5"><StatusPill label={v.ourdb_status} tone={LEG_STATUS_TONE[v.ourdb_status] || "neutral"} /></td>
-                                            <td className="px-3 py-2 border-b border-white/5">
-                                                {(() => {
-                                                    const ws = deriveWeightStatus(v);
-                                                    return <StatusPill label={ws.label} tone={ws.tone} />;
-                                                })()}
-                                            </td>
-                                            <td className="px-3 py-2 border-b border-white/5 text-amber-300/80 max-w-[160px] truncate">
-                                                {warnings.length ? warnings.join("; ") : "—"}
-                                            </td>
+                                            {columns.visible.map((col) => col.cell(v, fin))}
                                         </tr>
                                     );
                                 })}
@@ -319,20 +321,32 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey, selec
                                         {v.full_vin || "—"} · Lot {v.lot_number || "—"}
                                     </div>
                                     <div className="grid grid-cols-3 gap-2 text-xs text-white/80">
-                                        <div>
-                                            <div className="text-[10px] text-white/35">Engine</div>
-                                            <ComponentPrice fin={fin} name="engine" value={fin.engine_value} />
-                                            <WeakPriceTag level={v.engine_price_confidence} />
-                                        </div>
-                                        <div>
-                                            <div className="text-[10px] text-white/35">Transmission</div>
-                                            <ComponentPrice fin={fin} name="transmission" value={fin.transmission_value} />
-                                            <WeakPriceTag level={v.transmission_price_confidence} />
-                                        </div>
-                                        <div>
-                                            <div className="text-[10px] text-white/35">Cats</div>
-                                            <ComponentPrice fin={fin} name="catalytic" value={fin.cats_value} />
-                                        </div>
+                                        {columns.isVisible(COLUMN_BY_ID.engine_value) && (
+                                            <div>
+                                                <div className="text-[10px] text-white/35">Engine</div>
+                                                <ComponentPrice fin={fin} name="engine" value={fin.engine_value} />
+                                                <WeakPriceTag level={v.engine_price_confidence} />
+                                            </div>
+                                        )}
+                                        {columns.isVisible(COLUMN_BY_ID.transmission_value) && (
+                                            <div>
+                                                <div className="text-[10px] text-white/35">Transmission</div>
+                                                <ComponentPrice fin={fin} name="transmission" value={fin.transmission_value} />
+                                                <WeakPriceTag level={v.transmission_price_confidence} />
+                                            </div>
+                                        )}
+                                        {CATALYTIC_COLUMNS.filter((c) => columns.isVisible(COLUMN_BY_ID[c.id])).map((c) => (
+                                            <div key={c.id}>
+                                                <div className="text-[10px] text-white/35">{c.label}</div>
+                                                <CatalyticSourceCell source={c.source} vehicle={v} />
+                                            </div>
+                                        ))}
+                                        {columns.isVisible(COLUMN_BY_ID.cats_value) && (
+                                            <div>
+                                                <div className="text-[10px] text-white/35">Catalytic (in totals)</div>
+                                                <ComponentPrice fin={fin} name="catalytic" value={fin.cats_value} />
+                                            </div>
+                                        )}
                                     </div>
                                     {fin.total_expected_recovery != null ? (
                                         <div className="text-sm font-bold text-emerald-300">
