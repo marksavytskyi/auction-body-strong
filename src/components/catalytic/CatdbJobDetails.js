@@ -95,6 +95,9 @@ export default function CatdbJobDetails({ jobId, onClose, onChanged }) {
                                 <div className="font-bold">{OUTCOME_LABEL[job.outcome] || job.outcome}{job.archived_at ? " · archived" : ""}</div>
                                 <div className="mt-1 opacity-90">{job.outcome_text}</div>
                             </div>
+                            {job.queue_state_text && (
+                                <p role="status" className="rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-3 text-xs text-amber-100">{job.queue_state_text}</p>
+                            )}
                             <p className="text-xs text-white/60">{job.quota_note}</p>
                             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                                 <Field label="Status">{job.status}</Field>

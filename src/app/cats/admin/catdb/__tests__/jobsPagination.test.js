@@ -11,6 +11,7 @@ vi.mock("@/components/catalytic/CatdbProcessingControls", async () => {
     return { ...actual, default: () => null };
 });
 vi.mock("@/lib/catalytic/catdbBatch", () => ({ listBatches: vi.fn() }));
+vi.mock("@/components/catalytic/CatdbDevicesSubscriptions", () => ({ default: () => <div data-testid="devices-subscriptions">subscriptions and devices</div> }));
 vi.mock("@/lib/catalytic/catdbAdmin", () => ({
     getStats: vi.fn(), listMachines: vi.fn(), createMachine: vi.fn(), setMachineActive: vi.fn(), rotateMachineToken: vi.fn(),
     listJobsPage: vi.fn(), enqueueJob: vi.fn(), cancelJob: vi.fn(),
@@ -264,3 +265,38 @@ describe("job administration calls", () => {
         get.mockRestore();
     });
 });
+
+describe("K.53: why a job is waiting, and Devices & Subscriptions", () => {
+    it("a queued job without a device says what it is waiting for", async () => {
+        admin.listJobTable.mockResolvedValue({ items: [{ ...JOBS[0], status: "PENDING", outcome: "QUEUED", worker_id: null, worker_name: null, queue_state: "WAITING_FOR_DEVICE", queue_state_text: "Waiting for a device: phone-01 is DEGRADED (last heartbeat 5 min ago)." }], total: 1 });
+        render(<CatdbAdminPage />);
+        await screen.findByText(/^Showing 1–1 of 1 job/);
+        const label = within(jobsTable()).getByText("Waiting for device");
+        expect(label.closest("[title]")).toHaveAttribute("title", expect.stringContaining("phone-01 is DEGRADED"));
+    });
+
+    it("job details show the waiting explanation", async () => {
+        admin.getJobDetails.mockResolvedValue({ ...DETAILS, status: "PENDING", outcome: "QUEUED", queue_state: "PAUSED", queue_state_text: "Waiting: CatDB is paused." });
+        render(<CatdbAdminPage />);
+        await screen.findByText(/^Showing 1–100/);
+        fireEvent.click(within(jobsTable()).getAllByRole("button", { name: "Details" })[0]);
+        expect(await within(await screen.findByRole("dialog")).findByText("Waiting: CatDB is paused.")).toBeInTheDocument();
+    });
+
+    it("Devices & Subscriptions lives here, closed by default", async () => {
+        render(<CatdbAdminPage />);
+        const toggle = await screen.findByRole("button", { name: /Devices & Subscriptions/ });
+        expect(toggle).toHaveAttribute("aria-expanded", "false");
+        expect(screen.queryByTestId("devices-subscriptions")).toBeNull();
+        fireEvent.click(toggle);
+        expect(screen.getByTestId("devices-subscriptions")).toBeInTheDocument();
+    });
+
+    it("the old Operations address opens it", async () => {
+        window.history.pushState({}, "", "/cats/admin/catdb?section=subscriptions");
+        render(<CatdbAdminPage />);
+        expect(await screen.findByTestId("devices-subscriptions")).toBeInTheDocument();
+        window.history.pushState({}, "", "/");
+    });
+});
+

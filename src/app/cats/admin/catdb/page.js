@@ -18,6 +18,7 @@ import { CatalyticApiError } from "@/lib/catalytic/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import CatdbJobsPanel from "@/components/catalytic/CatdbJobsPanel";
+import CatdbDevicesSubscriptions from "@/components/catalytic/CatdbDevicesSubscriptions";
 import { ConfirmDialog } from "@/components/catalytic/CatdbProcessingControls";
 
 const MACHINE_STATUS_TONE = {
@@ -132,6 +133,28 @@ function LegacyBatchHistory() {
                     <p className="mt-2 text-[11px] text-white/35">Read-only. Batch processing now lives in Operations; each job of these batches is in the list above.</p>
                 </div>
             )}
+        </section>
+    );
+}
+
+// Phase K.53: the Devices & Subscriptions management, moved here unchanged from Operations →
+// Settings. Closed by default; the old address opens it (?section=subscriptions).
+function DevicesAndSubscriptions() {
+    const [open, setOpen] = useState(false);
+    useEffect(() => {
+        if (new URLSearchParams(window.location.search).get("section") === "subscriptions") {
+            setOpen(true);
+            requestAnimationFrame(() => document.getElementById("devices-subscriptions")?.scrollIntoView({ block: "start" }));
+        }
+    }, []);
+    return (
+        <section id="devices-subscriptions" aria-label="Devices and subscriptions" className="scroll-mt-4 rounded-3xl border border-white/10 bg-white/[0.03]">
+            <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)}
+                className="flex min-h-11 w-full items-center gap-2 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-white/60 sm:px-6">
+                {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />} Devices &amp; Subscriptions
+                <span className="font-normal normal-case tracking-normal text-white/35">accounts, monthly quota, device assignment</span>
+            </button>
+            {open && <div className="px-5 pb-5 sm:px-6 sm:pb-6"><CatdbDevicesSubscriptions /></div>}
         </section>
     );
 }
@@ -315,6 +338,8 @@ export default function CatdbAdminPage() {
                 </div>
                 <CatdbJobsPanel refreshKey={jobsRefresh} onChanged={() => { loadStats(); loadMachines(); }} />
             </div>
+
+            <DevicesAndSubscriptions />
 
             <LegacyBatchHistory />
 

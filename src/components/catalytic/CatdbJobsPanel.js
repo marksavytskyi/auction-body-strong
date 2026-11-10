@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react";
 
 import { archiveJobs, listJobTable } from "@/lib/catalytic/catdbAdmin";
 import { CatalyticApiError } from "@/lib/catalytic/http";
-import { FINISHED_STATUSES, OUTCOME_FILTERS, OUTCOME_LABEL, OUTCOME_TONE } from "@/lib/catalytic/catdbJobs";
+import { FINISHED_STATUSES, OUTCOME_FILTERS, OUTCOME_LABEL, OUTCOME_TONE, QUEUE_STATE_LABEL, QUEUE_STATE_TONE } from "@/lib/catalytic/catdbJobs";
 import { isAll, showingLabel } from "@/lib/pagination";
 import usePageSize from "@/hooks/usePageSize";
 import usePagedRows from "@/hooks/usePagedRows";
@@ -36,12 +36,24 @@ function Outcome({ job }) {
 }
 
 const td = "px-3 py-2 border-b border-white/5";
+
+// Phase K.53: a queued job has no device until one picks it up; say what it is waiting for.
+function DeviceCell({ job }) {
+    const device = job.worker_name || (job.worker_id ? `#${job.worker_id}` : null);
+    if (!job.queue_state) return device || "—";
+    return (
+        <span title={job.queue_state_text || undefined}>
+            {device && <span className="mr-1.5">{device}</span>}
+            <span className={`text-[11px] font-bold ${QUEUE_STATE_TONE[job.queue_state] || "text-white/50"}`}>{QUEUE_STATE_LABEL[job.queue_state] || job.queue_state}</span>
+        </span>
+    );
+}
 const COLUMNS = [
     { id: "vin", label: "VIN", required: true, cell: (j) => <td key="vin" className={`${td} font-mono text-white/80 whitespace-nowrap`}>{j.vin}</td> },
     { id: "vehicle", label: "Vehicle", cell: (j) => <td key="vehicle" className={`${td} text-white/70 whitespace-nowrap`}>{j.vehicle || "—"}</td> },
     { id: "status", label: "Status", cell: (j) => <td key="status" className={`${td} whitespace-nowrap`}><Outcome job={j} />{j.archived_at && <span className="ml-1.5 text-[10px] text-white/35">archived</span>}</td> },
     { id: "attempts", label: "Attempts", cell: (j) => <td key="attempts" className={`${td} text-white/60 whitespace-nowrap`}>{j.attempt_count}/{j.max_attempts}</td> },
-    { id: "device", label: "Device", cell: (j) => <td key="device" className={`${td} text-white/60 whitespace-nowrap`}>{j.worker_name || (j.worker_id ? `#${j.worker_id}` : "—")}</td> },
+    { id: "device", label: "Device", cell: (j) => <td key="device" className={`${td} text-white/60 whitespace-nowrap`}><DeviceCell job={j} /></td> },
     { id: "created", label: "Created", cell: (j) => <td key="created" className={`${td} text-white/40 whitespace-nowrap`}>{fmt(j.created_at)}</td> },
     { id: "updated", label: "Updated", cell: (j) => <td key="updated" className={`${td} text-white/40 whitespace-nowrap`}>{fmt(j.updated_at)}</td> },
     { id: "error", label: "Error", cell: (j) => <td key="error" className={`${td} text-rose-300/80 max-w-[220px] truncate`} title={j.error_message || undefined}>{j.error_code || j.error_message || "—"}</td> },
@@ -170,6 +182,7 @@ export default function CatdbJobsPanel({ refreshKey, onChanged }) {
                             <button key={j.id} type="button" onClick={() => setDetailsId(j.id)} className="w-full space-y-1 rounded-xl border border-white/10 bg-black/25 p-3 text-left">
                                 <div className="flex items-center justify-between gap-2"><span className="font-mono text-xs text-white/85">{j.vin}</span><Outcome job={j} /></div>
                                 <div className="text-[11px] text-white/45">{j.vehicle || "—"} · {fmt(j.updated_at)}</div>
+                                {j.queue_state && <div className={`text-[11px] font-bold ${QUEUE_STATE_TONE[j.queue_state] || "text-white/50"}`}>{QUEUE_STATE_LABEL[j.queue_state]}</div>}
                                 {j.error_code && <div className="truncate text-[11px] text-rose-300/80">{j.error_code}</div>}
                             </button>
                         ))}

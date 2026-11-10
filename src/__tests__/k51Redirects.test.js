@@ -20,12 +20,13 @@ describe("K.51 redirects", () => {
             "/cats/admin/corrections": "/cats/converters",
             "/cats/admin/workers": "/cats/admin/users",
             "/cats/admin/workers/:id": "/cats/admin/users?worker=:id",
+            "/operations/settings/catdb": "/cats/admin/catdb?section=subscriptions",
         });
         for (const rule of Object.values(rules)) expect(rule.permanent).toBe(false);
     });
 
     it("the removed pages are gone and each destination exists", async () => {
-        for (const gone of ["cats/batch", "cats/admin/copart", "cats/admin/catdb-batches", "cats/admin/corrections", "cats/admin/workers"]) {
+        for (const gone of ["cats/batch", "cats/admin/copart", "cats/admin/catdb-batches", "cats/admin/corrections", "cats/admin/workers", "operations/settings/catdb"]) {
             expect(existsSync(path.join(APP, gone, "page.js"))).toBe(false);
         }
         for (const rule of await nextConfig.redirects()) {

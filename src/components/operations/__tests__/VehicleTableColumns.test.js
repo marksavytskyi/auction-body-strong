@@ -96,8 +96,9 @@ describe("catalytic source columns", () => {
         expect(cell(container, 0, "CATDB_VIN")).toHaveTextContent("No match");
         expect(cell(container, 0, "CATDB_LOCAL")).toHaveTextContent("No match");
         expect(cell(container, 0, "ECOTRADE_LOCAL")).toHaveTextContent("Failed");
-        expect(cell(container, 1, "OUR_DATABASE")).toHaveTextContent("Looking up…");
-        expect(cell(container, 1, "CATDB_VIN")).toHaveTextContent("Searching…");
+        // K.53: queued without a running lease is Queued; a device working on it is Running.
+        expect(cell(container, 1, "OUR_DATABASE")).toHaveTextContent("Queued");
+        expect(cell(container, 1, "CATDB_VIN")).toHaveTextContent("Running");
         expect(cell(container, 2, "OUR_DATABASE")).toHaveTextContent("Failed");
         expect(cell(container, 2, "CATDB_VIN")).toHaveTextContent("Not eligible");
         expect(cell(container, 1, "CATDB_LOCAL")).toHaveTextContent("—");
@@ -190,4 +191,71 @@ describe("Columns", () => {
         expect(listOperationsBatchVehicles.mock.calls.length).toBeGreaterThan(calls);
         expect(screen.getByLabelText("Rows per page")).toBeInTheDocument();
     });
+
+    describe("K.53 live states", () => {
+        const soon = () => new Date(Date.now() + 60_000).toISOString().replace("Z", "");
+        const row = (container, i) => container.querySelectorAll("tbody tr")[i];
+        const spinners = (el) => el.querySelectorAll("svg.animate-spin").length;
+
+        it("a spinner only for work really running", async () => {
+            listOperationsBatchVehicles.mockResolvedValue({
+                items: [
+                    vehicle(1, { ourdb_status: "QUEUED", ourdb_lease_expires_at: soon(), catdb_status: "QUEUED" }),
+                    vehicle(2, { ourdb_status: "QUEUED", ourdb_lease_expires_at: null, catdb_status: "PROCESSING" }),
+                ],
+                total: 2,
+            });
+            const { container } = render(<VehicleTable batchId={1} refreshKey={0} />);
+            await screen.findByRole("columnheader", { name: "EcoTrade Local" });
+            expect(cell(container, 0, "OUR_DATABASE")).toHaveTextContent("Running");
+            expect(spinners(cell(container, 0, "OUR_DATABASE"))).toBe(1);
+            expect(cell(container, 0, "CATDB_VIN")).toHaveTextContent("Queued");
+            expect(spinners(cell(container, 0, "CATDB_VIN"))).toBe(0);
+            expect(spinners(cell(container, 1, "OUR_DATABASE"))).toBe(0);
+            expect(spinners(cell(container, 1, "CATDB_VIN"))).toBe(1);
+        });
+
+        it("a paid timeout is Requires review, explained, never No match", async () => {
+            listOperationsBatchVehicles.mockResolvedValue({ items: [vehicle(1, { catdb_status: "REVIEW_REQUIRED", catdb_job_id: 324 })], total: 1 });
+            const { container } = render(<VehicleTable batchId={1} refreshKey={0} />);
+            await screen.findByRole("columnheader", { name: "EcoTrade Local" });
+            const vin = cell(container, 0, "CATDB_VIN");
+            expect(vin).toHaveTextContent("Review");
+            expect(vin).not.toHaveTextContent("No match");
+            expect(vin.querySelector("[title]").getAttribute("title")).toMatch(/outcome is unknown.*never searched again automatically.*CatDB job #324/);
+        });
+
+        it("a stored price stays when the latest attempt fails, with the failure shown under it", async () => {
+            listOperationsBatchVehicles.mockResolvedValue({
+                items: [vehicle(1, { ourdb_total_expected: 320, ourdb_status: "FAILED", catdb_status: "QUEUED", catdb_price_min: 200, catdb_price_max: 300 })],
+                total: 1,
+            });
+            const { container } = render(<VehicleTable batchId={1} refreshKey={0} />);
+            await screen.findByRole("columnheader", { name: "EcoTrade Local" });
+            expect(cell(container, 0, "OUR_DATABASE")).toHaveTextContent("$320.00");
+            expect(cell(container, 0, "OUR_DATABASE")).toHaveTextContent("Failed");
+            expect(cell(container, 0, "CATDB_VIN")).toHaveTextContent("$200");
+            expect(cell(container, 0, "CATDB_VIN")).toHaveTextContent("Queued");
+        });
+
+        it("Engine, Transmission and Scrap say what Parts and Weight are doing", async () => {
+            const noPrices = { engine_value: null, transmission_value: null, cats_value: null, scrap_value: null, known_components_subtotal: null, total_expected_recovery: null, completeness_status: "NO_DATA" };
+            listOperationsBatchVehicles.mockResolvedValue({
+                items: [
+                    vehicle(1, { parts_status: "PROCESSING", scrap_status: "QUEUED", financials: noPrices }),
+                    vehicle(2, { parts_status: "DONE", scrap_status: "NO_DATA", financials: noPrices }),
+                    vehicle(3, { parts_status: "FAILED", scrap_status: "NOT_REQUESTED", financials: noPrices }),
+                ],
+                total: 3,
+            });
+            const { container } = render(<VehicleTable batchId={1} refreshKey={0} />);
+            await screen.findByRole("columnheader", { name: "EcoTrade Local" });
+            const states = (i) => [...row(container, i).querySelectorAll("[data-state]")].map((el) => el.getAttribute("data-state"));
+            expect(states(0)).toEqual(expect.arrayContaining(["RUNNING", "QUEUED"]));
+            expect(states(1)).toEqual(expect.arrayContaining(["NO_MATCH", "NO_DATA"]));
+            expect(states(2)).toEqual(expect.arrayContaining(["FAILED", "NOT_REQUESTED"]));
+            expect(row(container, 1)).not.toHaveTextContent("$");
+        });
+    });
 });
+

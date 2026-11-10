@@ -14,6 +14,7 @@ import { isAll, showingLabel } from "@/lib/pagination";
 import StatusPill from "@/components/catalytic/StatusPill";
 import { CATS_SOURCE_LABEL, OVERALL_STATUS, OVERALL_STATUS_LABEL, OVERALL_STATUS_TONE, LEG_STATUS_TONE, VEHICLE_SORT_FIELDS, PARTS_CONFIDENCE_LABEL } from "@/lib/operations/constants";
 import { formatMoney, completenessMeta, deriveWeightStatus } from "@/lib/operations/format";
+import CellStatus, { LatestAttempt, legState } from "./CellStatus";
 import CatalyticSourceCell from "./CatalyticSourceCell";
 import ColumnsMenu from "@/components/ui/ColumnsMenu";
 import useColumnVisibility from "@/hooks/useColumnVisibility";
@@ -44,14 +45,14 @@ const COLUMNS = [
     { id: "year", label: "Year", cell: (v) => <td key="year" className={`${td} text-white/70 whitespace-nowrap`}>{v.year || "—"}</td> },
     { id: "make", label: "Make", cell: (v) => <td key="make" className={`${td} text-white/80 whitespace-nowrap`}>{v.make || "—"}</td> },
     { id: "model", label: "Model", cell: (v) => <td key="model" className={`${td} text-white/80 whitespace-nowrap`}>{v.model || "—"}</td> },
-    { id: "engine_value", label: "Engine", cell: (v, fin) => <td key="engine_value" className={`${td} text-white/70 whitespace-nowrap`}><ComponentPrice fin={fin} name="engine" value={fin.engine_value} /><WeakPriceTag level={v.engine_price_confidence} /></td> },
-    { id: "transmission_value", label: "Transmission", cell: (v, fin) => <td key="transmission_value" className={`${td} text-white/70 whitespace-nowrap`}><ComponentPrice fin={fin} name="transmission" value={fin.transmission_value} /><WeakPriceTag level={v.transmission_price_confidence} /></td> },
+    { id: "engine_value", label: "Engine", cell: (v, fin) => <td key="engine_value" className={`${td} text-white/70 whitespace-nowrap`}><ComponentPrice fin={fin} name="engine" value={fin.engine_value} status={v.parts_status} doneWithoutValue="NO_MATCH" /><WeakPriceTag level={v.engine_price_confidence} /></td> },
+    { id: "transmission_value", label: "Transmission", cell: (v, fin) => <td key="transmission_value" className={`${td} text-white/70 whitespace-nowrap`}><ComponentPrice fin={fin} name="transmission" value={fin.transmission_value} status={v.parts_status} doneWithoutValue="NO_MATCH" /><WeakPriceTag level={v.transmission_price_confidence} /></td> },
     ...CATALYTIC_COLUMNS.map(({ id, source, label }) => ({
         id, label, source,
         cell: (v) => <td key={id} className={`${td} text-white/70 whitespace-nowrap`}><CatalyticSourceCell source={source} vehicle={v} /></td>,
     })),
     { id: "cats_value", label: "Catalytic (in totals)", defaultVisible: false, cell: (v, fin) => <td key="cats_value" className={`${td} text-white/70 whitespace-nowrap`}><ComponentPrice fin={fin} name="catalytic" value={fin.cats_value} /></td> },
-    { id: "scrap_value", label: "Scrap", cell: (v, fin) => <td key="scrap_value" className={`${td} text-white/70 whitespace-nowrap`}><ComponentPrice fin={fin} name="scrap" value={fin.scrap_value} /></td> },
+    { id: "scrap_value", label: "Scrap", cell: (v, fin) => <td key="scrap_value" className={`${td} text-white/70 whitespace-nowrap`}><ComponentPrice fin={fin} name="scrap" value={fin.scrap_value} status={v.scrap_status} /></td> },
     // Two distinct, separately-sortable columns — never one combined
     // "Total / Known" column: total_expected_recovery is only set for
     // COMPLETE/COMPLETE_WITH_ESTIMATES vehicles, known_components_subtotal
@@ -110,12 +111,17 @@ function WeakPriceTag({ level }) {
 }
 
 // A component's price, marked when the recovery rules exclude it or a manual price replaces it.
-function ComponentPrice({ fin, name, value }) {
+// Phase K.53: without a price, the cell says what its leg is really doing; with one, the latest
+// attempt shows underneath while it runs or after it failed, and the stored price stays.
+function ComponentPrice({ fin, name, value, status, doneWithoutValue = "NO_DATA" }) {
     const recovery = fin.recovery;
     const excluded = recovery?.excluded_components?.includes(name);
+    if (value == null && status) return <CellStatus state={legState(status, { doneWithoutValue })} />;
+    const latest = status && ["QUEUED", "PROCESSING", "FAILED"].includes(status) ? legState(status) : null;
     return (
         <>
             <span className={excluded ? "text-white/30 line-through" : undefined}>{formatMoney(value)}</span>
+            <LatestAttempt state={latest} />
             {recovery?.manual_components?.includes(name) && <div className="text-[10px] font-bold text-sky-300/80">Manual</div>}
             {excluded && <div className="text-[10px] text-white/35">Excluded</div>}
             {name === "catalytic" && recovery && !excluded && fin.cats_source && fin.cats_source !== "MANUAL" && (
@@ -324,14 +330,14 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey, selec
                                         {columns.isVisible(COLUMN_BY_ID.engine_value) && (
                                             <div>
                                                 <div className="text-[10px] text-white/35">Engine</div>
-                                                <ComponentPrice fin={fin} name="engine" value={fin.engine_value} />
+                                                <ComponentPrice fin={fin} name="engine" value={fin.engine_value} status={v.parts_status} doneWithoutValue="NO_MATCH" />
                                                 <WeakPriceTag level={v.engine_price_confidence} />
                                             </div>
                                         )}
                                         {columns.isVisible(COLUMN_BY_ID.transmission_value) && (
                                             <div>
                                                 <div className="text-[10px] text-white/35">Transmission</div>
-                                                <ComponentPrice fin={fin} name="transmission" value={fin.transmission_value} />
+                                                <ComponentPrice fin={fin} name="transmission" value={fin.transmission_value} status={v.parts_status} doneWithoutValue="NO_MATCH" />
                                                 <WeakPriceTag level={v.transmission_price_confidence} />
                                             </div>
                                         )}

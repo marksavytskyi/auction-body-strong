@@ -1,9 +1,9 @@
 "use client";
 
-// Operations -> "Settings -> CatDB Devices & Subscriptions" — Phase K.11.
+// CATS -> CatDB Automation -> "Devices & Subscriptions" — Phase K.11, moved in K.53 from
+// Operations -> Settings without changing what it does.
 //
-// OWNER/ADMIN only — enforced by the existing Operations layout
-// (src/app/operations/layout.js) at the route level, and independently
+// OWNER/ADMIN only — enforced by the CATS admin pages' own gate at the route level, and independently
 // by every API call below (the backend 403s on its own for anyone who
 // reaches this page some other way). Nothing here ever decides
 // authorization itself.
@@ -18,7 +18,7 @@ import { isPageHidden } from "@/lib/pageVisibility";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { ArrowLeft, Loader2, Plus, RefreshCw, Settings2, Smartphone, History, X } from "lucide-react";
+import { Loader2, Plus, RefreshCw, Smartphone, History, X } from "lucide-react";
 
 import {
     listOperationsCatdbSubscriptions,
@@ -472,7 +472,7 @@ function DeviceRow({ device, subscriptions, onChanged }) {
 
 // ─── page ────────────────────────────────────────────────────────────────
 
-export default function CatdbSettingsPage() {
+export default function CatdbDevicesSubscriptions() {
     const [subscriptions, setSubscriptions] = useState(null);
     const [devices, setDevices] = useState(null);
     const [error, setError] = useState("");
@@ -512,21 +512,12 @@ export default function CatdbSettingsPage() {
     }, [subscriptions]);
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-3">
-                <div>
-                    <Link href="/operations" className="inline-flex items-center gap-1.5 text-[11px] text-white/40 hover:text-white/70 mb-2">
-                        <ArrowLeft className="h-3 w-3" /> Back to Operations
-                    </Link>
-                    <h1 className="text-xl font-black uppercase tracking-tight text-white/90 inline-flex items-center gap-2">
-                        <Settings2 className="h-5 w-5 text-emerald-400" /> CatDB Devices &amp; Subscriptions
-                    </h1>
-                    <p className="text-xs text-white/40 mt-1">
-                        Manage CatDB accounts, their monthly quota, and the physical devices assigned to each —
-                        required before enabling automatic CatDB VIN searches in Operations.
-                    </p>
-                </div>
-                <button type="button" onClick={load} className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white" title="Refresh">
+                <p className="text-xs text-white/40">
+                    CatDB accounts, their monthly quota, and the devices assigned to each. Paid VIN searches use these.
+                </p>
+                <button type="button" onClick={load} className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white" title="Refresh" aria-label="Refresh devices and subscriptions">
                     <RefreshCw className="h-4 w-4" />
                 </button>
             </div>

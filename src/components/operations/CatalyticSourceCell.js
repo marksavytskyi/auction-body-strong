@@ -3,6 +3,7 @@
 import React from "react";
 
 import { formatCatdbPrice, formatDate, formatMoney } from "@/lib/operations/format";
+import CellStatus, { LatestAttempt, legState } from "./CellStatus";
 
 // Phase K.49 — one catalytic source's saved result in its own column. Each reads only
 // that source's stored fields: nothing is combined, recalculated or filled in.
@@ -16,11 +17,8 @@ const MATCH_LABEL = {
     REFERENCE_ESTIMATE: "Reference estimate",
 };
 
-const MUTED = "text-white/30";
-
-function State({ text, tone = MUTED }) {
-    return <span className={tone}>{text}</span>;
-}
+// Phase K.53: states use CellStatus, so a spinner appears only for work really running.
+const leaseActive = (until) => Boolean(until) && new Date(`${until}`.endsWith("Z") ? until : `${until}Z`).getTime() > Date.now();
 
 // The Our Database, CatDB VIN, CatDB Local and EcoTrade Local results of one vehicle, by source.
 export function sourceResults(vehicle) {
@@ -41,22 +39,20 @@ function ourDatabase(v) {
             v.ourdb_confidence_label && `Confidence: ${v.ourdb_confidence_label}`,
             v.ourdb_total_low != null && v.ourdb_total_high != null && `Range: ${formatMoney(v.ourdb_total_low)}–${formatMoney(v.ourdb_total_high)}`,
         ];
+        const latest = v.ourdb_status === "DONE" ? null : legState(v.ourdb_status, { leaseActive: leaseActive(v.ourdb_lease_expires_at) });
         return {
             node: (
                 <>
                     <span>{formatMoney(v.ourdb_total_expected)}</span>
                     {v.ourdb_is_estimate && <div className="text-[10px] font-bold text-amber-300/80">Estimate</div>}
+                    <LatestAttempt state={latest} detail="the stored price stays until a new one is found" />
                 </>
             ),
             title: details.filter(Boolean).join("\n"),
         };
     }
-    switch (v.ourdb_status) {
-        case "QUEUED": return { node: <State text="Looking up…" tone="text-sky-300/80" /> };
-        case "FAILED": return { node: <State text="Failed" tone="text-rose-300/80" /> };
-        case "DONE": return { node: <State text="No match" />, title: "Our Database has no sale for this vehicle" };
-        default: return { node: <State text="—" />, title: "Not looked up" };
-    }
+    const state = legState(v.ourdb_status, { doneWithoutValue: "NO_MATCH", leaseActive: leaseActive(v.ourdb_lease_expires_at) });
+    return { node: <CellStatus state={state} detail={state === "NO_MATCH" ? "Our Database has no sale for this vehicle" : undefined} /> };
 }
 
 function catdbVin(v) {
@@ -73,28 +69,34 @@ function catdbVin(v) {
                 <>
                     <span>{formatCatdbPrice(v)}</span>
                     {v.catdb_price_warning && <div className="text-[10px] font-bold text-amber-300/80">Check price</div>}
+                    <LatestAttempt state={CATDB_STATE[v.catdb_status]} detail={CATDB_DETAIL[v.catdb_status]} />
                 </>
             ),
             title: details.filter(Boolean).join("\n"),
         };
     }
-    switch (v.catdb_status) {
-        case "QUEUED":
-        case "PROCESSING": return { node: <State text="Searching…" tone="text-sky-300/80" /> };
-        case "FAILED": return { node: <State text="Failed" tone="text-rose-300/80" /> };
-        case "REVIEW_REQUIRED": return { node: <State text="Review" tone="text-amber-300/80" /> };
-        case "NO_RESULT": return { node: <State text="No match" /> };
-        case "SKIPPED_INELIGIBLE": return { node: <State text="Not eligible" />, title: "No full VIN to search" };
-        default: return { node: <State text="—" />, title: "Not searched" };
-    }
+    const state = CATDB_STATE[v.catdb_status] || (v.catdb_status === "DONE" ? "NO_DATA" : "NOT_REQUESTED");
+    const job = v.catdb_job_id ? ` (CatDB job #${v.catdb_job_id}; details in CATS → CatDB Automation)` : "";
+    return { node: <CellStatus state={state} detail={`${CATDB_DETAIL[v.catdb_status] || ""}${job}`.trim() || undefined} /> };
 }
 
+// CatDB VIN's own states. A timeout is "Requires review", never "No match": the search was
+// submitted and its outcome is unknown.
+const CATDB_STATE = { QUEUED: "QUEUED", PROCESSING: "RUNNING", FAILED: "FAILED", REVIEW_REQUIRED: "REVIEW", NO_RESULT: "NO_MATCH", SKIPPED_INELIGIBLE: "NOT_ELIGIBLE" };
+const CATDB_DETAIL = {
+    QUEUED: "waiting for the CatDB device",
+    PROCESSING: "the CatDB device is searching this VIN",
+    FAILED: "the search failed before a result",
+    REVIEW_REQUIRED: "a search was submitted but its outcome is unknown; it is never searched again automatically",
+    NO_RESULT: "CatDB answered with no result",
+    SKIPPED_INELIGIBLE: "no full VIN to search",
+};
+
 function local(result, name) {
-    if (!result || result.status === "NOT_REQUESTED") return { node: <State text="—" />, title: "Not looked up" };
-    if (result.status === "FAILED") return { node: <State text="Failed" tone="text-rose-300/80" />, title: result.searched_at && `Last lookup: ${formatDate(result.searched_at)}` };
-    if (result.status === "NO_MATCH" || result.price_expected == null) {
-        return { node: <State text="No match" />, title: result.searched_at && `Last lookup: ${formatDate(result.searched_at)}` };
-    }
+    const when = result?.searched_at ? `last lookup ${formatDate(result.searched_at)}` : undefined;
+    if (!result || result.status === "NOT_REQUESTED") return { node: <CellStatus state="NOT_REQUESTED" /> };
+    if (result.status === "FAILED" && result.price_expected == null) return { node: <CellStatus state="FAILED" detail={when} /> };
+    if (result.status === "NO_MATCH" || result.price_expected == null) return { node: <CellStatus state="NO_MATCH" detail={when} /> };
     const details = [
         `Source: ${name}`,
         result.match_type && `Match: ${MATCH_LABEL[result.match_type] || result.match_type}`,

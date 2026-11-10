@@ -37,3 +37,18 @@ export const OUTCOME_FILTERS = [
 ];
 
 export const FINISHED_STATUSES = ["COMPLETED", "FAILED", "CANCELLED", "MANUAL_REVIEW"];
+
+// Phase K.53 — why a queued or running job is where it is (backend queue_state). A device is
+// assigned only when it picks a job up, so a queued job's Device is blank by design.
+export const QUEUE_STATE_LABEL = {
+    PAUSED: "Paused",
+    WAITING_FOR_DEVICE: "Waiting for device",
+    QUEUED: "Waiting its turn",
+    STALE: "Device stopped reporting",
+};
+export const QUEUE_STATE_TONE = {
+    PAUSED: "text-amber-200",
+    WAITING_FOR_DEVICE: "text-amber-200",
+    QUEUED: "text-sky-300/80",
+    STALE: "text-rose-300",
+};

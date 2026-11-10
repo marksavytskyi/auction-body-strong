@@ -242,11 +242,12 @@ describe("OperationsBatchDetailPage", () => {
         expect(toast.success).toHaveBeenCalledWith("Our Database analysis completed — 7 vehicles processed");
     });
 
-    it("lays the page out in the K.52 order, with the vehicles right after processing", async () => {
+    it("lays the page out in the K.53 order, with the vehicles right after processing", async () => {
         getOperationsBatch.mockResolvedValue(doneBatch());
         render(<OperationsBatchDetailPage />);
         await screen.findByTestId("vehicle-table");
-        const order = ["scrap-price", "financial-summary", "processing-progress", "recovery-settings", "processing-controls", "catalytic-card", "import-check", "vehicle-table"];
+        // Phase K.53: Catalytic Processing moved up, directly below Processing Progress.
+        const order = ["scrap-price", "financial-summary", "processing-progress", "catalytic-card", "recovery-settings", "processing-controls", "import-check", "vehicle-table"];
         const nodes = order.map((id) => screen.getByTestId(id));
         for (let i = 1; i < nodes.length; i += 1) {
             expect(nodes[i - 1].compareDocumentPosition(nodes[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

@@ -200,24 +200,22 @@ export default function OperationsBatchDetailPage() {
 
             <ScrapPriceControl onChanged={bumpRefresh} />
 
-            {/* Phase K.52: details stay closed until opened; the vehicles stay close to the top. */}
+            {/* Phase K.53 order: what's happening first, then how to run it, then the rules. All closed by default. */}
             <div className="space-y-2">
                 <FinancialSummaryCards batchId={batch.id} refreshKey={refreshKey} />
                 <ProcessingProgress batchId={batch.id} refreshKey={refreshKey} />
-                <BatchRecoverySettings batchId={batch.id} onChanged={bumpRefresh} />
-            </div>
-
-            <ProcessingControls batch={batch} refreshKey={refreshKey} onBatchUpdated={handleBatchUpdated} />
-
-            <div className="space-y-2">
                 <CatalyticProcessingCard
                     batchId={batch.id}
                     refreshKey={refreshKey}
                     selectedVehicleIds={selectedVehicleIds}
                     onChanged={bumpRefresh}
                 />
-                <ImportCheckCard copartImportId={batch.copart_import_id} />
+                <BatchRecoverySettings batchId={batch.id} onChanged={bumpRefresh} />
             </div>
+
+            <ProcessingControls batch={batch} refreshKey={refreshKey} onBatchUpdated={handleBatchUpdated} />
+
+            <ImportCheckCard copartImportId={batch.copart_import_id} />
 
             <div id="vehicles" className="scroll-mt-2">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

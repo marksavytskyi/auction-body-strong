@@ -12,6 +12,7 @@ const nextConfig = {
             { source: "/cats/admin/corrections", destination: "/cats/converters", permanent: false },
             { source: "/cats/admin/workers", destination: "/cats/admin/users", permanent: false },
             { source: "/cats/admin/workers/:id", destination: "/cats/admin/users?worker=:id", permanent: false },
+            { source: "/operations/settings/catdb", destination: "/cats/admin/catdb?section=subscriptions", permanent: false },
         ];
     },
 };
