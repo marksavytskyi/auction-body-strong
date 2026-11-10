@@ -29,3 +29,10 @@ export const applySalesImportTemplate = (id, templateId) =>
     request(() => axiosInstance.post(at(id, "/apply-template"), { template_id: templateId }), "Failed to apply the template");
 export const commitSalesImport = (id) => request(() => axiosInstance.post(at(id, "/commit")), "Import failed; nothing was saved");
 export const discardSalesImport = (id) => request(() => axiosInstance.post(at(id, "/discard")), "Failed to discard the import");
+
+// K.51 review — linked vs unlinked imported sales. Listing and suggestions only read.
+export const listImportedSales = (params) => request(() => axiosInstance.get("/catalytic/sales/linking", { params }), "Failed to load imported sales");
+export const getLinkSuggestions = (saleId, search) =>
+    request(() => axiosInstance.get(`/catalytic/sales/linking/${encodeURIComponent(saleId)}/suggestions`, { params: search ? { search } : {} }), "Failed to load suggestions");
+export const linkImportedSale = (saleId, converterId) =>
+    request(() => axiosInstance.post(`/catalytic/sales/linking/${encodeURIComponent(saleId)}`, { converter_id: converterId }), "Failed to link the sale");

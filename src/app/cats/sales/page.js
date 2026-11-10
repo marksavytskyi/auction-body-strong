@@ -10,6 +10,7 @@ import SaleForm from "@/components/catalytic/SaleForm";
 import { SourceBadge } from "@/components/catalytic/badges";
 import { useAdminTierGate } from "@/hooks/useRoleGate";
 import SalesImport from "@/components/catalytic/SalesImport";
+import SalesLinking from "@/components/catalytic/SalesLinking";
 
 function fmtMoney(n, currency) {
     if (n === null || n === undefined || !Number.isFinite(Number(n))) return "—";
@@ -33,6 +34,7 @@ export default function SalesPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState("");
     const [importing, setImporting] = useState(false);
+    const [linkRefresh, setLinkRefresh] = useState(0);
 
     const loadSales = useCallback(async () => {
         setIsLoading(true);
@@ -83,8 +85,9 @@ export default function SalesPage() {
                     {importing ? "Close" : "Import a file…"}
                 </button>
             </div>
-            {importing && <SalesImport onImported={loadSales} />}
+            {importing && <SalesImport onImported={() => { loadSales(); setLinkRefresh((k) => k + 1); }} />}
         </section>
+        <SalesLinking refreshKey={linkRefresh} />
         <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
             <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6 h-fit">
                 <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-white/40 font-bold mb-4">
