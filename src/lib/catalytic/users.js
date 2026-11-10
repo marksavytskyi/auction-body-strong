@@ -6,8 +6,8 @@
 
 import { request, axiosInstance } from "./http";
 
-export function listUsers() {
-    return request(() => axiosInstance.get("/users"), "Failed to load users");
+export function listUsers({ includeDeleted = false } = {}) {
+    return request(() => axiosInstance.get("/users", { params: includeDeleted ? { include_deleted: true } : {} }), "Failed to load users");
 }
 
 export function setUserRole(userId, role) {
@@ -16,4 +16,14 @@ export function setUserRole(userId, role) {
 
 export function setUserActive(userId, isActive) {
     return request(() => axiosInstance.patch(`/users/${encodeURIComponent(userId)}/active`, { is_active: isActive }), "Failed to update account status");
+}
+
+// OWNER only. Keeps the account and everything it recorded; ends its access.
+export function deleteUser(userId) {
+    return request(() => axiosInstance.delete(`/users/${encodeURIComponent(userId)}`), "Failed to delete user");
+}
+
+// OWNER only. The user comes back deactivated.
+export function restoreUser(userId) {
+    return request(() => axiosInstance.post(`/users/${encodeURIComponent(userId)}/restore`), "Failed to restore user");
 }

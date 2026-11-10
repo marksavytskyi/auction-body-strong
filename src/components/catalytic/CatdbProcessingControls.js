@@ -56,7 +56,8 @@ function fmtDate(value) {
     return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
-export function ConfirmDialog({ action, busy, onConfirm, onClose }) {
+// children and confirmDisabled let a caller ask for more than one click, such as typing an email.
+export function ConfirmDialog({ action, busy, onConfirm, onClose, children = null, confirmDisabled = false }) {
     const zIndex = useModalLayer(true, busy ? undefined : onClose);
     return createPortal(
         <div
@@ -70,11 +71,12 @@ export function ConfirmDialog({ action, busy, onConfirm, onClose }) {
             <div className="w-full max-w-md space-y-3 rounded-2xl border border-white/10 bg-[#0b0d12] p-5" onClick={(e) => e.stopPropagation()}>
                 <h2 className="text-base font-bold text-white">{action.title}</h2>
                 <p className="text-sm text-white/70">{action.body}</p>
+                {children}
                 <div className="flex justify-end gap-2 pt-1">
                     <button type="button" disabled={busy} onClick={onClose} className="h-10 rounded-xl border border-white/15 px-4 text-sm font-bold text-white/80 disabled:opacity-40">
                         Go back
                     </button>
-                    <button type="button" disabled={busy} onClick={onConfirm} className="inline-flex h-10 items-center gap-2 rounded-xl bg-rose-500 px-4 text-sm font-bold text-white disabled:opacity-60">
+                    <button type="button" disabled={busy || confirmDisabled} onClick={onConfirm} className="inline-flex h-10 items-center gap-2 rounded-xl bg-rose-500 px-4 text-sm font-bold text-white disabled:opacity-60">
                         {busy && <Loader2 className="h-4 w-4 animate-spin" />}
                         {action.confirm}
                     </button>
