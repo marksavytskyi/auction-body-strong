@@ -195,6 +195,11 @@ export default function CatalyticProcessingCard({ batchId, refreshKey, selectedV
     const freeToProcess = plan?.vehicles_to_process ?? 0;
     const scopeEmpty = scope === "SELECTED" && selectedVehicleIds.length === 0;
     const freeBlocked = tickedFree.length ? plan?.blocked_reason : null;
+    // K.52 final: while CatDB is paused (or every device is stopped) the backend refuses paid
+    // approvals. The selection is kept, the row says so, and Run says it runs free sources only.
+    const paidState = overview.global_paused ? "PAUSED" : overview.paid_block_reason ? "UNAVAILABLE" : null;
+    const freeNames = tickedFree.map((source) => SHORT_LABEL[source]).join(", ");
+    const freeOnlyRun = paidTicked && Boolean(paidBlocked) && tickedFree.length > 0;
     const canRun = !busy && !scopeEmpty && Boolean(plan) && (freeToProcess > 0 || (paidTicked && !paidBlocked));
     const sourcesBody = Object.fromEntries(ORDER.map((source) => [SOURCE_FIELD[source], Boolean(draft[source])]));
     const freeSummary = tickedFree.length
@@ -260,14 +265,23 @@ export default function CatalyticProcessingCard({ batchId, refreshKey, selectedV
         }
         setLastRun(outcome);
         const failed = outcome.freeError || (outcome.paid && outcome.paid.ok === false);
-        if (failed) toast.error("Part of the analysis didn't start. See Last run.");
+        if (outcome.paid?.blocked && !outcome.freeError) toast.error(`${paidState === "PAUSED" ? "CatDB is paused" : "CatDB VIN is unavailable"}: only the free sources ran.`);
+        else if (failed) toast.error("Part of the analysis didn't start. See Last run.");
         else toast.success("Catalytic analysis started. See Last run.");
     });
 
     const run = async () => {
         if (running.current || !canRun) return;
         if (!paidTicked) return execute({});
-        if (paidBlocked) return execute({ paidNote: { ok: false, text: `CatDB VIN can't run now: ${paidBlocked}. Nothing paid was queued.` } });
+        if (paidBlocked) {
+            return execute({
+                paidNote: {
+                    ok: false,
+                    blocked: true,
+                    text: `CatDB VIN didn't run: ${paidState === "PAUSED" ? "CatDB is paused" : paidBlocked}. Only ${freeNames} ran; no paid search or reservation was created. CatDB VIN stays selected.`,
+                },
+            });
+        }
         setBusy("preview");
         let preview = null;
         let paidNote = null;
@@ -334,7 +348,19 @@ export default function CatalyticProcessingCard({ batchId, refreshKey, selectedV
                                 <span className="min-w-0">
                                     <span className="font-bold">{CATALYTIC_SOURCE_LABEL[key]}</span>
                                     <span className={`ml-2 rounded px-1.5 py-0.5 text-[9px] font-black tracking-wider ${paid ? "bg-amber-400/15 text-amber-200" : "bg-emerald-400/10 text-emerald-300"}`}>{paid ? "PAID" : "FREE"}</span>
+                                    {paid && paidState && (
+                                        <span data-testid="catdb-vin-paused" className="ml-1.5 rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-black tracking-wider text-amber-100">
+                                            {paidState === "PAUSED" ? "PAUSED" : "UNAVAILABLE"}
+                                        </span>
+                                    )}
                                     <span className="block text-[11px] text-white/40">{SOURCE_HINT[key]}</span>
+                                    {paid && paidState && (
+                                        <span className="block text-[11px] text-amber-200/90">
+                                            {paidState === "PAUSED"
+                                                ? "Paid searches can't start while CatDB is paused. Resume it in CATS → CatDB Automation."
+                                                : `Paid searches can't start now: ${paidBlocked || overview.paid_block_reason}`}
+                                        </span>
+                                    )}
                                 </span>
                             </label>
                             <span className="flex items-center gap-2">
@@ -364,9 +390,15 @@ export default function CatalyticProcessingCard({ batchId, refreshKey, selectedV
                     )}
                     {paidTicked && !paidBlocked && <div className="text-amber-200/80">CatDB VIN is paid: Run counts the VINs it can search and asks you once before anything paid starts.</div>}
                     {paidBlocked && (
-                        <div role="status" className="flex items-start gap-1.5 text-amber-200">
+                        <div role="status" aria-label="CatDB VIN paused" className="flex items-start gap-1.5 text-amber-200">
                             <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-                            <span>CatDB VIN can&apos;t run now: {paidBlocked} <Link href="/cats/admin/catdb" className="underline">CatDB Automation</Link></span>
+                            <span>
+                                {paidState === "PAUSED" ? "CatDB is paused, so CatDB VIN can't run. " : `CatDB VIN can't run now: ${paidBlocked} `}
+                                {tickedFree.length
+                                    ? <>Run will look up only {freeNames}. CatDB VIN stays selected; no paid search or reservation is created. </>
+                                    : <>No free source is ticked, so nothing can run. </>}
+                                <Link href="/cats/admin/catdb" className="underline">CatDB Automation</Link>
+                            </span>
                         </div>
                     )}
                     {!ticked.length && <div>Tick at least one source.</div>}
@@ -381,7 +413,7 @@ export default function CatalyticProcessingCard({ batchId, refreshKey, selectedV
                     className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-500 px-4 text-xs font-bold text-black disabled:opacity-40"
                 >
                     {busy === "run" || busy === "preview" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                    Run Catalytic Analysis
+                    Run Catalytic Analysis{freeOnlyRun ? " (free sources only)" : ""}
                 </button>
 
                 {lastRun && (

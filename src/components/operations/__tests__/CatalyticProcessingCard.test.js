@@ -240,17 +240,20 @@ describe("Catalytic Processing", () => {
         expect(toast.error).toHaveBeenCalled();
     });
 
-    it("free results stand when the paid source can't start, and no confirmation is shown", async () => {
-        getOperationsCatalytic.mockResolvedValue(overview({ paid_block_reason: "CatDB processing is globally paused." }));
+    it("free results stand when the paid source can't start (every device stopped), and no confirmation is shown", async () => {
+        getOperationsCatalytic.mockResolvedValue(overview({ paid_block_reason: "Every CatDB device has a stop request." }));
         await open();
+        expect(screen.getByTestId("catdb-vin-paused")).toHaveTextContent("UNAVAILABLE");
         tick("CatDB VIN");
-        expect(await screen.findByText(/CatDB VIN can't run now: CatDB processing is globally paused/)).toBeInTheDocument();
-        fireEvent.click(await runButton());
+        expect(await screen.findByRole("status", { name: "CatDB VIN paused" })).toHaveTextContent("CatDB VIN can't run now: Every CatDB device has a stop request.");
+        const button = await screen.findByRole("button", { name: "Run Catalytic Analysis (free sources only)" });
+        await waitFor(() => expect(button).toBeEnabled());
+        fireEvent.click(button);
         await waitFor(() => expect(runOperationsCatalyticAnalysis).toHaveBeenCalled());
         expect(screen.queryByRole("dialog")).toBeNull();
         expect(previewOperationsCatdbSearches).not.toHaveBeenCalled();
         expect(approveOperationsCatdbSearches).not.toHaveBeenCalled();
-        expect(await screen.findByRole("status", { name: "Last catalytic analysis" })).toHaveTextContent("Nothing paid was queued.");
+        expect(await screen.findByRole("status", { name: "Last catalytic analysis" })).toHaveTextContent("no paid search or reservation was created");
     });
 
     it("nothing new to search means no confirmation and no approval, with the reasons", async () => {
@@ -349,4 +352,68 @@ describe("Catalytic Processing", () => {
         fireEvent.click(screen.getByRole("button", { name: "About search sources" }));
         expect(screen.getByRole("tooltip")).toHaveTextContent("Recovery Settings → Catalytic price priority");
     });
+
+    describe("while CatDB is paused", () => {
+        const PAUSED = "CatDB processing is globally paused. Resume processing in CatDB administration before starting paid searches.";
+        beforeEach(() => {
+            getOperationsCatalytic.mockResolvedValue(overview({ global_paused: true, paid_block_reason: PAUSED }));
+        });
+        const freeOnlyButton = async () => {
+            const button = await screen.findByRole("button", { name: "Run Catalytic Analysis (free sources only)" });
+            await waitFor(() => expect(button).toBeEnabled());
+            return button;
+        };
+
+        it("marks CatDB VIN as PAUSED and explains it, even when it isn't ticked", async () => {
+            await open();
+            const row = screen.getByRole("checkbox", { name: /CatDB VIN/ }).closest("label");
+            expect(within(row).getByTestId("catdb-vin-paused")).toHaveTextContent("PAUSED");
+            expect(row).toHaveTextContent("Paid searches can't start while CatDB is paused.");
+            expect(screen.getByRole("checkbox", { name: /Our Database/ }).closest("label")).not.toHaveTextContent("PAUSED");
+        });
+
+        it("with CatDB VIN ticked, the page and the button say only the free sources will run", async () => {
+            await open();
+            tick("CatDB VIN");
+            const notice = await screen.findByRole("status", { name: "CatDB VIN paused" });
+            expect(notice).toHaveTextContent("CatDB is paused, so CatDB VIN can't run. Run will look up only Our Database, CatDB Local. CatDB VIN stays selected; no paid search or reservation is created.");
+            expect(await freeOnlyButton()).toBeInTheDocument();
+        });
+
+        it("Run runs the free sources, keeps CatDB VIN selected, and creates nothing paid", async () => {
+            await open();
+            tick("CatDB VIN");
+            fireEvent.click(await freeOnlyButton());
+            await waitFor(() => expect(runOperationsCatalyticAnalysis).toHaveBeenCalledWith(7, { sources: ["OUR_DATABASE", "CATDB_LOCAL", "CATDB_VIN"], scope: "ALL", vehicleIds: undefined }));
+            expect(screen.queryByRole("dialog")).toBeNull();
+            expect(previewOperationsCatdbSearches).not.toHaveBeenCalled();
+            expect(approveOperationsCatdbSearches).not.toHaveBeenCalled();
+            const last = await screen.findByRole("status", { name: "Last catalytic analysis" });
+            expect(last).toHaveTextContent("CatDB VIN didn't run: CatDB is paused. Only Our Database, CatDB Local ran; no paid search or reservation was created. CatDB VIN stays selected.");
+            expect(toast.error).toHaveBeenCalledWith("CatDB is paused: only the free sources ran.");
+        });
+
+        it("with only CatDB VIN ticked, nothing can run and it says why", async () => {
+            await open();
+            tick("Our Database");
+            tick("CatDB Local");
+            tick("CatDB VIN");
+            const notice = await screen.findByRole("status", { name: "CatDB VIN paused" });
+            expect(notice).toHaveTextContent("No free source is ticked, so nothing can run.");
+            expect(screen.getByRole("button", { name: /^Run Catalytic Analysis/ })).toBeDisabled();
+            expect(previewOperationsCatdbSearches).not.toHaveBeenCalled();
+        });
+
+        it("nothing on this page resumes CatDB", async () => {
+            await open();
+            expect(screen.queryByRole("button", { name: /Resume/ })).toBeNull();
+        });
+    });
+
+    it("when CatDB is running, CatDB VIN carries no paused mark", async () => {
+        await open();
+        expect(screen.queryByTestId("catdb-vin-paused")).toBeNull();
+        expect(screen.getByRole("button", { name: "Run Catalytic Analysis" })).toBeInTheDocument();
+    });
 });
+
