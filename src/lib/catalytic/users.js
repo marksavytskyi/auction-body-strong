@@ -27,3 +27,8 @@ export function deleteUser(userId) {
 export function restoreUser(userId) {
     return request(() => axiosInstance.post(`/users/${encodeURIComponent(userId)}/restore`), "Failed to restore user");
 }
+
+// OWNER only. Who changed which account, newest first.
+export function listUserEvents({ userId, limit = 30 } = {}) {
+    return request(() => axiosInstance.get("/users/events", { params: { limit, ...(userId ? { user_id: userId } : {}) } }), "Failed to load recent changes");
+}

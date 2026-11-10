@@ -2,13 +2,13 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import UsersRolesPage from "../page";
-import { deleteUser, listUsers, restoreUser, setUserActive, setUserRole } from "@/lib/catalytic/users";
+import { deleteUser, listUserEvents, listUsers, restoreUser, setUserActive, setUserRole } from "@/lib/catalytic/users";
 import toast from "react-hot-toast";
 
 const auth = vi.hoisted(() => ({ role: "OWNER", email: "owner@example.com" }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }) }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ ready: true, roleReady: true, isLoggedIn: true, role: auth.role, email: auth.email }) }));
-vi.mock("@/lib/catalytic/users", () => ({ listUsers: vi.fn(), setUserRole: vi.fn(), setUserActive: vi.fn(), deleteUser: vi.fn(), restoreUser: vi.fn() }));
+vi.mock("@/lib/catalytic/users", () => ({ listUsers: vi.fn(), listUserEvents: vi.fn(), setUserRole: vi.fn(), setUserActive: vi.fn(), deleteUser: vi.fn(), restoreUser: vi.fn() }));
 vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 
 // Phase K.50 — Users & Roles for any number of owners.
@@ -29,6 +29,7 @@ beforeEach(() => {
     auth.role = "OWNER";
     auth.email = "owner@example.com";
     listUsers.mockResolvedValue(PEOPLE);
+    listUserEvents.mockResolvedValue([]);
     for (const fn of [setUserRole, setUserActive, deleteUser, restoreUser]) fn.mockResolvedValue({});
 });
 
@@ -53,7 +54,7 @@ describe("Users & Roles", () => {
         fireEvent.click(within(dialog).getByRole("button", { name: "Make OWNER" }));
         await waitFor(() => expect(setUserRole).toHaveBeenCalledWith(13, "OWNER"));
         expect(toast.success).toHaveBeenCalledWith("info@example.com is now OWNER");
-        await waitFor(() => expect(listUsers).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(listUserEvents).toHaveBeenCalledTimes(2));
     });
 
     it("Go back changes nothing", async () => {
@@ -111,7 +112,7 @@ describe("Users & Roles", () => {
         await waitFor(() => expect(deleteUser).toHaveBeenCalledWith(8));
         expect(toast.success).toHaveBeenCalledWith("worker@example.com deleted");
         await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-        expect(listUsers).toHaveBeenCalledTimes(2);
+        expect(listUserEvents).toHaveBeenCalledTimes(2);
     });
 
     it("deactivating is separate, reversible, and says so", async () => {
@@ -131,11 +132,11 @@ describe("Users & Roles", () => {
     it("deleted users appear only when asked, and can be restored", async () => {
         render(<UsersRolesPage />);
         await screen.findByRole("table");
-        expect(listUsers).toHaveBeenLastCalledWith({ includeDeleted: false });
+        expect(listUsers).toHaveBeenCalledWith({ includeDeleted: false });
         listUsers.mockResolvedValue([...PEOPLE, user(12, "gone@example.com", "WORKER", { is_active: false, deleted_at: "2026-11-10T09:00:00" })]);
         fireEvent.click(screen.getByLabelText("Show deleted users"));
         await within(await screen.findByRole("table")).findByText("gone@example.com");
-        expect(listUsers).toHaveBeenLastCalledWith({ includeDeleted: true });
+        await waitFor(() => expect(listUsers.mock.calls.filter(([a]) => a.includeDeleted).length).toBeGreaterThanOrEqual(2));
         const gone = rowOf("gone@example.com");
         expect(within(gone).getByText("Deleted")).toBeInTheDocument();
         expect(within(gone).queryByRole("combobox")).toBeNull();
@@ -170,5 +171,23 @@ describe("Users & Roles", () => {
         const cards = screen.getByLabelText("Users");
         expect(within(cards).getAllByRole("button", { name: "Delete" })).toHaveLength(4);
         expect(within(cards).getByLabelText("Role of info@example.com")).toBeInTheDocument();
+    });
+
+    it("shows the recent changes the server logged, by email", async () => {
+        listUserEvents.mockResolvedValue([
+            { id: 2, actor_user_id: 5, target_user_id: 13, action: "OWNER_PROMOTED", previous_value: "ADMIN", new_value: "OWNER", created_at: "2026-11-10T09:00:00" },
+            { id: 1, actor_user_id: 5, target_user_id: 77, action: "DELETED", previous_value: "ACTIVE", new_value: "DELETED", created_at: "2026-11-10T08:00:00" },
+        ]);
+        render(<UsersRolesPage />);
+        const log = await screen.findByRole("region", { name: "Recent changes" });
+        expect(within(log).getByText(/made OWNER \(ADMIN → OWNER\) by owner@example.com/)).toBeInTheDocument();
+        expect(within(log).getByText("user #77")).toBeInTheDocument();
+    });
+
+    it("the table still works when the log can't load", async () => {
+        listUserEvents.mockRejectedValue(new Error("down"));
+        render(<UsersRolesPage />);
+        await screen.findByRole("table");
+        expect(screen.queryByRole("region", { name: "Recent changes" })).toBeNull();
     });
 });

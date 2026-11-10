@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Loader2, ShieldAlert, Lock } from "lucide-react";
 
-import { listUsers, setUserRole, setUserActive, deleteUser, restoreUser } from "@/lib/catalytic/users";
+import { listUsers, listUserEvents, setUserRole, setUserActive, deleteUser, restoreUser } from "@/lib/catalytic/users";
 import { CatalyticApiError } from "@/lib/catalytic/api";
 import { ConfirmDialog } from "@/components/catalytic/CatdbProcessingControls";
 import { useAuth } from "@/hooks/useAuth";
@@ -14,6 +14,37 @@ import { ROLES, isOwnerRole } from "@/lib/rbac";
 // Phase K.50 — this page is for OWNER accounts, and there can be several. Every rule
 // here is a guardrail only: the backend decides, and any refusal is shown as it comes.
 const ROLE_OPTIONS = [ROLES.WORKER, ROLES.MODERATOR, ROLES.ADMIN, ROLES.OWNER];
+
+const EVENT_LABEL = {
+    OWNER_PROMOTED: "made OWNER",
+    OWNER_DEMOTED: "removed from OWNER",
+    ROLE_CHANGED: "role changed",
+    ACTIVATED: "activated",
+    DEACTIVATED: "deactivated",
+    DELETED: "deleted",
+    RESTORED: "restored",
+};
+
+// The log the backend keeps of every change here (Phase K.50).
+function RecentChanges({ events, emailOf }) {
+    if (!events?.length) return null;
+    return (
+        <section aria-label="Recent changes" className="rounded-2xl border border-white/10 bg-black/25 p-4">
+            <h2 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/50">Recent changes</h2>
+            <ul className="space-y-1.5 text-xs text-white/70">
+                {events.map((e) => (
+                    <li key={e.id} className="flex flex-wrap justify-between gap-x-3">
+                        <span>
+                            <b className="text-white/85">{emailOf(e.target_user_id)}</b> {EVENT_LABEL[e.action] || e.action}
+                            {e.previous_value && e.new_value && <> ({e.previous_value} → {e.new_value})</>} by {emailOf(e.actor_user_id)}
+                        </span>
+                        <span className="text-white/40">{new Date(`${e.created_at}Z`).toLocaleString()}</span>
+                    </li>
+                ))}
+            </ul>
+        </section>
+    );
+}
 
 const button = "h-9 rounded-lg border px-2.5 text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed";
 
@@ -126,10 +157,15 @@ export default function UsersRolesPage() {
     const [pending, setPending] = useState(null);
     const [typed, setTyped] = useState("");
     const [busy, setBusy] = useState(false);
+    const [events, setEvents] = useState([]);
+    const [everyone, setEveryone] = useState([]);
 
     const load = useCallback(async () => {
         setIsLoading(true);
         setError("");
+        // The log is secondary: if it fails to load, the table still works.
+        listUserEvents().then(setEvents).catch(() => setEvents([]));
+        listUsers({ includeDeleted: true }).then(setEveryone).catch(() => setEveryone([]));
         try {
             const data = await listUsers({ includeDeleted: showDeleted });
             setUsers(Array.isArray(data) ? data : []);
@@ -259,6 +295,11 @@ export default function UsersRolesPage() {
                     </div>
                 </>
             )}
+
+            <RecentChanges
+                events={events}
+                emailOf={(id) => (everyone || []).find((u) => u.id === id)?.email || `user #${id}`}
+            />
 
             {pending && (
                 <ConfirmDialog
