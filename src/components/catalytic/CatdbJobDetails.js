@@ -67,7 +67,9 @@ export default function CatdbJobDetails({ jobId, onClose, onChanged }) {
         }
     };
 
-    const retryBlocked = job && (job.active_job_for_vin ? `Job #${job.active_job_for_vin} for this VIN is already queued or running` : !job.can_retry ? "Only failed, cancelled or held jobs can be retried" : null);
+    // The server's own reason first: it knows when a new search would pay twice.
+    const retryBlocked = job && (job.active_job_for_vin ? `Job #${job.active_job_for_vin} for this VIN is already queued or running`
+        : !job.can_retry ? (job.retry_block_reason || "Only failed, cancelled or held jobs can be retried") : null);
 
     return createPortal(
         <div role="dialog" aria-modal="true" aria-label={`CatDB job #${jobId}`} style={{ zIndex }}

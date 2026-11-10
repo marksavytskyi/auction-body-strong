@@ -88,7 +88,8 @@ export default function SalesPage() {
             {importing && <SalesImport onImported={() => { loadSales(); setLinkRefresh((k) => k + 1); }} />}
         </section>
         <SalesLinking refreshKey={linkRefresh} />
-        <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
+        {/* minmax(0,…): a wide sales table must scroll inside its card, never widen the page on a phone. */}
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[420px_minmax(0,1fr)]">
             <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6 h-fit">
                 <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-white/40 font-bold mb-4">
                     Record Sale

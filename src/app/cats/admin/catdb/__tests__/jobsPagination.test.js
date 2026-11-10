@@ -153,6 +153,16 @@ describe("CatDB jobs", () => {
         expect(admin.retryJob).toHaveBeenCalledWith(DETAILS.id);
     });
 
+    it("a VIN already searched shows the server's reason it can't be retried", async () => {
+        admin.getJobDetails.mockResolvedValue({ ...DETAILS, can_retry: false, retry_block_reason: "A search was already submitted for this VIN and its outcome is unknown. A new search could pay twice, so the quota gate refuses it." });
+        render(<CatdbAdminPage />);
+        await screen.findByText(/^Showing 1–100/);
+        fireEvent.click(within(jobsTable()).getAllByRole("button", { name: "Details" })[2]);
+        const dialog = await screen.findByRole("dialog");
+        expect(await within(dialog).findByRole("button", { name: "Retry VIN…" })).toBeDisabled();
+        expect(within(dialog).getAllByText(/could pay twice/).length).toBeGreaterThan(0);
+    });
+
     it("retry is offered nowhere when the VIN already has an active job", async () => {
         admin.getJobDetails.mockResolvedValue({ ...DETAILS, active_job_for_vin: 950 });
         render(<CatdbAdminPage />);
