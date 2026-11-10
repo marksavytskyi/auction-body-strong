@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { Loader2, Cpu, Plus, RefreshCw, KeyRound, Copy, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Cpu, Plus, RefreshCw, KeyRound, Copy, ChevronDown, ChevronRight } from "lucide-react";
 
 import {
     getStats,
@@ -10,19 +10,15 @@ import {
     createMachine,
     setMachineActive,
     rotateMachineToken,
-    listJobsPage,
     enqueueJob,
-    cancelJob,
 } from "@/lib/catalytic/catdbAdmin";
+import { listBatches } from "@/lib/catalytic/catdbBatch";
 import CatdbProcessingControls from "@/components/catalytic/CatdbProcessingControls";
 import { CatalyticApiError } from "@/lib/catalytic/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import PageSizeSelect from "@/components/ui/PageSizeSelect";
-import LoadMoreRows from "@/components/ui/LoadMoreRows";
-import usePageSize from "@/hooks/usePageSize";
-import usePagedRows from "@/hooks/usePagedRows";
-import { isAll, showingLabel } from "@/lib/pagination";
+import CatdbJobsPanel from "@/components/catalytic/CatdbJobsPanel";
+import { ConfirmDialog } from "@/components/catalytic/CatdbProcessingControls";
 
 const MACHINE_STATUS_TONE = {
     ONLINE: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
@@ -90,38 +86,77 @@ function NewMachineForm({ onCreated }) {
     );
 }
 
+// How long ago, in words, for a heartbeat.
+function ago(value) {
+    if (!value) return "never";
+    const d = new Date(`${value}`.endsWith("Z") ? value : `${value}Z`);
+    const seconds = Math.max(0, Math.round((Date.now() - d.getTime()) / 1000));
+    if (seconds < 90) return `${seconds}s ago`;
+    if (seconds < 5400) return `${Math.round(seconds / 60)} min ago`;
+    if (seconds < 172800) return `${Math.round(seconds / 3600)} h ago`;
+    return `${Math.round(seconds / 86400)} days ago`;
+}
+
+const STOP_LABEL = { NONE: "No stop request", REQUEST_SENT: "Stop requested, not yet confirmed by the device", WORKER_STOPPED: "Stopped, confirmed by the device" };
+
+function stopState(machine) {
+    if (!machine.stop_requested_at) return "NONE";
+    return machine.stop_acknowledged_at ? "WORKER_STOPPED" : "REQUEST_SENT";
+}
+
+// Phase K.51: the old CatDB Batches page, kept as read-only history. Its pause, resume,
+// cancel and start buttons are gone; batch processing lives in Operations.
+function LegacyBatchHistory() {
+    const [open, setOpen] = useState(false);
+    const [batches, setBatches] = useState(null);
+    useEffect(() => {
+        if (open && batches === null) listBatches({ limit: 100 }).then((d) => setBatches(Array.isArray(d) ? d : [])).catch(() => setBatches([]));
+    }, [open, batches]);
+    return (
+        <section aria-label="Legacy CatDB batches" className="rounded-2xl border border-white/10 bg-white/[0.02]">
+            <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="flex min-h-11 w-full items-center gap-2 px-4 text-left text-xs font-bold uppercase tracking-wider text-white/50">
+                {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />} Legacy CatDB batches (history)
+            </button>
+            {open && (
+                <div className="px-4 pb-4 text-xs text-white/60">
+                    {batches === null ? <Loader2 className="h-4 w-4 animate-spin" /> : !batches.length ? "None." : (
+                        <ul className="space-y-1">
+                            {batches.map((b) => (
+                                <li key={b.id} className="flex flex-wrap justify-between gap-x-3">
+                                    <span>Batch #{b.id} · {b.status} · up to {b.requested_limit} VINs from Copart import #{b.copart_import_id}{b.stopped_reason ? ` · ${b.stopped_reason}` : ""}</span>
+                                    <span className="text-white/40">{fmtDate(b.created_at)}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                    <p className="mt-2 text-[11px] text-white/35">Read-only. Batch processing now lives in Operations; each job of these batches is in the list above.</p>
+                </div>
+            )}
+        </section>
+    );
+}
+
 export default function CatdbAdminPage() {
     const [stats, setStats] = useState(null);
     const [machines, setMachines] = useState(null);
-    const [jobsPage, setJobsPage] = useState(0);
-    // 100 was the fixed number shown before; older jobs weren't reachable at all.
-    const [jobsPageSize, setJobsPageSize] = usePageSize("catdb:jobs:page-size", 100);
     const [jobsRefresh, setJobsRefresh] = useState(0);
-    const fetchJobsPage = useCallback((limit, offset) => listJobsPage({ limit, offset }), []);
-    const {
-        rows: jobs, total: jobsTotal, loadingMore: loadingMoreJobs, loadMoreFailed: loadMoreJobsFailed,
-        error: jobsLoadError, hasMore: moreJobs, loadMore: loadMoreJobs,
-    } = usePagedRows({ fetchPage: fetchJobsPage, pageSize: jobsPageSize, page: jobsPage, refreshKey: jobsRefresh });
-    const jobsError = jobsLoadError ? (jobsLoadError instanceof CatalyticApiError ? jobsLoadError.message : "Failed to load jobs") : "";
-    const allJobs = isAll(jobsPageSize);
-    const jobsTotalPages = allJobs ? 1 : Math.max(1, Math.ceil(jobsTotal / jobsPageSize));
-    const changeJobsPageSize = (next) => {
-        setJobsPage(0);
-        setJobsPageSize(next);
-    };
-    const [cancellingId, setCancellingId] = useState(null);
     const [vin, setVin] = useState("");
+    const [confirmVin, setConfirmVin] = useState(null);
     const [enqueuing, setEnqueuing] = useState(false);
+    const [paused, setPaused] = useState(null);
 
     const loadStats = useCallback(() => {
         getStats().then(setStats).catch(() => setStats(null));
     }, []);
 
     const loadMachines = useCallback(() => {
-        listMachines().then((d) => setMachines(Array.isArray(d) ? d : [])).catch(() => setMachines(null));
+        listMachines().then((d) => {
+            const list = Array.isArray(d) ? d : [];
+            setMachines(list);
+            if (list.length) setPaused(Boolean(list[0].dispatch_paused));
+        }).catch(() => setMachines(null));
     }, []);
 
-    // Reloads in place, keeping however many jobs are shown.
     const loadJobs = useCallback(() => setJobsRefresh((key) => key + 1), []);
 
     useEffect(() => {
@@ -129,18 +164,24 @@ export default function CatdbAdminPage() {
         loadMachines();
     }, [loadStats, loadMachines]);
 
-    const handleEnqueue = async (e) => {
+    // A new VIN may use a paid search, so it asks first.
+    const askEnqueue = (e) => {
         e.preventDefault();
         const v = vin.trim().toUpperCase();
         if (v.length !== 17) {
             toast.error("VIN must be 17 characters");
             return;
         }
+        setConfirmVin(v);
+    };
+
+    const enqueue = async () => {
         setEnqueuing(true);
         try {
-            await enqueueJob({ vin: v });
-            toast.success("CatDB job queued");
+            const job = await enqueueJob({ vin: confirmVin });
+            toast.success(`CatDB job #${job.id} queued`);
             setVin("");
+            setConfirmVin(null);
             loadJobs();
             loadStats();
         } catch (e2) {
@@ -150,37 +191,13 @@ export default function CatdbAdminPage() {
         }
     };
 
-    const handleCancelJob = async (job) => {
-        if (!confirm(`Cancel job #${job.id} (${job.vin})? It won't be retried. Completed results are kept. A search already submitted can't be stopped.`)) return;
-        setCancellingId(job.id);
-        try {
-            const result = await cancelJob(job.id);
-            const messages = {
-                CANCELLED: "Job cancelled",
-                ALREADY_CANCELLED: "Job was already cancelled",
-                ALREADY_FINISHED: "Job had already finished, so nothing changed",
-            };
-            if (result.outcome === "SEARCH_ALREADY_SUBMITTED") {
-                toast.error("Not cancelled: its search was already submitted. The result will still be saved, and it won't retry.");
-            } else {
-                toast.success(messages[result.outcome] || result.outcome);
-            }
-            loadJobs();
-            loadStats();
-        } catch (error) {
-            toast.error(error instanceof CatalyticApiError ? error.message : "Failed to cancel job");
-        } finally {
-            setCancellingId(null);
-        }
-    };
-
     return (
         <div className="space-y-6">
             <div>
                 <h1 className="text-xl font-black uppercase tracking-tight text-white/90 inline-flex items-center gap-2">
                     <Cpu className="h-5 w-5 text-sky-400" /> CatDB Automation
                 </h1>
-                <p className="text-xs text-white/40 mt-1">Admin-only. Workers never see this — CatDB pricing/status is not exposed to the WORKER role.</p>
+                <p className="text-xs text-white/40 mt-1">Paid VIN searches and the Android devices that run them. Admin-only; vehicle batches are in Operations.</p>
             </div>
 
             <CatdbProcessingControls onChanged={() => { loadJobs(); loadStats(); loadMachines(); }} />
@@ -199,7 +216,6 @@ export default function CatdbAdminPage() {
                     </div>
                 ))}
             </div>
-
             {stats?.recent_errors?.length > 0 && (
                 <div className="rounded-2xl border border-rose-500/20 bg-rose-500/[0.04] p-4">
                     <div className="text-xs font-bold uppercase tracking-wider text-rose-300 mb-2">Recent Errors</div>
@@ -221,6 +237,10 @@ export default function CatdbAdminPage() {
                     <button type="button" onClick={loadMachines} className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white"><RefreshCw className="h-3.5 w-3.5" /></button>
                 </div>
 
+                <p className="text-[11px] text-white/35">
+                    A heartbeat only means the device&apos;s app is reachable. It runs searches only while CatDB processing is running and it has no stop request.
+                </p>
+
                 <NewMachineForm onCreated={loadMachines} />
 
                 {machines === null ? (
@@ -234,9 +254,15 @@ export default function CatdbAdminPage() {
                                 <div>
                                     <div className="font-bold text-sm text-white/90">{m.name}</div>
                                     <div className="text-[11px] text-white/40">
-                                        {m.device_identifier || "unknown device"} · last seen {fmtDate(m.last_seen_at)}
-                                        {m.current_job_id && <span className="text-sky-300"> · running job #{m.current_job_id}</span>}
+                                        {m.device_identifier || "unknown device"} · {m.is_active ? "registered" : "token revoked"}
+                                        {m.current_job_id && <span className="text-sky-300"> · working on job #{m.current_job_id}</span>}
                                     </div>
+                                    <dl className="mt-1 grid gap-x-4 gap-y-0.5 text-[11px] text-white/55 sm:grid-cols-2">
+                                        <div>Last heartbeat: <b className="text-white/75">{ago(m.last_seen_at)}</b> ({fmtDate(m.last_seen_at)})</div>
+                                        <div>App reports: <b className="text-white/75">{m.effective_status || m.status}</b></div>
+                                        <div>{STOP_LABEL[stopState(m)]}</div>
+                                        <div>CatDB processing: <b className={m.dispatch_paused ? "text-amber-200" : "text-emerald-300"}>{m.dispatch_paused ? "paused for every device" : "running"}</b></div>
+                                    </dl>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <MachineStatusBadge status={m.effective_status || m.status} />
@@ -282,91 +308,28 @@ export default function CatdbAdminPage() {
             <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6 space-y-4">
                 <div className="flex items-center justify-between flex-wrap gap-3">
                     <h2 className="text-xs font-bold uppercase tracking-wider text-white/40">CatDB Jobs</h2>
-                    <form onSubmit={handleEnqueue} className="flex gap-2">
-                        <Input value={vin} onChange={(e) => setVin(e.target.value)} maxLength={17} placeholder="VIN to queue" className="h-9 w-44 rounded-xl bg-white/5 border-white/10 font-mono uppercase text-xs" />
-                        <Button type="submit" size="sm" className="h-9 rounded-xl px-3" isLoading={enqueuing}>Enqueue</Button>
+                    <form onSubmit={askEnqueue} className="flex gap-2">
+                        <Input value={vin} onChange={(e) => setVin(e.target.value)} maxLength={17} placeholder="VIN to queue" aria-label="VIN to queue" className="h-9 w-44 rounded-xl bg-white/5 border-white/10 font-mono uppercase text-xs" />
+                        <Button type="submit" size="sm" className="h-9 rounded-xl px-3">Enqueue…</Button>
                     </form>
                 </div>
-
-                {jobsError ? (
-                    <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">{jobsError}</div>
-                ) : jobs === null ? (
-                    <div className="flex items-center gap-2 text-white/40 text-sm py-6 justify-center"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
-                ) : !jobs.length ? (
-                    <div className="text-xs text-white/35 italic">No jobs yet.</div>
-                ) : (
-                    <div className="overflow-auto rounded-xl border border-white/10 bg-black/25 max-h-[50vh]">
-                        <table className="w-full text-xs">
-                            <thead className="bg-black/40 sticky top-0">
-                                <tr>
-                                    {["VIN", "Status", "Attempts", "Worker", "Queued", "Error", ""].map((h) => (
-                                        <th key={h} className="px-3 py-2 text-left uppercase tracking-wider text-white/50 font-bold border-b border-white/10 whitespace-nowrap">{h}</th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {jobs.map((j) => (
-                                    <tr key={j.id} className="odd:bg-white/[0.02]">
-                                        <td className="px-3 py-2 border-b border-white/5 font-mono text-white/80 whitespace-nowrap">{j.vin}</td>
-                                        <td className="px-3 py-2 border-b border-white/5 whitespace-nowrap">{j.status}</td>
-                                        <td className="px-3 py-2 border-b border-white/5 text-white/60 whitespace-nowrap">{j.attempt_count}/{j.max_attempts}</td>
-                                        <td className="px-3 py-2 border-b border-white/5 text-white/60 whitespace-nowrap">{j.worker_id ?? "—"}</td>
-                                        <td className="px-3 py-2 border-b border-white/5 text-white/40 whitespace-nowrap">{fmtDate(j.queued_at)}</td>
-                                        <td className="px-3 py-2 border-b border-white/5 text-rose-300/80 max-w-[220px] truncate" title={j.error_message}>{j.error_message}</td>
-                                        <td className="px-3 py-2 border-b border-white/5 whitespace-nowrap">
-                                            {["PENDING", "LEASED", "RUNNING"].includes(j.status) && (
-                                                <button
-                                                    type="button"
-                                                    disabled={cancellingId === j.id}
-                                                    onClick={() => handleCancelJob(j)}
-                                                    className="rounded-lg border border-rose-500/40 px-2 py-1 font-bold text-rose-300 disabled:opacity-40"
-                                                >
-                                                    Cancel Job
-                                                </button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                        <LoadMoreRows hasMore={moreJobs} loading={loadingMoreJobs} failed={loadMoreJobsFailed} onLoadMore={loadMoreJobs} loadedCount={jobs.length} />
-                    </div>
-                )}
-
-                {jobs && jobs.length > 0 && (
-                    <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-white/40">
-                        <span>
-                            {showingLabel({ pageSize: jobsPageSize, page: jobsPage, shown: jobs.length, total: jobsTotal, noun: "job" })}
-                            {!allJobs && jobsTotalPages > 1 && <> · page {jobsPage + 1} of {jobsTotalPages}</>}
-                        </span>
-                        <div className="flex items-center gap-2">
-                            <PageSizeSelect value={jobsPageSize} onChange={changeJobsPageSize} />
-                            {!allJobs && (
-                                <>
-                                    <button
-                                        type="button"
-                                        disabled={jobsPage === 0}
-                                        onClick={() => setJobsPage((p) => Math.max(0, p - 1))}
-                                        aria-label="Previous page"
-                                        className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed sm:h-8 sm:w-8"
-                                    >
-                                        <ChevronLeft className="h-4 w-4" />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        disabled={jobsPage + 1 >= jobsTotalPages}
-                                        onClick={() => setJobsPage((p) => p + 1)}
-                                        aria-label="Next page"
-                                        className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed sm:h-8 sm:w-8"
-                                    >
-                                        <ChevronRight className="h-4 w-4" />
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                )}
+                <CatdbJobsPanel refreshKey={jobsRefresh} onChanged={() => { loadStats(); loadMachines(); }} />
             </div>
+
+            <LegacyBatchHistory />
+
+            {confirmVin && (
+                <ConfirmDialog
+                    action={{
+                        title: `Queue a CatDB search for ${confirmVin}?`,
+                        body: `This may use a paid search from your CatDB subscription. ${paused ? "CatDB processing is paused, so the job waits until it is resumed." : "CatDB processing is running, so a device may pick it up right away."} A VIN that is already queued or running isn't queued twice.`,
+                        confirm: "Queue search",
+                    }}
+                    busy={enqueuing}
+                    onConfirm={enqueue}
+                    onClose={() => setConfirmVin(null)}
+                />
+            )}
         </div>
     );
 }

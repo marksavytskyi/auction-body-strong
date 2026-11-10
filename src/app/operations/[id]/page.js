@@ -18,6 +18,7 @@ import BatchRecoverySettings from "@/components/operations/BatchRecoverySettings
 import CatalyticProcessingCard from "@/components/operations/CatalyticProcessingCard";
 import ScrapPriceControl from "@/components/operations/ScrapPriceControl";
 import VehicleTable from "@/components/operations/VehicleTable";
+import ImportCheckCard from "@/components/operations/ImportCheckCard";
 import dynamic from "next/dynamic";
 
 // Opened on demand, so the batch table doesn't wait for it.
@@ -204,6 +205,8 @@ export default function OperationsBatchDetailPage() {
             <BatchRecoverySettings batchId={batch.id} onChanged={bumpRefresh} />
 
             <ProcessingProgress batchId={batch.id} refreshKey={refreshKey} />
+
+            <ImportCheckCard copartImportId={batch.copart_import_id} />
 
             <ProcessingControls batch={batch} refreshKey={refreshKey} onBatchUpdated={handleBatchUpdated} />
 

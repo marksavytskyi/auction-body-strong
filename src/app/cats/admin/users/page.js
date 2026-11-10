@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import { Loader2, ShieldAlert, Lock } from "lucide-react";
 
@@ -8,11 +9,15 @@ import { listUsers, listUserEvents, setUserRole, setUserActive, deleteUser, rest
 import { CatalyticApiError } from "@/lib/catalytic/api";
 import { ConfirmDialog } from "@/components/catalytic/CatdbProcessingControls";
 import { useAuth } from "@/hooks/useAuth";
-import { useOwnerOnlyGate } from "@/hooks/useRoleGate";
-import { ROLES, isOwnerRole } from "@/lib/rbac";
+import { useAdminTierGate } from "@/hooks/useRoleGate";
+import { ROLES, isOwnerRole, isWorkerRole } from "@/lib/rbac";
+import WorkerDetailsDialog from "@/components/catalytic/WorkerDetailsDialog";
 
-// Phase K.50 — this page is for OWNER accounts, and there can be several. Every rule
-// here is a guardrail only: the backend decides, and any refusal is shown as it comes.
+// Phase K.50 — owners manage every account here, and there can be several.
+// Phase K.51 — ADMIN sees this page too, in the shape the old Workers page had: the
+// list, Worker Details, and activating or deactivating workers and moderators. Owner
+// actions (roles, delete, restore, the change log) stay with owners. Every rule here is
+// a guardrail only: the backend decides, and any refusal is shown as it comes.
 const ROLE_OPTIONS = [ROLES.WORKER, ROLES.MODERATOR, ROLES.ADMIN, ROLES.OWNER];
 
 const EVENT_LABEL = {
@@ -98,13 +103,36 @@ function dialogFor(pending) {
     };
 }
 
-function UserActions({ user, isSelf, lastOwner, onAsk }) {
+function UserActions({ user, isSelf, lastOwner, onAsk, ownerView, onWorkerDetails }) {
+    const details = isWorkerRole(user.role) && (
+        <button type="button" onClick={() => onWorkerDetails(user)} className={`${button} border-white/15 text-white/80`}>Worker Details</button>
+    );
     if (user.deleted_at) {
-        return <button type="button" onClick={() => onAsk({ kind: "restore", user })} className={`${button} border-white/15 text-white/80`}>Restore</button>;
+        return ownerView ? (
+            <div className="flex flex-wrap items-center gap-2">
+                {details}
+                <button type="button" onClick={() => onAsk({ kind: "restore", user })} className={`${button} border-white/15 text-white/80`}>Restore</button>
+            </div>
+        ) : details || null;
+    }
+    // ADMIN keeps what the Workers page gave it: activating workers and moderators.
+    if (!ownerView) {
+        const mayToggle = !isSelf && [ROLES.WORKER, ROLES.MODERATOR].includes(user.role);
+        return (
+            <div className="flex flex-wrap items-center gap-2">
+                {details}
+                {mayToggle && (
+                    <button type="button" onClick={() => onAsk({ kind: user.is_active ? "deactivate" : "activate", user })} className={`${button} border-white/15 text-white/80`}>
+                        {user.is_active ? "Deactivate" : "Activate"}
+                    </button>
+                )}
+            </div>
+        );
     }
     const locked = lockReason(user, { isSelf, lastOwner });
     return (
         <div className="flex flex-wrap items-center gap-2" title={locked || undefined}>
+            {details}
             <button
                 type="button"
                 disabled={Boolean(locked)}
@@ -125,8 +153,9 @@ function UserActions({ user, isSelf, lastOwner, onAsk }) {
     );
 }
 
-function RoleControl({ user, isSelf, lastOwner, onAsk }) {
-    const locked = user.deleted_at ? "Restore the user to change their role" : lockReason(user, { isSelf, lastOwner });
+function RoleControl({ user, isSelf, lastOwner, onAsk, ownerView }) {
+    const locked = !ownerView ? "Only an owner changes roles"
+        : user.deleted_at ? "Restore the user to change their role" : lockReason(user, { isSelf, lastOwner });
     if (locked) {
         return (
             <span className="inline-flex items-center gap-1.5 text-xs font-bold text-white/60" title={locked}>
@@ -147,9 +176,13 @@ function RoleControl({ user, isSelf, lastOwner, onAsk }) {
     );
 }
 
-export default function UsersRolesPage() {
-    const { ready } = useOwnerOnlyGate();
-    const { email: myEmail } = useAuth();
+function UsersRolesContent() {
+    const { ready } = useAdminTierGate();
+    const { email: myEmail, role: myRole } = useAuth();
+    const ownerView = isOwnerRole(myRole);
+    const searchParams = useSearchParams();
+    // The old /cats/admin/workers/:id redirects here with ?worker=:id.
+    const [workerId, setWorkerId] = useState(() => Number(searchParams.get("worker")) || null);
     const [users, setUsers] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState("");
@@ -163,9 +196,11 @@ export default function UsersRolesPage() {
     const load = useCallback(async () => {
         setIsLoading(true);
         setError("");
-        // The log is secondary: if it fails to load, the table still works.
-        listUserEvents().then(setEvents).catch(() => setEvents([]));
-        listUsers({ includeDeleted: true }).then(setEveryone).catch(() => setEveryone([]));
+        // The log is secondary and owner-only: if it fails to load, the table still works.
+        if (ownerView) {
+            listUserEvents().then(setEvents).catch(() => setEvents([]));
+            listUsers({ includeDeleted: true }).then(setEveryone).catch(() => setEveryone([]));
+        }
         try {
             const data = await listUsers({ includeDeleted: showDeleted });
             setUsers(Array.isArray(data) ? data : []);
@@ -175,7 +210,7 @@ export default function UsersRolesPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [showDeleted]);
+    }, [showDeleted, ownerView]);
 
     useEffect(() => {
         if (ready) load();
@@ -224,13 +259,17 @@ export default function UsersRolesPage() {
                 <div>
                     <h1 className="text-xl font-black uppercase tracking-tight text-white/90">Users &amp; Roles</h1>
                     <p className="text-xs text-white/40 mt-1">
-                        Owners manage every account here, including other owners. You can&apos;t change your own account, and the last active owner is always kept.
+                        {ownerView
+                            ? "Owners manage every account here, including other owners. You can't change your own account, and the last active owner is always kept."
+                            : "See every account and each worker's submissions. Activating or deactivating workers and moderators is here too; owners manage roles."}
                     </p>
                 </div>
-                <label className="inline-flex items-center gap-2 text-xs text-white/60">
-                    <input type="checkbox" checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)} className="h-4 w-4" />
-                    Show deleted users
-                </label>
+                {ownerView && (
+                    <label className="inline-flex items-center gap-2 text-xs text-white/60">
+                        <input type="checkbox" checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)} className="h-4 w-4" />
+                        Show deleted users
+                    </label>
+                )}
             </div>
 
             {isLoading && !users ? (
@@ -261,11 +300,11 @@ export default function UsersRolesPage() {
                                             <td className="px-4 py-2.5 border-b border-white/5 text-white/85 whitespace-nowrap">
                                                 {u.email} {facts.isSelf && <span className="text-[10px] text-white/30">(you)</span>}
                                             </td>
-                                            <td className="px-4 py-2.5 border-b border-white/5"><RoleControl user={u} {...facts} onAsk={ask} /></td>
+                                            <td className="px-4 py-2.5 border-b border-white/5"><RoleControl user={u} {...facts} onAsk={ask} ownerView={ownerView} /></td>
                                             <td className="px-4 py-2.5 border-b border-white/5">
                                                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${status.tone}`}>{status.label}</span>
                                             </td>
-                                            <td className="px-4 py-2.5 border-b border-white/5"><UserActions user={u} {...facts} onAsk={ask} /></td>
+                                            <td className="px-4 py-2.5 border-b border-white/5"><UserActions user={u} {...facts} onAsk={ask} ownerView={ownerView} onWorkerDetails={(w) => setWorkerId(w.id)} /></td>
                                         </tr>
                                     );
                                 })}
@@ -286,8 +325,8 @@ export default function UsersRolesPage() {
                                         <span className={`shrink-0 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${status.tone}`}>{status.label}</span>
                                     </div>
                                     <div className="flex flex-wrap items-center justify-between gap-2">
-                                        <RoleControl user={u} {...facts} onAsk={ask} />
-                                        <UserActions user={u} {...facts} onAsk={ask} />
+                                        <RoleControl user={u} {...facts} onAsk={ask} ownerView={ownerView} />
+                                        <UserActions user={u} {...facts} onAsk={ask} ownerView={ownerView} onWorkerDetails={(w) => setWorkerId(w.id)} />
                                     </div>
                                 </div>
                             );
@@ -296,10 +335,14 @@ export default function UsersRolesPage() {
                 </>
             )}
 
-            <RecentChanges
+            {workerId && (users || []).some((u) => u.id === workerId) && (
+                <WorkerDetailsDialog user={(users || []).find((u) => u.id === workerId)} onClose={() => setWorkerId(null)} />
+            )}
+
+            {ownerView && <RecentChanges
                 events={events}
                 emailOf={(id) => (everyone || []).find((u) => u.id === id)?.email || `user #${id}`}
-            />
+            />}
 
             {pending && (
                 <ConfirmDialog
@@ -324,5 +367,13 @@ export default function UsersRolesPage() {
                 </ConfirmDialog>
             )}
         </div>
+    );
+}
+
+export default function UsersRolesPage() {
+    return (
+        <Suspense fallback={null}>
+            <UsersRolesContent />
+        </Suspense>
     );
 }

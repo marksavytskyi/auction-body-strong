@@ -2,13 +2,14 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { Loader2, History, RefreshCw } from "lucide-react";
+import { Loader2, History, RefreshCw, FileSpreadsheet } from "lucide-react";
 
 import { createSale, listSales, CatalyticApiError } from "@/lib/catalytic/api";
 import { pick } from "@/lib/catalytic/normalize";
 import SaleForm from "@/components/catalytic/SaleForm";
 import { SourceBadge } from "@/components/catalytic/badges";
 import { useAdminTierGate } from "@/hooks/useRoleGate";
+import SalesImport from "@/components/catalytic/SalesImport";
 
 function fmtMoney(n, currency) {
     if (n === null || n === undefined || !Number.isFinite(Number(n))) return "—";
@@ -31,6 +32,7 @@ export default function SalesPage() {
     const [sales, setSales] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState("");
+    const [importing, setImporting] = useState(false);
 
     const loadSales = useCallback(async () => {
         setIsLoading(true);
@@ -70,6 +72,19 @@ export default function SalesPage() {
     if (!ready) return null;
 
     return (
+        <div className="space-y-6">
+        <section aria-label="Import sales" className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-white/40 font-bold">
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" /> Import Sales
+                </div>
+                <button type="button" aria-expanded={importing} onClick={() => setImporting((v) => !v)}
+                    className="h-9 rounded-lg border border-white/15 px-3 text-xs font-bold text-white/80">
+                    {importing ? "Close" : "Import a file…"}
+                </button>
+            </div>
+            {importing && <SalesImport onImported={loadSales} />}
+        </section>
         <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
             <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6 h-fit">
                 <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-white/40 font-bold mb-4">
@@ -137,6 +152,7 @@ export default function SalesPage() {
                     </div>
                 )}
             </div>
+        </div>
         </div>
     );
 }

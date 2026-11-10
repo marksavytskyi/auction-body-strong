@@ -39,6 +39,7 @@ vi.mock("@/components/operations/ExportCsvButton", () => ({ default: () => <div 
 vi.mock("@/components/operations/CatalyticProcessingCard", () => ({ default: () => <div data-testid="catalytic-card" /> }));
 vi.mock("@/components/operations/ScrapPriceControl", () => ({ default: () => <div data-testid="scrap-price" /> }));
 vi.mock("@/components/operations/VehicleDetailModal", () => ({ default: () => null }));
+vi.mock("@/components/operations/ImportCheckCard", () => ({ default: ({ copartImportId }) => <div data-testid="import-check" data-import={copartImportId} /> }));
 // A minimal stand-in for the real ProcessingControls — exposes a single
 // button per leg that calls onBatchUpdated exactly like the real
 // component's Start button does (including the leg key, see

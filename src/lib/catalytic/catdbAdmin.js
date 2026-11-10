@@ -106,3 +106,33 @@ export function stopWorker(id) {
 export function clearWorkerStop(id) {
     return request(() => axiosInstance.post(`${BASE}/workers/${encodeURIComponent(id)}/clear-stop`), "Failed to clear stop request");
 }
+
+// ─── Phase K.51: job administration ─────────────────────────────────────
+// Reading and archiving never queue a search. retryJob queues one new job for the VIN
+// and must only be called after the person confirmed it may use a paid search.
+
+export function listJobTable(params = {}) {
+    return request(() => axiosInstance.get(`${BASE}/job-list`, { params }), "Failed to load CatDB jobs");
+}
+
+export function getJobDetails(id) {
+    return request(() => axiosInstance.get(`${BASE}/jobs/${encodeURIComponent(id)}/details`), "Failed to load the job");
+}
+
+export function retryJob(id) {
+    return request(
+        () => axiosInstance.post(`${BASE}/jobs/${encodeURIComponent(id)}/retry`, { confirm_paid_search: true }),
+        "Failed to queue the retry"
+    );
+}
+
+export function archiveJobs({ jobIds, statuses } = {}) {
+    return request(
+        () => axiosInstance.post(`${BASE}/jobs/archive`, { job_ids: jobIds, statuses }),
+        "Failed to archive jobs"
+    );
+}
+
+export function unarchiveJobs(jobIds) {
+    return request(() => axiosInstance.post(`${BASE}/jobs/unarchive`, { job_ids: jobIds }), "Failed to restore jobs");
+}

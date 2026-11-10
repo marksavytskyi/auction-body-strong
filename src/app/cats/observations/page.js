@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
-import { Loader2, ClipboardList, RefreshCw, Info } from "lucide-react";
+import React, { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Loader2, ClipboardList, RefreshCw, Info, Plus } from "lucide-react";
 
 import { listObservations, CatalyticApiError } from "@/lib/catalytic/api";
 import { SourceBadge } from "@/components/catalytic/badges";
 import { useAdminTierGate } from "@/hooks/useRoleGate";
+import RecordObservationPanel from "@/components/catalytic/RecordObservationPanel";
 
 function fmtDate(s) {
     if (!s) return "—";
@@ -20,8 +22,11 @@ function fmtDate(s) {
 // GAPS in the delivery report: cross-referencing every capture to find a
 // matching approved_observation_id would mean downloading the entire
 // capture history, which this page deliberately does not do.
-export default function ObservationsAdminPage() {
+function ObservationsAdminContent() {
     const { ready } = useAdminTierGate();
+    const searchParams = useSearchParams();
+    // Lookup's "Record observation" lands here with ?record=1 and the chosen position/code.
+    const [recording, setRecording] = useState(searchParams.get("record") === "1");
     const [observations, setObservations] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState("");
@@ -55,8 +60,22 @@ export default function ObservationsAdminPage() {
                     </h1>
                     <p className="text-xs text-white/40 mt-1">Trusted catalytic knowledge base — every row here already contributed to pricing/confidence.</p>
                 </div>
-                <button type="button" onClick={load} className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white"><RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} /></button>
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        aria-expanded={recording}
+                        onClick={() => setRecording((value) => !value)}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/15 px-3 text-xs font-bold text-white/80 hover:bg-white/10"
+                    >
+                        <Plus className="h-3.5 w-3.5" /> {recording ? "Close" : "Record Observation"}
+                    </button>
+                    <button type="button" onClick={load} className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white"><RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} /></button>
+                </div>
             </div>
+
+            {recording && (
+                <RecordObservationPanel initialPositionCode={searchParams.get("position")} initialCode={searchParams.get("code")} />
+            )}
 
             <div className="rounded-xl border border-sky-500/15 bg-sky-500/[0.04] p-3 flex items-start gap-2">
                 <Info className="h-4 w-4 text-sky-400 shrink-0 mt-0.5" />
@@ -99,5 +118,13 @@ export default function ObservationsAdminPage() {
                 </div>
             )}
         </div>
+    );
+}
+
+export default function ObservationsAdminPage() {
+    return (
+        <Suspense fallback={null}>
+            <ObservationsAdminContent />
+        </Suspense>
     );
 }

@@ -3,10 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import UsersRolesPage from "../page";
 import { deleteUser, listUserEvents, listUsers, restoreUser, setUserActive, setUserRole } from "@/lib/catalytic/users";
+import { listQueue } from "@/lib/catalytic/moderation";
 import toast from "react-hot-toast";
 
 const auth = vi.hoisted(() => ({ role: "OWNER", email: "owner@example.com" }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }) }));
+const nav = vi.hoisted(() => ({ params: new URLSearchParams() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }), useSearchParams: () => nav.params }));
+vi.mock("@/lib/catalytic/moderation", () => ({ listQueue: vi.fn() }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ ready: true, roleReady: true, isLoggedIn: true, role: auth.role, email: auth.email }) }));
 vi.mock("@/lib/catalytic/users", () => ({ listUsers: vi.fn(), listUserEvents: vi.fn(), setUserRole: vi.fn(), setUserActive: vi.fn(), deleteUser: vi.fn(), restoreUser: vi.fn() }));
 vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }));
@@ -28,6 +31,11 @@ beforeEach(() => {
     vi.clearAllMocks();
     auth.role = "OWNER";
     auth.email = "owner@example.com";
+    nav.params = new URLSearchParams();
+    listQueue.mockResolvedValue([
+        { id: 71, status: "APPROVED", year: 2019, make: "Toyota", model: "RAV4", submitted_at: "2026-11-01T10:00:00Z", catalysts: [{}] },
+        { id: 72, status: "PENDING_REVIEW", vin: "1HGCM82633A004352", submitted_at: "2026-11-02T10:00:00Z", catalysts: [] },
+    ]);
     listUsers.mockResolvedValue(PEOPLE);
     listUserEvents.mockResolvedValue([]);
     for (const fn of [setUserRole, setUserActive, deleteUser, restoreUser]) fn.mockResolvedValue({});
@@ -158,7 +166,7 @@ describe("Users & Roles", () => {
         expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
 
-    it.each(["ADMIN", "MODERATOR", "WORKER"])("a %s sees nothing and loads nothing", (role) => {
+    it.each(["MODERATOR", "WORKER"])("a %s sees nothing and loads nothing", (role) => {
         auth.role = role;
         const { container } = render(<UsersRolesPage />);
         expect(container).toBeEmptyDOMElement();
@@ -190,4 +198,61 @@ describe("Users & Roles", () => {
         await screen.findByRole("table");
         expect(screen.queryByRole("region", { name: "Recent changes" })).toBeNull();
     });
+
+    // Phase K.51: ADMIN gets what the removed Workers page gave it, nothing more.
+    describe("as ADMIN", () => {
+        beforeEach(() => {
+            auth.role = "ADMIN";
+            auth.email = "info@example.com";
+        });
+
+        it("sees the list, but roles are read-only and owner tools are absent", async () => {
+            render(<UsersRolesPage />);
+            await screen.findByRole("table");
+            expect(within(table()).queryByLabelText("Role of worker@example.com")).toBeNull();
+            expect(within(rowOf("worker@example.com")).getByTitle("Only an owner changes roles")).toHaveTextContent("WORKER");
+            expect(screen.queryByText("Show deleted users")).toBeNull();
+            expect(screen.queryAllByRole("button", { name: "Delete" })).toHaveLength(0);
+            expect(screen.queryByText(/Recent changes/i)).toBeNull();
+            expect(listUserEvents).not.toHaveBeenCalled();
+            expect(listUsers).toHaveBeenCalledTimes(1);
+        });
+
+        it("can activate or deactivate workers and moderators only, after confirming", async () => {
+            render(<UsersRolesPage />);
+            await screen.findByRole("table");
+            expect(within(rowOf("owner@example.com")).queryByRole("button", { name: /activate/i })).toBeNull();
+            expect(within(rowOf("info@example.com")).queryByRole("button", { name: /activate/i })).toBeNull();
+            fireEvent.click(within(rowOf("worker@example.com")).getByRole("button", { name: "Deactivate" }));
+            expect(setUserActive).not.toHaveBeenCalled();
+            const dialog = screen.getByRole("dialog");
+            fireEvent.click(within(dialog).getAllByRole("button").find((b) => /deactivate/i.test(b.textContent)));
+            await waitFor(() => expect(setUserActive).toHaveBeenCalledWith(8, false));
+            expect(setUserRole).not.toHaveBeenCalled();
+        });
+
+        it("Worker Details opens that worker's submissions and counts", async () => {
+            render(<UsersRolesPage />);
+            await screen.findByRole("table");
+            expect(within(rowOf("info@example.com")).queryByRole("button", { name: "Worker Details" })).toBeNull();
+            fireEvent.click(within(rowOf("worker@example.com")).getByRole("button", { name: "Worker Details" }));
+            const dialog = await screen.findByRole("dialog", { name: "Worker details: worker@example.com" });
+            await within(dialog).findByText("2019 Toyota RAV4");
+            expect(listQueue).toHaveBeenCalledWith({ worker_id: 8, limit: 500 });
+            const tile = (label) => within(dialog).getAllByText(label).find((el) => el.previousSibling)?.previousSibling.textContent;
+            expect(tile("Total")).toBe("2");
+            expect(tile("Approved")).toBe("1");
+            expect(tile("Pending")).toBe("1");
+            expect(within(dialog).getByText("2019 Toyota RAV4").closest("a")).toHaveAttribute("href", "/cats/moderation/71");
+            fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+            expect(screen.queryByRole("dialog")).toBeNull();
+        });
+
+        it("the old /cats/admin/workers/:id link opens that worker's details", async () => {
+            nav.params = new URLSearchParams("worker=8");
+            render(<UsersRolesPage />);
+            await screen.findByRole("dialog", { name: "Worker details: worker@example.com" });
+        });
+    });
 });
+

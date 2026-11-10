@@ -113,7 +113,7 @@ export default function AdminOverviewPage() {
                     label="Active Workers"
                     value={workerCounts ? `${workerCounts.active}/${workerCounts.total}` : null}
                     sub={workerCounts ? "active / total human workers" : undefined}
-                    href="/cats/admin/workers"
+                    href="/cats/admin/users"
                 />
                 <StatCard
                     icon={Receipt}

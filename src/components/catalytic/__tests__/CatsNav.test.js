@@ -11,28 +11,27 @@ vi.mock("next/navigation", () => ({
 // moderator/admin/owner actually clicks. If a route gets renamed without
 // updating this list, this test catches it instead of production.
 describe("CatsNav", () => {
-    it("renders every OWNER-tier nav item pointing at its real, existing route", () => {
+    // Phase K.51: exactly these eight, in this order, for owners and admins alike.
+    const EIGHT = [
+        ["Overview", "/cats/admin"],
+        ["Lookup", "/cats"],
+        ["Converters", "/cats/converters"],
+        ["Observations", "/cats/observations"],
+        ["Moderation", "/cats/moderation"],
+        ["Sales", "/cats/sales"],
+        ["CatDB Automation", "/cats/admin/catdb"],
+        ["Users & Roles", "/cats/admin/users"],
+    ];
+
+    it.each(["OWNER", "ADMIN"])("gives %s exactly the eight items, each at its real route", (role) => {
+        render(<CatsNav role={role} />);
+        const links = screen.getAllByRole("link");
+        expect(links.map((a) => [a.textContent.trim(), a.getAttribute("href")])).toEqual(EIGHT);
+    });
+
+    it.each(["Batch", "Copart Imports", "CatDB Batches", "Corrections", "Workers", "Catalog"])("no longer lists %s", (label) => {
         render(<CatsNav role="OWNER" />);
-
-        const expected = {
-            Overview: "/cats/admin",
-            Lookup: "/cats",
-            Batch: "/cats/batch",
-            Converters: "/cats/converters",
-            Observations: "/cats/observations",
-            Sales: "/cats/sales",
-            Moderation: "/cats/moderation",
-            Workers: "/cats/admin/workers",
-            CatDB: "/cats/admin/catdb",
-            "Copart Imports": "/cats/admin/copart",
-            "CatDB Batches": "/cats/admin/catdb-batches",
-            Corrections: "/cats/admin/corrections",
-            "Users & Roles": "/cats/admin/users",
-        };
-
-        for (const [label, href] of Object.entries(expected)) {
-            expect(screen.getByRole("link", { name: new RegExp(`^${label}$`, "i") })).toHaveAttribute("href", href);
-        }
+        expect(screen.queryByRole("link", { name: new RegExp(`^${label}$`, "i") })).toBeNull();
     });
 
     it("gives MODERATOR a narrower nav with no user administration or CatDB tools", () => {

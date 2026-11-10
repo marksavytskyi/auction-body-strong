@@ -45,17 +45,17 @@ export default function CatsLookupPage() {
         }
     }, []);
 
-    // Direct entry lives under Admin Corrections (elevated-only, same as the
-    // raw /catalytic/observations endpoint it calls) rather than a
-    // worker-facing route — workers use /worker's draft/submit/review
-    // capture flow instead, which goes through moderation.
+    // Recording lives on Observations (elevated-only, same as the raw
+    // /catalytic/observations endpoint it calls) rather than a worker-facing
+    // route — workers use /worker's draft/submit/review capture flow instead,
+    // which goes through moderation. (Phase K.51: moved from Corrections.)
     const handleRecordObservation = useCallback(
         (position, candidate) => {
             const params = new URLSearchParams();
-            params.set("tab", "direct-entry");
+            params.set("record", "1");
             if (position?.code) params.set("position", String(position.code));
             if (candidate?.code) params.set("code", String(candidate.code));
-            router.push(`/cats/admin/corrections?${params.toString()}`);
+            router.push(`/cats/observations?${params.toString()}`);
         },
         [router]
     );
