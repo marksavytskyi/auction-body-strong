@@ -75,14 +75,23 @@ function catdbVin(v) {
             title: details.filter(Boolean).join("\n"),
         };
     }
-    const state = CATDB_STATE[v.catdb_status] || (v.catdb_status === "DONE" ? "NO_DATA" : "NOT_REQUESTED");
+    // K.53 follow-up: the backend says what an active job is really doing, so a job whose device
+    // stopped reporting is never shown as running.
+    const live = { PAUSED: "PAUSED", WAITING_FOR_DEVICE: "WAITING_FOR_DEVICE", STALE: "STALE", QUEUED: "QUEUED", RUNNING: "RUNNING" }[v.catdb_queue_state];
+    const state = live || CATDB_STATE[v.catdb_status] || (v.catdb_status === "DONE" ? "NO_DATA" : "NOT_REQUESTED");
     const job = v.catdb_job_id ? ` (CatDB job #${v.catdb_job_id}; details in CATS → CatDB Automation)` : "";
-    return { node: <CellStatus state={state} detail={`${CATDB_DETAIL[v.catdb_status] || ""}${job}`.trim() || undefined} /> };
+    const detail = LIVE_DETAIL[v.catdb_queue_state] || CATDB_DETAIL[v.catdb_status] || "";
+    return { node: <CellStatus state={state} detail={`${detail}${job}`.trim() || undefined} /> };
 }
 
 // CatDB VIN's own states. A timeout is "Requires review", never "No match": the search was
 // submitted and its outcome is unknown.
 const CATDB_STATE = { QUEUED: "QUEUED", PROCESSING: "RUNNING", FAILED: "FAILED", REVIEW_REQUIRED: "REVIEW", NO_RESULT: "NO_MATCH", SKIPPED_INELIGIBLE: "NOT_ELIGIBLE" };
+const LIVE_DETAIL = {
+    PAUSED: "nothing runs until CatDB is resumed",
+    WAITING_FOR_DEVICE: "no CatDB device is available to pick it up",
+    STALE: "no search was recorded; it goes back to the queue, or to review if a search was submitted, when a device next checks in",
+};
 const CATDB_DETAIL = {
     QUEUED: "waiting for the CatDB device",
     PROCESSING: "the CatDB device is searching this VIN",

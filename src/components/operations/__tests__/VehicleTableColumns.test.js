@@ -215,6 +215,25 @@ describe("Columns", () => {
             expect(spinners(cell(container, 1, "CATDB_VIN"))).toBe(1);
         });
 
+        it("a job whose device stopped reporting is never shown as running (production smoke test, job 323)", async () => {
+            listOperationsBatchVehicles.mockResolvedValue({
+                items: [
+                    vehicle(1, { catdb_status: "PROCESSING", catdb_job_id: 323, catdb_queue_state: "STALE" }),
+                    vehicle(2, { catdb_status: "QUEUED", catdb_job_id: 324, catdb_queue_state: "PAUSED" }),
+                    vehicle(3, { catdb_status: "PROCESSING", catdb_job_id: 325, catdb_queue_state: "RUNNING" }),
+                ],
+                total: 3,
+            });
+            const { container } = render(<VehicleTable batchId={1} refreshKey={0} />);
+            await screen.findByRole("columnheader", { name: "EcoTrade Local" });
+            expect(cell(container, 0, "CATDB_VIN")).toHaveTextContent("Device stopped");
+            expect(spinners(cell(container, 0, "CATDB_VIN"))).toBe(0);
+            expect(cell(container, 0, "CATDB_VIN").querySelector("[title]").getAttribute("title")).toMatch(/stopped reporting.*no search was recorded/);
+            expect(cell(container, 1, "CATDB_VIN")).toHaveTextContent("Paused");
+            expect(spinners(cell(container, 1, "CATDB_VIN"))).toBe(0);
+            expect(spinners(cell(container, 2, "CATDB_VIN"))).toBe(1); // a live lease really is running
+        });
+
         it("a paid timeout is Requires review, explained, never No match", async () => {
             listOperationsBatchVehicles.mockResolvedValue({ items: [vehicle(1, { catdb_status: "REVIEW_REQUIRED", catdb_job_id: 324 })], total: 1 });
             const { container } = render(<VehicleTable batchId={1} refreshKey={0} />);

@@ -30,6 +30,21 @@ function legCounts(leg) {
 function sourceCounts(source, total, overrides = {}) {
     const c = source?.counts || {};
     if (source?.source === "CATDB_VIN") {
+        // K.53 follow-up: with the backend's per-job states, only a live lease counts as running.
+        const states = overrides.queue?.states;
+        if (states && Object.keys(states).length) {
+            const active = (c.PROCESSING || 0) + (c.QUEUED || 0);
+            const running = states.RUNNING || 0;
+            return {
+                total,
+                completed: sum(c, ["DONE", "NO_RESULT", "SKIPPED_INELIGIBLE"]),
+                failed: c.FAILED || 0,
+                review: c.REVIEW_REQUIRED || 0,
+                running,
+                queued: Math.max(0, active - running),
+                untouched: c.NOT_REQUESTED || 0,
+            };
+        }
         return {
             total,
             completed: sum(c, ["DONE", "NO_RESULT", "SKIPPED_INELIGIBLE"]),
@@ -38,8 +53,7 @@ function sourceCounts(source, total, overrides = {}) {
             running: c.PROCESSING || 0,
             queued: c.QUEUED || 0,
             untouched: c.NOT_REQUESTED || 0,
-            ...overrides,
-        };
+            };
     }
     return {
         total,
@@ -55,6 +69,7 @@ function sourceCounts(source, total, overrides = {}) {
 
 // What one row says, from its counts. CatDB VIN's waiting reason comes from the backend.
 function rowState(counts, { selected, queue } = {}) {
+    if (queue?.states?.STALE) return { label: "Device stopped reporting", tone: "danger" };
     if (counts.running > 0) return { label: "Running", tone: "progress" };
     if (counts.queued > 0) {
         const states = queue?.states || {};
@@ -88,7 +103,7 @@ export function serviceRows(progress, overview) {
         rows.push(
             { key: "CATDB_LOCAL", name: "CatDB Local", counts: sourceCounts(bySource.CATDB_LOCAL, total), selected: bySource.CATDB_LOCAL?.selected },
             { key: "ECOTRADE_LOCAL", name: "EcoTrade Local", counts: sourceCounts(bySource.ECOTRADE_LOCAL, total), selected: bySource.ECOTRADE_LOCAL?.selected },
-            { key: "CATDB_VIN", name: "CatDB VIN", counts: sourceCounts(bySource.CATDB_VIN, total), selected: bySource.CATDB_VIN?.selected, queue: overview.catdb_queue },
+            { key: "CATDB_VIN", name: "CatDB VIN", counts: sourceCounts(bySource.CATDB_VIN, total, { queue: overview.catdb_queue }), selected: bySource.CATDB_VIN?.selected, queue: overview.catdb_queue },
         );
     }
     return rows.map((row) => ({ ...row, state: rowState(row.counts, row) }));

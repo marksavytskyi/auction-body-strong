@@ -124,4 +124,15 @@ describe("ProcessingProgress", () => {
         rerender(<ProcessingProgress batchId={7} refreshKey={1} />);
         await waitFor(() => expect(getOperationsBatchProgress).toHaveBeenCalledTimes(2));
     });
+
+    it("a stale job in a mirrored PROCESSING row never makes the row Running (production smoke test)", () => {
+        const rows = byName(serviceRows(progress(), overview({
+            sources: [src("OUR_DATABASE", true, "COMPLETE", { DONE: 1 }), src("CATDB_LOCAL", true, "COMPLETED", { COMPLETED: 1 }), src("ECOTRADE_LOCAL", true, "COMPLETED", { COMPLETED: 1 }), src("CATDB_VIN", true, "RUNNING", { PROCESSING: 1, QUEUED: 4 })],
+            catdb_queue: { states: { STALE: 1, PAUSED: 4 }, text: "Waiting: CatDB is paused." },
+        })));
+        expect(rows["CatDB VIN"].counts).toMatchObject({ running: 0, queued: 5 });
+        expect(rows["CatDB VIN"].state.label).toBe("Device stopped reporting");
+        expect(progressHeadline(Object.values(rows)).status.label).toBe("Device stopped reporting");
+    });
 });
+

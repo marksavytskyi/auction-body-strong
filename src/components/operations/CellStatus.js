@@ -15,6 +15,10 @@ const STATES = {
     FAILED: { text: "Failed", label: "Failed", tone: "text-rose-300", Icon: XCircle },
     REVIEW: { text: "Review", label: "Requires review", tone: "text-amber-300", Icon: AlertTriangle },
     NOT_ELIGIBLE: { text: "Not eligible", label: "Not eligible", tone: "text-white/40" },
+    // K.53 follow-up: paid-search waiting states, never a spinner.
+    PAUSED: { text: "Paused", label: "Waiting: CatDB is paused", tone: "text-amber-200", Icon: Clock },
+    WAITING_FOR_DEVICE: { text: "Waiting for device", label: "Waiting for a CatDB device", tone: "text-amber-200", Icon: Clock },
+    STALE: { text: "Device stopped", label: "The device stopped reporting on this search", tone: "text-rose-300", Icon: AlertTriangle },
 };
 
 export default function CellStatus({ state, detail, compact = false }) {
