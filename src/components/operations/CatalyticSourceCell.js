@@ -55,25 +55,45 @@ function ourDatabase(v) {
     return { node: <CellStatus state={state} detail={state === "NO_MATCH" ? "Our Database has no sale for this vehicle" : undefined} /> };
 }
 
+// K.56 — CatDB's own "No cat on vehicle!" answer: a finished search, no converter, $0.
+export function isCatdbNoCat(v) {
+    return v.catdb_status === "DONE" && v.catdb_catalyst_quantity != null && Number(v.catdb_catalyst_quantity) === 0
+        && v.catdb_price_max != null && Number(v.catdb_price_max) === 0;
+}
+
 function catdbVin(v) {
     const priced = v.catdb_total_price != null || (v.catdb_price_min != null && v.catdb_price_max != null);
+    const warning = v.catdb_price_warning;
+    // K.56: a total from only some converters is labelled as such, never as the whole answer.
+    const partial = Boolean(warning) && warning.includes("PRICE_PARTIAL");
+    if (priced && isCatdbNoCat(v)) {
+        return {
+            node: <span>No cat</span>,
+            title: "Source: CatDB VIN Search\nMatch: Exact VIN\nCatDB: no catalytic converter on this vehicle (\u201cNo cat on vehicle!\u201d, $0)",
+        };
+    }
     if (priced) {
         const details = [
             "Source: CatDB VIN Search",
             "Match: Exact VIN",
             v.catdb_catalyst_quantity != null && `Converters: ${v.catdb_catalyst_quantity}`,
-            v.catdb_price_warning && `Warning: ${v.catdb_price_warning}`,
+            partial && "Price covers only some converters: not used automatically in the estimate",
+            warning && `Warning: ${warning}`,
         ];
         return {
             node: (
                 <>
                     <span>{formatCatdbPrice(v)}</span>
-                    {v.catdb_price_warning && <div className="text-[10px] font-bold text-amber-300/80">Check price</div>}
+                    {warning && <div className="text-[10px] font-bold text-amber-300/80">{partial ? "Partial price" : "Check price"}</div>}
                     <LatestAttempt state={CATDB_STATE[v.catdb_status]} detail={CATDB_DETAIL[v.catdb_status]} />
                 </>
             ),
             title: details.filter(Boolean).join("\n"),
         };
+    }
+    // K.56: CatDB answered but the result couldn't be read — not "No data".
+    if (v.catdb_status === "DONE" && warning) {
+        return { node: <CellStatus state="REVIEW" detail={`CatDB answered, but its result couldn't be fully read: ${warning}`} /> };
     }
     // K.53 follow-up: the backend says what an active job is really doing, so a job whose device
     // stopped reporting is never shown as running.
