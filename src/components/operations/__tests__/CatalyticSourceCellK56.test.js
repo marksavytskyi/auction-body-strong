@@ -46,3 +46,12 @@ describe("CatDB VIN cell (K.56)", () => {
         expect(container.querySelector("[data-state]").getAttribute("data-state")).toBe("NO_DATA");
     });
 });
+
+describe("Recovery price builder state label (K.56)", () => {
+    it("a catalytic $0 from CatDB VIN is CatDB's report, not 'Confirmed $0'", async () => {
+        const { componentStateLabel } = await import("../RecoveryPriceBuilder");
+        expect(componentStateLabel({ name: "catalytic", state: "CONFIRMED_ZERO", source: "CATDB_VIN" })).toBe("$0 reported by CatDB");
+        expect(componentStateLabel({ name: "engine", state: "CONFIRMED_ZERO", source: "PARTS_PRICING" })).toBe("Confirmed $0");
+        expect(componentStateLabel({ name: "catalytic", state: "AVAILABLE", source: "CATDB_VIN" })).toBe("Available");
+    });
+});

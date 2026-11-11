@@ -20,6 +20,15 @@ import { completenessMeta, componentLabel, formatMoney } from "@/lib/operations/
 import StatusPill from "@/components/catalytic/StatusPill";
 import { ConfirmDialog } from "@/components/catalytic/CatdbProcessingControls";
 
+// K.56 — a catalytic $0 taken from CatDB VIN is what CatDB REPORTS for the VIN ("No cat on
+// vehicle!"), not a verified fact about the vehicle, so it never reads "Confirmed $0".
+export function componentStateLabel(component) {
+    if (component.state === "CONFIRMED_ZERO" && component.name === "catalytic" && component.source === "CATDB_VIN") {
+        return "$0 reported by CatDB";
+    }
+    return RECOVERY_STATE_LABEL[component.state];
+}
+
 const PREVIEW_DELAY_MS = 120;
 const MONEY_PATTERN = /^\d+(\.\d{1,2})?$/;
 const message = (error, fallback) => (error instanceof CatalyticApiError ? error.message : fallback);
@@ -68,7 +77,7 @@ function ComponentRow({ component, label, rate, draftManual, onInclude, onResetI
                 </div>
                 <div className="shrink-0 text-right">
                     <div className={`text-sm font-bold ${component.included ? "text-white/90" : "text-white/35 line-through"}`}>{formatMoney(component.effective_price)}</div>
-                    <StatusPill label={component.is_manual ? "Manual override" : RECOVERY_STATE_LABEL[component.state]} tone={component.is_manual ? "info" : RECOVERY_STATE_TONE[component.state]} />
+                    <StatusPill label={component.is_manual ? "Manual override" : componentStateLabel(component)} tone={component.is_manual ? "info" : RECOVERY_STATE_TONE[component.state]} />
                 </div>
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-2 pl-6">
