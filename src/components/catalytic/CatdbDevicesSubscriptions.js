@@ -225,8 +225,8 @@ function AdjustBalanceDialog({ subscription, onClose, onAdjusted }) {
             </div>
             <p className="text-xs text-white/50">
                 Enter the ACTUAL remaining searches shown on the real CatDB account dashboard. The backend
-                computes and records whatever correction is required against what it already knows — it never
-                overwrites existing search history, and never removes previously-recorded usage.
+                records the difference against what it already knows. A higher number (e.g. after CatDB renews) is
+                recorded as a correction, never above the plan&apos;s limit. Search history is never overwritten.
             </p>
             <div className="space-y-1.5">
                 <Label htmlFor="catdb-adjust-actual-remaining" className="text-[10px] uppercase text-white/40">Actual remaining searches</Label>
@@ -246,6 +246,14 @@ function AdjustBalanceDialog({ subscription, onClose, onAdjusted }) {
 }
 
 // ─── adjustment history dialog ──────────────────────────────────────────
+
+// K.54 — a positive amount is usage counted against the period; a negative one is a correction
+// that gave searches back (the real account had more left than recorded).
+export function adjustmentAmountLabel(amount) {
+    const n = Number(amount) || 0;
+    if (n < 0) return `Correction: ${Math.abs(n)} searches given back`;
+    return `Counted as used: ${n}`;
+}
 
 function AdjustmentHistoryDialog({ subscription, onClose }) {
     const [items, setItems] = useState(null);
@@ -278,7 +286,7 @@ function AdjustmentHistoryDialog({ subscription, onClose }) {
                                 <span className="text-white/40">{fmtDate(a.created_at)}</span>
                             </div>
                             <div className="text-white/60">{a.reason}</div>
-                            <div className="text-white/35">Amount recorded: +{a.adjustment_amount} · period {a.period_key} · user #{a.created_by_user_id}</div>
+                            <div className="text-white/35">{adjustmentAmountLabel(a.adjustment_amount)} · period {a.period_key} · user #{a.created_by_user_id}</div>
                         </div>
                     ))}
                 </div>

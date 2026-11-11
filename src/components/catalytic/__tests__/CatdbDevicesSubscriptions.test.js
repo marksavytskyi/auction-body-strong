@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-import CatdbSettingsPage from "../CatdbDevicesSubscriptions";
+import CatdbSettingsPage, { adjustmentAmountLabel } from "../CatdbDevicesSubscriptions";
 import {
     listOperationsCatdbSubscriptions,
     createOperationsCatdbSubscription,
@@ -296,5 +296,13 @@ describe("CatdbSettingsPage", () => {
             // regardless of viewport height.
             expect(panel.contains(recordButton)).toBe(true);
         });
+    });
+});
+
+describe("K.54 balance history amounts", () => {
+    it("labels usage and corrections in plain words, never '+-'", () => {
+        expect(adjustmentAmountLabel(259)).toBe("Counted as used: 259");
+        expect(adjustmentAmountLabel(-259)).toBe("Correction: 259 searches given back");
+        expect(adjustmentAmountLabel(0)).toBe("Counted as used: 0");
     });
 });
