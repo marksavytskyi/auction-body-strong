@@ -128,11 +128,33 @@ const CATDB_DETAIL = {
     SKIPPED_INELIGIBLE: "no full VIN to search",
 };
 
+// K.57 — the backend's stored reason for a local "No match", in a few words.
+const NO_MATCH_HINT = {
+    MISSING_IDENTIFIERS: () => "Year, make or model missing",
+    MAKE_NOT_IN_CATALOG: () => "Make not in catalog",
+    MODEL_NOT_IN_CATALOG: () => "Model not in catalog",
+    YEAR_NOT_COVERED: () => "Year not in catalog",
+    NO_SOURCE_CONVERTERS: (name) => `No ${name.replace(" Local", "")} converter listed`,
+    NO_SOURCE_PRICE: (name) => `No ${name.replace(" Local", "")} price`,
+};
+
 function local(result, name) {
     const when = result?.searched_at ? `last lookup ${formatDate(result.searched_at)}` : undefined;
     if (!result || result.status === "NOT_REQUESTED") return { node: <CellStatus state="NOT_REQUESTED" /> };
     if (result.status === "FAILED" && result.price_expected == null) return { node: <CellStatus state="FAILED" detail={when} /> };
-    if (result.status === "NO_MATCH" || result.price_expected == null) return { node: <CellStatus state="NO_MATCH" detail={when} /> };
+    if (result.status === "NO_MATCH" || result.price_expected == null) {
+        // K.57: say why — "the vehicle is in the catalog but no CatDB converter is listed" is
+        // a different answer from "this model isn't in the catalog".
+        const hint = NO_MATCH_HINT[result.no_match_reason]?.(name);
+        return {
+            node: (
+                <>
+                    <CellStatus state="NO_MATCH" detail={[result.no_match_detail, when].filter(Boolean).join("; ") || undefined} />
+                    {hint && <div className="text-[10px] text-white/35">{hint}</div>}
+                </>
+            ),
+        };
+    }
     const details = [
         `Source: ${name}`,
         result.match_type && `Match: ${MATCH_LABEL[result.match_type] || result.match_type}`,
