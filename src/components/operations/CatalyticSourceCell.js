@@ -55,7 +55,8 @@ function ourDatabase(v) {
     return { node: <CellStatus state={state} detail={state === "NO_MATCH" ? "Our Database has no sale for this vehicle" : undefined} /> };
 }
 
-// K.56 — CatDB's own "No cat on vehicle!" answer: a finished search, no converter, $0.
+// K.56 — CatDB's "No cat on vehicle!" answer: a finished search reporting no converter, $0.
+// Source-reported by CatDB, never treated as verified vehicle hardware.
 export function isCatdbNoCat(v) {
     return v.catdb_status === "DONE" && v.catdb_catalyst_quantity != null && Number(v.catdb_catalyst_quantity) === 0
         && v.catdb_price_max != null && Number(v.catdb_price_max) === 0;
@@ -67,9 +68,15 @@ function catdbVin(v) {
     // K.56: a total from only some converters is labelled as such, never as the whole answer.
     const partial = Boolean(warning) && warning.includes("PRICE_PARTIAL");
     if (priced && isCatdbNoCat(v)) {
+        // What CatDB reports for this VIN — not a verified fact about the physical vehicle.
         return {
-            node: <span>No cat</span>,
-            title: "Source: CatDB VIN Search\nMatch: Exact VIN\nCatDB: no catalytic converter on this vehicle (\u201cNo cat on vehicle!\u201d, $0)",
+            node: (
+                <>
+                    <span>$0.00</span>
+                    <div className="text-[10px] font-bold text-white/50">CatDB: no cat</div>
+                </>
+            ),
+            title: "Source: CatDB VIN Search\nMatch: Exact VIN\nCatDB reports no catalytic converter for this VIN (\u201cNo cat on vehicle!\u201d, $0).\nSource-reported by CatDB; not physically verified on the vehicle.",
         };
     }
     if (priced) {

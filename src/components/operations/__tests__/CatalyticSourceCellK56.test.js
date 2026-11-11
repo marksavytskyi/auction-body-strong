@@ -7,12 +7,14 @@ import CatalyticSourceCell, { describeSource, isCatdbNoCat } from "../CatalyticS
 const done = (fields) => ({ catdb_status: "DONE", catdb_total_price: null, ...fields });
 
 describe("CatDB VIN cell (K.56)", () => {
-    it("CatDB's no-cat answer reads 'No cat', never 'No data' or a converter count", () => {
+    it("CatDB's no-cat answer is shown as CatDB's report ($0), never 'No data' or a converter count", () => {
         const ford = done({ catdb_price_min: 0, catdb_price_max: 0, catdb_catalyst_quantity: 0 });
         expect(isCatdbNoCat(ford)).toBe(true);
-        render(<CatalyticSourceCell source="CATDB_VIN" vehicle={ford} />);
-        expect(screen.getByText("No cat")).toBeInTheDocument();
-        expect(describeSource("CATDB_VIN", ford).title).toContain("No cat on vehicle!");
+        const { container } = render(<CatalyticSourceCell source="CATDB_VIN" vehicle={ford} />);
+        expect(container.textContent).toBe("$0.00CatDB: no cat");
+        const title = describeSource("CATDB_VIN", ford).title;
+        expect(title).toContain("CatDB reports no catalytic converter for this VIN");
+        expect(title).toContain("not physically verified");
     });
 
     it("a result CatDB returned but that couldn't be read is 'Requires review', not 'No data'", () => {
