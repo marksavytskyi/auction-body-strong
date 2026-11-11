@@ -44,7 +44,7 @@ const FREE_SOURCES = ["OUR_DATABASE", "CATDB_LOCAL", "ECOTRADE_LOCAL"];
 const SHORT_LABEL = { OUR_DATABASE: "Our Database", CATDB_VIN: "CatDB VIN", CATDB_LOCAL: "CatDB Local", ECOTRADE_LOCAL: "EcoTrade Local" };
 const SOURCE_HINT = {
     OUR_DATABASE: "Our own recorded sales",
-    CATDB_LOCAL: "CatDB data already stored: an earlier VIN search, or the catalog",
+    CATDB_LOCAL: "Earlier paid CatDB results reused for vehicles of the same configuration (inferred), and each VIN's own stored result",
     ECOTRADE_LOCAL: "The stored EcoTrade catalog",
     CATDB_VIN: "A new search on the Android device, for this VIN",
 };
@@ -235,6 +235,9 @@ export default function CatalyticProcessingCard({ batchId, refreshKey, selectedV
                     confirm: true,
                     scope: paidScope,
                     vehicleIds,
+                    // K.58: only a preview built with forced VINs carries them, and the dialog
+                    // required its own second confirmation before approving it.
+                    ...(preview.forced_exact_vins?.length ? { forceExactVins: preview.forced_exact_vins, confirmForceExact: true } : {}),
                 });
                 outcome.paid = {
                     ok: true,
@@ -292,7 +295,7 @@ export default function CatalyticProcessingCard({ batchId, refreshKey, selectedV
         } finally {
             setBusy("");
         }
-        if (preview && preview.max_approvable_new_searches > 0) {
+        if (preview && (preview.max_approvable_new_searches > 0 || preview.local_cache_hit_count > 0)) {
             setPaidPreview(preview);
             return undefined;
         }
@@ -308,6 +311,18 @@ export default function CatalyticProcessingCard({ batchId, refreshKey, selectedV
         const preview = paidPreview;
         setPaidPreview(null); // one approval per preview, never reused
         execute({ preview });
+    };
+    // K.58: a fresh preview that puts the chosen cache hits back among the paid searches;
+    // the dialog then asks for a second, separate confirmation.
+    const forceExact = async (vins) => {
+        setBusy("preview");
+        try {
+            setPaidPreview(await previewOperationsCatdbSearches(batchId, { scope: paidScope, vehicleIds, forceExactVins: vins }));
+        } catch (e) {
+            toast.error(`Couldn't count the exact searches: ${e instanceof CatalyticApiError ? e.message : "preview failed"}. Nothing paid was queued.`);
+        } finally {
+            setBusy("");
+        }
     };
     const freeOnly = () => {
         setPaidPreview(null);
@@ -451,11 +466,13 @@ export default function CatalyticProcessingCard({ batchId, refreshKey, selectedV
 
             {paidPreview && (
                 <PaidRunDialog
+                    key={paidPreview.fingerprint}
                     preview={paidPreview}
                     freeSummary={freeSummary}
                     paused={overview.global_paused}
                     busy={busy === "run"}
                     onApprove={approvePaid}
+                    onForceExact={forceExact}
                     onFreeOnly={tickedFree.length && freeToProcess > 0 ? freeOnly : null}
                     onClose={() => setPaidPreview(null)}
                 />

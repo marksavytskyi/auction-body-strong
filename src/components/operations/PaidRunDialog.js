@@ -14,7 +14,8 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? "" : /(s|ch|sh|x)$/.test(wo
 export function paidExclusions(preview) {
     const eligible = preview.max_approvable_new_searches;
     return [
-        ["already searched: their result is reused, through CatDB Local", preview.reusable_count],
+        ["already searched: their stored result is reused free, as CatDB VIN", preview.reusable_count],
+        ["answered free by CatDB Local: same configuration as an earlier paid search", preview.local_cache_hit_count || 0],
         ["already queued or running", preview.active_existing_job_count],
         ["searched before with an unknown outcome: never searched again automatically", preview.uncertain_count],
         ["CatDB already answered with no result", preview.conclusive_no_data_count],
@@ -23,8 +24,14 @@ export function paidExclusions(preview) {
     ].filter(([, n]) => n > 0);
 }
 
-export default function PaidRunDialog({ preview, freeSummary, paused, busy, onApprove, onFreeOnly, onClose }) {
+// K.58 — the VINs CatDB Local answers from another vehicle's paid result.
+export const cacheHitVins = (preview) => (preview.entries || []).filter((e) => e.category === "LOCAL_CACHE_HIT" && e.vin).map((e) => e.vin);
+
+export default function PaidRunDialog({ preview, freeSummary, paused, busy, onApprove, onFreeOnly, onForceExact, onClose }) {
     const [ticked, setTicked] = useState(false);
+    const [forceTicked, setForceTicked] = useState(false);
+    const forced = preview.forced_exact_vins || [];
+    const hits = cacheHitVins(preview);
     const zIndex = useModalLayer(true, busy ? undefined : onClose);
     const eligible = preview.max_approvable_new_searches;
     const excluded = paidExclusions(preview);
@@ -72,8 +79,28 @@ export default function PaidRunDialog({ preview, freeSummary, paused, busy, onAp
                     {freeSummary && <p className="text-white/55">{freeSummary}</p>}
                 </div>
 
+                {hits.length > 0 && onForceExact && (
+                    <div className="rounded-xl border border-sky-500/20 bg-sky-500/[0.05] p-2.5 text-xs text-white/70">
+                        <p>{plural(hits.length, "VIN")} {hits.length === 1 ? "is" : "are"} answered free by CatDB Local, from an earlier paid search of the same configuration. That value is inferred, not this VIN&apos;s own result.</p>
+                        <button type="button" disabled={busy} onClick={() => onForceExact(hits)}
+                            className="mt-2 h-8 rounded-lg border border-sky-400/30 px-3 text-[11px] font-bold text-sky-200">
+                            Force exact VIN search for {plural(hits.length, "VIN")}…
+                        </button>
+                    </div>
+                )}
+
+                {forced.length > 0 && (
+                    <label className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/[0.06] p-2.5 text-xs text-red-100">
+                        <input type="checkbox" checked={forceTicked} disabled={busy} onChange={(e) => setForceTicked(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>
+                            I also confirm paying for exact searches of {plural(forced.length, "VIN")} that CatDB Local already answers
+                            ({forced.join(", ")}). They are included in the {plural(eligible, "search")} above.
+                        </span>
+                    </label>
+                )}
+
                 <label className="flex items-start gap-2 rounded-xl border border-white/10 bg-black/25 p-2.5 text-xs text-white/80">
-                    <input type="checkbox" checked={ticked} disabled={busy} onChange={(e) => setTicked(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0" />
+                    <input type="checkbox" checked={ticked} disabled={busy || eligible === 0} onChange={(e) => setTicked(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0" />
                     I approve up to {plural(eligible, "paid CatDB VIN search")} for this batch.
                 </label>
 
@@ -84,7 +111,7 @@ export default function PaidRunDialog({ preview, freeSummary, paused, busy, onAp
                             Run free sources only
                         </button>
                     )}
-                    <button type="button" disabled={busy || !ticked} onClick={onApprove}
+                    <button type="button" disabled={busy || !ticked || eligible === 0 || (forced.length > 0 && !forceTicked)} onClick={onApprove}
                         className="h-10 rounded-xl bg-amber-400 px-4 text-xs font-bold text-black disabled:opacity-40">
                         {busy ? "Starting…" : `Approve ${plural(eligible, "search")} & run`}
                     </button>

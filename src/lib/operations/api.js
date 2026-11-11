@@ -358,10 +358,12 @@ export async function downloadOperationsBatchExportCsv(batchId) {
 // explicit confirm:true plus a fingerprint from a just-fetched preview
 // — there is no "default" approval this client can trigger by itself.
 
-export function previewOperationsCatdbSearches(batchId, { scope, vehicleIds } = {}) {
+export function previewOperationsCatdbSearches(batchId, { scope, vehicleIds, forceExactVins } = {}) {
     const params = {};
     if (scope) params.scope = scope;
     if (vehicleIds) params.vehicle_ids = vehicleIds;
+    // K.58 — VINs CatDB Local already answers that the user wants searched exactly anyway.
+    if (forceExactVins?.length) params.force_exact_vins = forceExactVins;
     return request(
         () => axiosInstance.get(`${BASE}/batches/${encodeURIComponent(batchId)}/catdb/preview`, { params, paramsSerializer: { indexes: null } }),
         "Failed to load CatDB preview"
@@ -373,7 +375,9 @@ export function previewOperationsCatdbSearches(batchId, { scope, vehicleIds } = 
 // fields — never renamed, never defaulted here. confirm must be passed
 // as true explicitly by the caller; this function never supplies a
 // default for it.
-export function approveOperationsCatdbSearches(batchId, { previewFingerprint, maxNewSearches, confirm, scope, vehicleIds }) {
+// K.58 — forceExactVins must match the preview being approved, and confirmForceExact is a
+// second, separate explicit confirmation; neither is ever defaulted here.
+export function approveOperationsCatdbSearches(batchId, { previewFingerprint, maxNewSearches, confirm, scope, vehicleIds, forceExactVins, confirmForceExact }) {
     return request(
         () => axiosInstance.post(`${BASE}/batches/${encodeURIComponent(batchId)}/catdb/approve`, {
             preview_fingerprint: previewFingerprint,
@@ -381,6 +385,7 @@ export function approveOperationsCatdbSearches(batchId, { previewFingerprint, ma
             confirm,
             ...(scope ? { scope } : {}),
             ...(vehicleIds ? { vehicle_ids: vehicleIds } : {}),
+            ...(forceExactVins?.length ? { force_exact_vins: forceExactVins, confirm_force_exact: confirmForceExact === true } : {}),
         }),
         "Failed to submit CatDB approval"
     );

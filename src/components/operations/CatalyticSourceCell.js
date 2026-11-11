@@ -10,6 +10,7 @@ import CellStatus, { LatestAttempt, legState } from "./CellStatus";
 
 const MATCH_LABEL = {
     VIN_EXACT: "Exact VIN",
+    CONFIGURATION_MATCH: "Inferred: same configuration as another paid CatDB search",
     YEAR_MAKE_MODEL_ENGINE: "Year, make, model and engine",
     YEAR_MAKE_MODEL: "Year, make and model",
     MAKE_MODEL_ANY_YEAR: "Make and model, any year",
@@ -80,9 +81,12 @@ function catdbVin(v) {
         };
     }
     if (priced) {
+        // K.58: an earlier paid search for this same VIN, reused free, vs a search made for it.
+        const reused = v.catdb_vin_origin === "STORED_RESULT_REUSED";
         const details = [
             "Source: CatDB VIN Search",
             "Match: Exact VIN",
+            reused && `Stored result reused: an earlier paid search for this VIN${v.catdb_job_id ? ` (job #${v.catdb_job_id})` : ""}; no new search`,
             v.catdb_catalyst_quantity != null && `Converters: ${v.catdb_catalyst_quantity}`,
             partial && "Price covers only some converters: not used automatically in the estimate",
             warning && `Warning: ${warning}`,
@@ -92,6 +96,7 @@ function catdbVin(v) {
                 <>
                     <span>{formatCatdbPrice(v)}</span>
                     {warning && <div className="text-[10px] font-bold text-amber-300/80">{partial ? "Partial price" : "Check price"}</div>}
+                    {reused && <div className="text-[10px] text-white/45">Stored result reused</div>}
                     <LatestAttempt state={CATDB_STATE[v.catdb_status]} detail={CATDB_DETAIL[v.catdb_status]} />
                 </>
             ),
@@ -136,7 +141,19 @@ const NO_MATCH_HINT = {
     YEAR_NOT_COVERED: () => "Year not in catalog",
     NO_SOURCE_CONVERTERS: (name) => `No ${name.replace(" Local", "")} converter listed`,
     NO_SOURCE_PRICE: (name) => `No ${name.replace(" Local", "")} price`,
+    // K.58 — CatDB Local, the cache of paid CatDB results.
+    EXACT_VIN_UNDER_CATDB_VIN: () => "Exact VIN result is under CatDB VIN",
+    ENGINE_UNKNOWN: () => "Engine unknown",
+    NO_VIN_PATTERN: () => "VIN masked or invalid",
+    CONFLICTING_CACHED_RESULTS: () => "Paid results disagree",
+    ONLY_AMBIGUOUS_VARIANT_RESULTS: () => "Variant unverified",
+    CACHED_RESULT_UNUSABLE: () => "Paid result not reusable",
+    SAME_MODEL_DIFFERENT_VIN_PATTERN: () => "Different VIN configuration",
+    NO_CACHED_CONFIGURATION: () => "No paid result for this configuration",
 };
+
+const RETIRED_TITLE = "A CatScan catalog match from before CatDB Local became the cache of paid CatDB results. "
+    + "Kept as history only: it is never counted in an estimate.";
 
 function local(result, name) {
     const when = result?.searched_at ? `last lookup ${formatDate(result.searched_at)}` : undefined;
@@ -155,9 +172,26 @@ function local(result, name) {
             ),
         };
     }
+    if (result.retired) {
+        return {
+            node: (
+                <>
+                    <span className="text-white/40 line-through">{formatMoney(result.price_expected)}</span>
+                    <div className="text-[10px] font-bold text-white/45">Retired CatScan match</div>
+                </>
+            ),
+            title: RETIRED_TITLE,
+        };
+    }
+    // K.58: another vehicle's paid CatDB result, reused for the same configuration — always
+    // labelled inferred, with the VIN and job it came from.
+    const inferred = result.match_type === "CONFIGURATION_MATCH";
     const details = [
         `Source: ${name}`,
         result.match_type && `Match: ${MATCH_LABEL[result.match_type] || result.match_type}`,
+        inferred && result.source_vin && `From VIN ${result.source_vin}${result.source_job_id ? ` (CatDB job #${result.source_job_id})` : ""}`,
+        inferred && result.corroboration > 1 && `Backed by ${result.corroboration} paid searches that agree`,
+        inferred && "Not this vehicle's own VIN result: counted as an approximate value",
         result.confidence && `Confidence: ${result.confidence}`,
         result.price_low != null && result.price_high != null && `Range: ${formatMoney(result.price_low)}–${formatMoney(result.price_high)}`,
         result.position_count != null && `Positions: ${result.position_count}`,
@@ -170,6 +204,7 @@ function local(result, name) {
         node: (
             <>
                 <span>{formatMoney(result.price_expected)}</span>
+                {inferred && <div className="text-[10px] font-bold text-sky-300/80">Inferred</div>}
                 {result.confidence === "LOW" && <div className="text-[10px] font-bold text-amber-300/80">Low confidence</div>}
             </>
         ),

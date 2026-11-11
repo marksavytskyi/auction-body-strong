@@ -227,6 +227,8 @@ export const CATDB_VIN_CATEGORY = {
     CONCLUSIVE_NO_DATA: "CONCLUSIVE_NO_DATA",
     NEVER_SEARCHED: "NEVER_SEARCHED",
     INELIGIBLE: "INELIGIBLE",
+    // K.58 — never searched, but CatDB Local reuses an earlier paid result for the same configuration.
+    LOCAL_CACHE_HIT: "LOCAL_CACHE_HIT",
 };
 
 export const CATDB_VIN_CATEGORY_LABEL = {
@@ -236,6 +238,7 @@ export const CATDB_VIN_CATEGORY_LABEL = {
     [CATDB_VIN_CATEGORY.CONCLUSIVE_NO_DATA]: "No data found (conclusive)",
     [CATDB_VIN_CATEGORY.NEVER_SEARCHED]: "New paid search needed",
     [CATDB_VIN_CATEGORY.INELIGIBLE]: "Blocked / ineligible",
+    [CATDB_VIN_CATEGORY.LOCAL_CACHE_HIT]: "Answered by CatDB Local (inferred)",
 };
 
 export const CATDB_VIN_CATEGORY_TONE = {

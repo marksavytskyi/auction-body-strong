@@ -82,7 +82,7 @@ export default function RecoveryRulesEditor({ value, onChange, defaultPriority, 
                     <span>
                         Allow approximate model matches in Recovery Total
                         <InfoTip label="About approximate matches">
-                            Off: only exact prices count automatically: Our Database from verified records for this exact vehicle, and CatDB results for this exact VIN. On: estimates count too: Our Database figures borrowed from the same make and model, and CatDB Local or EcoTrade Local catalog matches by year, make and model (and engine when known). Matches never cross models, and no converter code is used. Totals that use them are marked estimated. A price chosen for a vehicle always counts.
+                            Off: exact prices count automatically: Our Database from verified records for this exact vehicle, and CatDB results for this exact VIN. CatDB Local also counts: an earlier paid CatDB result for another vehicle of the same configuration (year, make, model, engine and VIN pattern). It is inferred, so totals that use it are marked estimated. On: catalog estimates count too: Our Database figures borrowed from the same make and model, and EcoTrade Local catalog matches by year, make and model (and engine when known). Matches never cross models, and no converter code is used. Totals that use them are marked estimated. A price chosen for a vehicle always counts.
                         </InfoTip>
                         <span className="block text-[11px] text-white/40">
                             A catalog lists every converter known for a model, not the fitted one. These values are labelled as estimated.
