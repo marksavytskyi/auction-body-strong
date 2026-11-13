@@ -172,6 +172,32 @@ function local(result, name) {
             ),
         };
     }
+    if (result.from_cache) {
+        // K.60 — read live from the CatDB Local cache for this vehicle's estimate: another
+        // vehicle's paid result for the same configuration. The stored row stays as it is.
+        const kept = result.stored_result;
+        const details = [
+            "Source: CatDB Local (configuration cache)",
+            "Match: Same configuration (inferred)",
+            result.source_vin && `From VIN ${result.source_vin}${result.source_job_id ? ` (CatDB job #${result.source_job_id})` : ""}`,
+            result.corroboration > 1 && `Backed by ${result.corroboration} paid searches that agree`,
+            "Not this vehicle's own VIN result: counted as an approximate value",
+            result.confidence && `Confidence: ${result.confidence}`,
+            result.price_low != null && result.price_high != null && `Range: ${formatMoney(result.price_low)}–${formatMoney(result.price_high)}`,
+            "Read from the cache of paid CatDB results; no search was made and nothing was stored",
+            kept?.retired && `Retired CatScan match kept as history, never counted: ${formatMoney(kept.price_expected)}`,
+        ];
+        return {
+            node: (
+                <>
+                    <span>{formatMoney(result.price_expected)}</span>
+                    <div className="text-[10px] font-bold text-sky-300/80">Inferred</div>
+                    {kept?.retired && <div className="text-[10px] text-white/40">Retired CatScan kept</div>}
+                </>
+            ),
+            title: details.filter(Boolean).join("\n"),
+        };
+    }
     if (result.retired) {
         return {
             node: (

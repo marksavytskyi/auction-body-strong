@@ -56,3 +56,20 @@ describe("VehicleCatalyticResults", () => {
         expect(screen.getByText(/regime:our_observations/)).toBeInTheDocument();
     });
 });
+
+describe("K.60: the CatDB Local cache match in the vehicle detail", () => {
+    it("shows the inferred match with its source VIN and job next to the stored result", async () => {
+        getOperationsVehicleCatalytic.mockResolvedValue({ results: [{
+            source: "CATDB_LOCAL", status: "COMPLETED", match_type: "MAKE_MODEL_ANY_YEAR", price_expected: "306.03",
+            cache_match: { match_type: "CONFIGURATION_MATCH", confidence: "MEDIUM", price_low: "348.00", price_expected: "378.00",
+                price_high: "408.00", matched_record: { source_vin: "JTDKN3DU3D5559303", source_job_id: 98 } },
+        }] });
+        render(<VehicleCatalyticResults batchId={21} vehicleId={1069} />);
+        const box = await screen.findByTestId("cache-match");
+        expect(box.textContent).toContain("Inferred from the CatDB Local cache: $378.00");
+        expect(box.textContent).toContain("JTDKN3DU3D5559303");
+        expect(box.textContent).toContain("job #98");
+        expect(box.textContent).toContain("medium confidence");
+        expect(screen.getByText("Expected $306.03")).toBeInTheDocument(); // the stored row is still shown as stored
+    });
+});

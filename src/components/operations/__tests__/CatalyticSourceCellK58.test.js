@@ -114,3 +114,28 @@ describe("K.60: a warned local result is flagged in the cell", () => {
     });
 });
 
+
+describe("K.60: CatDB Local resolved live from the cache", () => {
+    const cached = (stored) => ({ catalytic_local: [{
+        source: "CATDB_LOCAL", status: "COMPLETED", match_type: "CONFIGURATION_MATCH", confidence: "MEDIUM", from_cache: true,
+        price_low: "348.00", price_expected: "378.00", price_high: "408.00", source_vin: "JTDKN3DU3D5559303", source_job_id: 98,
+        corroboration: 1, stored_result: stored,
+    }] });
+
+    it("shows the inferred price with where it came from", () => {
+        const v = cached(null);
+        const { container } = render(<CatalyticSourceCell source="CATDB_LOCAL" vehicle={v} />);
+        expect(container.textContent).toBe("$378.00Inferred");
+        const title = describeSource("CATDB_LOCAL", v).title;
+        expect(title).toContain("From VIN JTDKN3DU3D5559303 (CatDB job #98)");
+        expect(title).toContain("Confidence: MEDIUM");
+        expect(title).toContain("no search was made and nothing was stored");
+    });
+
+    it("keeps a retired CatScan row visible as history (vehicle 1069)", () => {
+        const v = cached({ source: "CATDB_LOCAL", status: "COMPLETED", match_type: "MAKE_MODEL_ANY_YEAR", price_expected: "306.03", retired: true });
+        const { container } = render(<CatalyticSourceCell source="CATDB_LOCAL" vehicle={v} />);
+        expect(container.textContent).toContain("Retired CatScan kept");
+        expect(describeSource("CATDB_LOCAL", v).title).toContain("Retired CatScan match kept as history, never counted: $306.03");
+    });
+});

@@ -76,6 +76,24 @@ export default function VehicleCatalyticResults({ batchId, vehicleId }) {
                                 {result.matched_record.error && <div className="mt-1 text-rose-300">{result.matched_record.error}</div>}
                             </details>
                         )}
+                        {result.cache_match && (
+                            // K.60 — the configuration match the CatDB Local cache gives this vehicle now,
+                            // used in its estimate; the stored result above stays exactly as it is.
+                            <div data-testid="cache-match" className="mt-1.5 rounded-lg border border-sky-500/20 bg-sky-500/[0.05] p-2 text-[11px] text-white/60">
+                                <div className="font-bold text-sky-300/90">
+                                    Inferred from the CatDB Local cache: {formatMoney(result.cache_match.price_expected)}
+                                </div>
+                                <div>
+                                    {formatMoney(result.cache_match.price_low)}–{formatMoney(result.cache_match.price_high)}
+                                    {" · "}{(result.cache_match.confidence || "").toLowerCase()} confidence
+                                </div>
+                                <div>
+                                    Paid CatDB result for VIN <span className="font-mono">{result.cache_match.matched_record?.source_vin}</span>
+                                    {result.cache_match.matched_record?.source_job_id != null && ` (job #${result.cache_match.matched_record.source_job_id})`}
+                                    , same configuration; not this vehicle&apos;s own VIN result
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ))}
             </div>
