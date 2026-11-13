@@ -1,4 +1,4 @@
-import { createEvent, fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import CatalyticPriorityManager from "../CatalyticPriorityManager";
@@ -27,27 +27,24 @@ describe("CatalyticPriorityManager", () => {
         expect(items[3]).toHaveTextContent("EcoTrade Local");
     });
 
-    it("moves with the Up and Down buttons, and the ends can't go further", () => {
-        const onChange = setup();
-        expect(screen.getByRole("button", { name: "Move Our Database up" })).toBeDisabled();
-        expect(screen.getByRole("button", { name: "Move EcoTrade Local down" })).toBeDisabled();
-        fireEvent.click(screen.getByRole("button", { name: "Move Our Database down" }));
-        expect(sources(onChange.mock.calls[0][0])).toEqual(["CATDB_VIN", "OUR_DATABASE", "CATDB_LOCAL", "ECOTRADE_LOCAL"]);
-        expect(screen.getByRole("status")).toHaveTextContent("Our Database moved to position 2");
+    it("K.60: the order is fixed, nothing can be reordered", () => {
+        setup();
+        expect(screen.queryAllByRole("button")).toHaveLength(0);
+        expect(screen.getByTestId("priority-ECOTRADE_LOCAL").getAttribute("draggable")).toBeNull();
     });
 
-    it("reorders from the keyboard on the handle", () => {
-        const onChange = setup();
-        fireEvent.keyDown(screen.getByRole("button", { name: /Reorder CatDB VIN Search/ }), { key: "ArrowUp" });
-        expect(sources(onChange.mock.calls[0][0])).toEqual(["CATDB_VIN", "OUR_DATABASE", "CATDB_LOCAL", "ECOTRADE_LOCAL"]);
-    });
-
-    it("reorders by drag and drop", () => {
-        const onChange = setup();
-        fireEvent.dragStart(screen.getByTestId("priority-ECOTRADE_LOCAL"));
-        const over = createEvent.dragOver(screen.getByTestId("priority-OUR_DATABASE"));
-        fireEvent(screen.getByTestId("priority-OUR_DATABASE"), over);
-        expect(sources(onChange.mock.calls[0][0])).toEqual(["ECOTRADE_LOCAL", "OUR_DATABASE", "CATDB_VIN", "CATDB_LOCAL"]);
+    it("K.60: a saved custom order (Batch 21/22) is shown in the fixed order with its switches", () => {
+        const onChange = setup([
+            { source: "OUR_DATABASE", enabled: true }, { source: "CATDB_LOCAL", enabled: true },
+            { source: "ECOTRADE_LOCAL", enabled: true }, { source: "CATDB_VIN", enabled: false },
+        ]);
+        const items = screen.getAllByRole("listitem");
+        expect(items.map((li) => li.getAttribute("data-testid"))).toEqual(
+            ["priority-OUR_DATABASE", "priority-CATDB_VIN", "priority-CATDB_LOCAL", "priority-ECOTRADE_LOCAL"]);
+        expect(screen.getByRole("checkbox", { name: "CatDB VIN Search" })).not.toBeChecked();
+        fireEvent.click(screen.getByRole("checkbox", { name: "EcoTrade Local" }));
+        expect(sources(onChange.mock.calls[0][0])).toEqual(["OUR_DATABASE", "CATDB_VIN", "CATDB_LOCAL", "ECOTRADE_LOCAL"]);
+        expect(onChange.mock.calls[0][0][1].enabled).toBe(false);
     });
 
     it("turns a source off without moving it", () => {

@@ -7,6 +7,7 @@ import { Loader2, RotateCcw } from "lucide-react";
 import { getVehicleRecovery, previewVehicleRecovery, resetVehicleRecovery, saveVehicleRecovery } from "@/lib/operations/api";
 import { CatalyticApiError } from "@/lib/catalytic/http";
 import {
+    CATALYTIC_LABEL,
     RECOVERY_COMPONENTS,
     RECOVERY_MATCH_LABEL,
     RECOVERY_MODES,
@@ -123,7 +124,7 @@ function optionDetail(option, mode) {
     if (!option.available) return option.status === "NOT_REQUESTED" ? "Not searched" : "No result";
     const range = option.low != null || option.high != null ? `${formatMoney(option.low)}–${formatMoney(option.high)}` : null;
     const value = option.value != null ? `${formatMoney(option.value)} ${mode}` : `No ${mode} price`;
-    const parts = [value, range, RECOVERY_MATCH_LABEL[option.match_type] || option.match_type, !option.enabled_in_priority && "Off in priority"];
+    const parts = [value, range, CATALYTIC_LABEL[option.label], RECOVERY_MATCH_LABEL[option.match_type] || option.match_type, !option.enabled_in_priority && "Off in priority"];
     return parts.filter(Boolean).join(" · ");
 }
 
@@ -259,9 +260,6 @@ export default function RecoveryPriceBuilder({ batchId, vehicleId, onSaved }) {
                 <h3 className="text-[11px] font-bold uppercase tracking-wider text-white/40">Recovery Price Builder</h3>
                 <StatusPill label={completeness.label} tone={completeness.tone} />
             </div>
-            {!view.rules_active && (
-                <p className="mb-2 text-[11px] text-amber-200/80">The rules for this batch are not active yet. What you save here applies once this batch is activated in its Recovery Settings.</p>
-            )}
 
             {RECOVERY_COMPONENTS.map(({ id, label }) => (
                 <ComponentRow
@@ -277,15 +275,17 @@ export default function RecoveryPriceBuilder({ batchId, vehicleId, onSaved }) {
             ))}
 
             <div className="flex items-baseline justify-between gap-3 border-t border-white/20 pt-2">
-                <span className="text-xs font-black uppercase tracking-wider text-white/60">Recovery Total</span>
+                <span className="text-xs font-black uppercase tracking-wider text-white/60">Vehicle Estimate</span>
                 <span data-testid="recovery-total" className={`text-xl font-black text-emerald-300 ${calculating ? "opacity-50" : ""}`} aria-busy={calculating}>
                     {formatMoney(view.recovery_total)}
                 </span>
             </div>
             <p className="text-right text-[11px] text-white/40">
                 {view.missing_components.length > 0
-                    ? `Incomplete: missing ${view.missing_components.map(componentLabel).join(", ")}`
-                    : "Missing components: None"}
+                    ? `Partial: missing ${view.missing_components.map(componentLabel).join(", ")}`
+                    : catalytic.partial_price
+                        ? "Partial: the CatDB price covers only some converters"
+                        : "Missing components: None"}
             </p>
 
             <fieldset className="mt-3">
@@ -295,7 +295,7 @@ export default function RecoveryPriceBuilder({ batchId, vehicleId, onSaved }) {
                         name={groupName}
                         checked={selected == null}
                         onSelect={() => change({ catalytic_source: null })}
-                        title="Auto: use priority rules"
+                        title="Auto: first eligible source"
                         detail={selected == null && (RECOVERY_SOURCE_LABEL[catalytic.effective_source] || catalytic.effective_source)}
                     />
                     {catalytic.options.map((option) => (
@@ -307,7 +307,7 @@ export default function RecoveryPriceBuilder({ batchId, vehicleId, onSaved }) {
                             onSelect={() => change({ catalytic_source: option.source })}
                             title={RECOVERY_SOURCE_LABEL[option.source]}
                             detail={optionDetail(option, catalytic.valuation_mode)}
-                            warning={option.uncertain && `Needs review, so never used automatically: ${option.uncertain}`}
+                            warning={option.uncertain && `Partial price, check it: ${option.uncertain}`}
                         />
                     ))}
                     <SourceOption name={groupName} checked={selected === "NONE"} onSelect={() => change({ catalytic_source: "NONE" })} title="None" />
@@ -331,7 +331,13 @@ export default function RecoveryPriceBuilder({ batchId, vehicleId, onSaved }) {
                     </div>
                 )}
                 {(catalytic.approximate || catalytic.uncertain) && catalytic.effective_source !== "MANUAL" && (
-                    <p className="mt-1 text-[11px] font-bold text-amber-300">{catalytic.uncertain ? "Flagged price chosen for this vehicle" : "Estimated match, not an exact one"}</p>
+                    <p className="mt-1 text-[11px] font-bold text-amber-300">
+                        {catalytic.uncertain
+                            ? "Partial CatDB price: only some converters are priced, so this estimate is Partial"
+                            : catalytic.label === "INFERRED"
+                                ? "Inferred: another vehicle's paid CatDB result for the same configuration"
+                                : "Estimated match, not an exact one"}
+                    </p>
                 )}
                 {catalytic.reason && <p className="mt-1 text-[11px] text-amber-300/90">{catalytic.reason}</p>}
                 {catalytic.skipped.length > 0 && (
@@ -365,11 +371,6 @@ export default function RecoveryPriceBuilder({ batchId, vehicleId, onSaved }) {
                         )}
                     </div>
                 </fieldset>
-                <label className="flex items-center gap-2 text-xs text-white/75">
-                    <input type="checkbox" className="h-4 w-4" checked={catalytic.allow_approximate} onChange={(e) => change({ allow_approximate: e.target.checked })} />
-                    Allow approximate matches
-                    <Origin value={catalytic.allow_approximate_origin} />
-                </label>
             </div>
 
             {dirty && (

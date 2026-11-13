@@ -155,14 +155,17 @@ describe("Columns", () => {
         render(<VehicleTable batchId={1} refreshKey={0} />);
         await screen.findByRole("columnheader", { name: "CatDB VIN" });
         const defaults = headers();
-        expect(defaults).not.toContain("Catalytic (in totals)");
+        // K.60 — the selected catalytic price and the one estimate are shown by default.
+        expect(defaults).toContain("Catalytic (selected)");
+        expect(defaults).toContain("Estimate");
+        expect(defaults).not.toContain("OurDB status");
         let menu = openColumns();
         fireEvent.click(within(menu).getByRole("button", { name: "Show All" }));
-        expect(headers()).toContain("Catalytic (in totals)");
         expect(headers()).toContain("OurDB status");
         fireEvent.click(within(menu).getByRole("button", { name: "Hide All" }));
-        expect(headers()).toEqual(["Lot #"]);
+        expect(headers()).toEqual(["Lot #", "Estimate"]);
         expect(within(menu).getByRole("menuitemcheckbox", { name: "Lot # (always shown)" })).toBeDisabled();
+        expect(within(menu).getByRole("menuitemcheckbox", { name: "Estimate (always shown)" })).toBeDisabled();
         fireEvent.click(within(menu).getByRole("button", { name: "Reset to Default" }));
         expect(headers()).toEqual(defaults);
         expect(JSON.parse(window.localStorage.getItem("operations:vehicles:columns"))).toEqual({});
@@ -173,7 +176,7 @@ describe("Columns", () => {
         render(<VehicleTable batchId={1} refreshKey={0} />);
         await screen.findByRole("columnheader", { name: "CatDB VIN" });
         const names = within(openColumns()).getAllByRole("menuitemcheckbox").map((b) => b.textContent);
-        for (const name of ["Make", "Model", "Year", "VIN", "Engine", "Transmission", "Scrap", "Our Database", "CatDB VIN", "CatDB Local", "EcoTrade Local", "Complete Recovery", "Status"]) {
+        for (const name of ["Make", "Model", "Year", "VIN", "Engine", "Transmission", "Scrap", "Our Database", "CatDB VIN", "CatDB Local", "EcoTrade Local", "Catalytic (selected)", "Status"]) {
             expect(names).toContain(name);
         }
     });

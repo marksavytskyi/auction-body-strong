@@ -52,8 +52,6 @@ export default function BulkRecoveryDialog({ batchId, vehicleIds, onClose, onApp
         }
         if (choice("catalytic_source") === RESET) reset_fields.push("catalytic_source");
         else if (choice("catalytic_source") !== NO_CHANGE) changes.catalytic_source = choice("catalytic_source");
-        if (choice("allow_approximate") === RESET) reset_fields.push("allow_approximate");
-        else if (choice("allow_approximate") !== NO_CHANGE) changes.allow_approximate = choice("allow_approximate") === "true";
         if (choice("valuation_mode") === RESET) reset_fields.push("valuation_mode");
         else if (choice("valuation_mode") !== NO_CHANGE) changes.valuation_mode = choice("valuation_mode");
         if (removeManual) reset_fields.push(...RECOVERY_COMPONENTS.map(({ id }) => `${id}_manual_price`));
@@ -98,7 +96,6 @@ export default function BulkRecoveryDialog({ batchId, vehicleIds, onClose, onApp
             <RecoveryPreviewDialog
                 title={`Apply to ${vehicleIds.length} selected vehicle${vehicleIds.length === 1 ? "" : "s"}?`}
                 preview={preview}
-                note={preview.rules_active ? null : "This batch's rules are not active, so this changes no total yet. These figures are what activating this batch would show."}
                 busy={busy}
                 error={error}
                 onApply={apply}
@@ -129,11 +126,6 @@ export default function BulkRecoveryDialog({ batchId, vehicleIds, onClose, onApp
                 <Choice id="bulk-source" label="Catalytic source" value={choice("catalytic_source")} onChange={set("catalytic_source")}>
                     <option value={RESET}>Auto</option>
                     {SOURCES.map((source) => <option key={source} value={source}>{RECOVERY_SOURCE_LABEL[source]}</option>)}
-                </Choice>
-                <Choice id="bulk-approximate" label="Approximate matches" value={choice("allow_approximate")} onChange={set("allow_approximate")}>
-                    <option value="true">Allow</option>
-                    <option value="false">Disable</option>
-                    <option value={RESET}>Use batch rule</option>
                 </Choice>
                 <Choice id="bulk-mode" label="Valuation mode" value={choice("valuation_mode")} onChange={set("valuation_mode")}>
                     {RECOVERY_MODES.map((mode) => <option key={mode} value={mode}>{mode}</option>)}

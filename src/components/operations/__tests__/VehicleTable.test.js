@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import VehicleTable from "../VehicleTable";
@@ -196,41 +196,61 @@ describe("VehicleTable", () => {
 
     // ─── Financial sorting fix (Section 6) ──────────────────────────────
 
-    it("sorts the Complete Recovery column by total_expected_recovery, and Known Subtotal by known_components_subtotal — never a shared/misleading sort field", async () => {
+    it("sorts the Estimate column by the estimate it shows (known_components_subtotal)", async () => {
         listOperationsBatchVehicles.mockResolvedValue({ items: [vehicle()], total: 1 });
         render(<VehicleTable batchId={1} onOpenVehicle={vi.fn()} />);
         await waitFor(() => expect(listOperationsBatchVehicles).toHaveBeenCalledTimes(1));
-
-        fireEvent.click(screen.getByText(/^complete recovery$/i));
-        await waitFor(() =>
-            expect(listOperationsBatchVehicles).toHaveBeenLastCalledWith(1, expect.objectContaining({ sortBy: "total_expected_recovery", sortDir: "asc" }))
-        );
-
-        fireEvent.click(screen.getByText(/^known subtotal$/i));
+        fireEvent.click(screen.getByRole("columnheader", { name: "Estimate" }));
         await waitFor(() =>
             expect(listOperationsBatchVehicles).toHaveBeenLastCalledWith(1, expect.objectContaining({ sortBy: "known_components_subtotal", sortDir: "asc" }))
         );
     });
 
-    it("displays Complete Recovery and Known Subtotal as two separate columns, never one combined value", async () => {
+    it("K.60: one Estimate column — no Complete Recovery / Known Subtotal pair, a partial says so and what is missing", async () => {
         listOperationsBatchVehicles.mockResolvedValue({
             items: [vehicle({
                 financials: {
-                    engine_value: 100, transmission_value: 50, cats_value: null, scrap_value: 20,
-                    known_components_subtotal: 170, total_expected_recovery: null,
-                    completeness_status: "PARTIAL", components_available: 3, components_expected: 4, missing_components: ["cats"],
+                    engine_value: 100, transmission_value: 50, cats_value: 130, cats_source: "CATDB_VIN", scrap_value: null,
+                    known_components_subtotal: 280, total_expected_recovery: null,
+                    completeness_status: "PARTIAL", components_available: 3, components_expected: 4, missing_components: ["scrap"],
+                    recovery: { catalytic_source: "CATDB_VIN", valuation_mode: "MID", estimated: false, excluded_components: [], manual_components: [],
+                        catalytic_label: "EXACT", catalytic_match_type: "VIN_EXACT", partial_price: true },
                 },
             })],
             total: 1,
         });
         render(<VehicleTable batchId={1} onOpenVehicle={vi.fn()} />);
         await waitFor(() => expect(listOperationsBatchVehicles).toHaveBeenCalled());
+        expect(screen.queryByRole("columnheader", { name: /complete recovery|known subtotal/i })).toBeNull();
+        const table = screen.getByRole("columnheader", { name: "Estimate" }).closest("table");
+        expect(within(table).getByText("$280.00")).toBeInTheDocument();
+        expect(within(table).getAllByText("Partial Estimate").length).toBeGreaterThan(0);
+        expect(within(table).getByText("Missing: Scrap")).toBeInTheDocument();
+        expect(within(table).getByText("Partial price, check")).toBeInTheDocument();
+        expect(within(table).getByText("Exact")).toBeInTheDocument();
+    });
 
-        expect(screen.getByText(/^complete recovery$/i)).toBeInTheDocument();
-        expect(screen.getByText(/^known subtotal$/i)).toBeInTheDocument();
-        // Complete Recovery is null for a PARTIAL vehicle -> em dash, never $0.
-        const desktopTable = screen.getByText(/^complete recovery$/i).closest("table");
-        expect(desktopTable).toBeTruthy();
+    it("K.60: an inferred CatDB Local price is labelled Inferred, and a confirmed $0 shows as $0.00", async () => {
+        listOperationsBatchVehicles.mockResolvedValue({
+            items: [vehicle({ id: 1, financials: {
+                engine_value: 100, transmission_value: 50, cats_value: 120, cats_source: "CATDB_LOCAL", scrap_value: 20,
+                known_components_subtotal: 290, total_expected_recovery: 290, completeness_status: "COMPLETE_WITH_ESTIMATES",
+                missing_components: [],
+                recovery: { catalytic_source: "CATDB_LOCAL", valuation_mode: "MID", estimated: true, excluded_components: [], manual_components: [],
+                    catalytic_label: "INFERRED", catalytic_match_type: "CONFIGURATION_MATCH", partial_price: false },
+            } }), vehicle({ id: 2, lot_number: "222", financials: {
+                engine_value: 100, transmission_value: 50, cats_value: 0, cats_source: "CATDB_VIN", scrap_value: 20,
+                known_components_subtotal: 170, total_expected_recovery: 170, completeness_status: "COMPLETE", missing_components: [],
+                recovery: { catalytic_source: "CATDB_VIN", valuation_mode: "MID", estimated: false, excluded_components: [], manual_components: [],
+                    catalytic_label: "EXACT", catalytic_match_type: "VIN_EXACT", partial_price: false },
+            } })],
+            total: 2,
+        });
+        render(<VehicleTable batchId={1} onOpenVehicle={vi.fn()} />);
+        await waitFor(() => expect(listOperationsBatchVehicles).toHaveBeenCalled());
+        const table = screen.getByRole("columnheader", { name: "Estimate" }).closest("table");
+        expect(within(table).getByText("Inferred")).toBeInTheDocument();
+        expect(within(table).getByText("$0.00")).toBeInTheDocument();
     });
 
     it("calls onOpenVehicle with the full vehicle record when a row is clicked", async () => {

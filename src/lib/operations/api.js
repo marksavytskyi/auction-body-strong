@@ -266,14 +266,7 @@ export function setOperationsVehicleScrapOverride(batchId, vehicleId, updates = 
     );
 }
 
-// ─── financial summary, progress, export (Phase G backend contracts) ───
-
-export function getOperationsBatchFinancialSummary(batchId) {
-    return request(
-        () => axiosInstance.get(`${BASE}/batches/${encodeURIComponent(batchId)}/financial-summary`),
-        "Failed to load batch financial summary"
-    );
-}
+// ─── progress, export (Phase G backend contracts; K.60: no batch financial summary) ───
 
 export function getOperationsBatchProgress(batchId) {
     return request(

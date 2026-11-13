@@ -21,14 +21,11 @@ vi.mock("react-hot-toast", () => ({
 
 // Isolate the page's own polling/loading/error behavior from the heavy
 // child components (each has its own dedicated test file already).
-// ProcessingProgress/FinancialSummaryCards/VehicleTable render the
+// ProcessingProgress/VehicleTable render the
 // refreshKey they were given so tests can prove it actually advances on
 // every tick — including the final one that detects completion, which
 // is exactly the Phase K.9 regression (results previously only appeared
 // after a full page reload because that last tick never bumped it).
-vi.mock("@/components/operations/FinancialSummaryCards", () => ({
-    default: (props) => <div data-testid="financial-summary">{props.refreshKey}</div>,
-}));
 vi.mock("@/components/operations/ProcessingProgress", () => ({
     default: (props) => <div data-testid="processing-progress">{props.refreshKey}</div>,
 }));
@@ -87,7 +84,9 @@ describe("OperationsBatchDetailPage", () => {
 
         expect(await screen.findByText("Batch #7")).toBeInTheDocument();
         expect(screen.getByTestId("processing-controls")).toBeInTheDocument();
-        expect(screen.getByTestId("financial-summary")).toBeInTheDocument();
+        // K.60 — no batch financial totals on the page.
+        expect(screen.queryByTestId("financial-summary")).toBeNull();
+        expect(screen.queryByText(/Complete Recovery Total|Partial Known Components|CatDB Estimates/)).toBeNull();
         expect(screen.getByTestId("processing-progress")).toBeInTheDocument();
         expect(screen.getByTestId("export-csv-button")).toBeInTheDocument();
         expect(screen.getByTestId("catalytic-card")).toBeInTheDocument();
@@ -161,7 +160,6 @@ describe("OperationsBatchDetailPage", () => {
         await waitFor(() => expect(getOperationsBatchProgress).toHaveBeenCalledTimes(4));
         const afterDone = Number(screen.getByTestId("processing-progress").textContent);
         expect(afterDone).toBeGreaterThan(afterProcessing);
-        expect(screen.getByTestId("financial-summary").textContent).toBe(String(afterDone));
         expect(screen.getByTestId("vehicle-table").textContent).toBe(String(afterDone));
 
         const toast = (await import("react-hot-toast")).default;
@@ -247,7 +245,7 @@ describe("OperationsBatchDetailPage", () => {
         render(<OperationsBatchDetailPage />);
         await screen.findByTestId("vehicle-table");
         // Phase K.53: Catalytic Processing moved up, directly below Processing Progress.
-        const order = ["scrap-price", "financial-summary", "processing-progress", "catalytic-card", "recovery-settings", "processing-controls", "import-check", "vehicle-table"];
+        const order = ["scrap-price", "processing-progress", "catalytic-card", "recovery-settings", "processing-controls", "import-check", "vehicle-table"];
         const nodes = order.map((id) => screen.getByTestId(id));
         for (let i = 1; i < nodes.length; i += 1) {
             expect(nodes[i - 1].compareDocumentPosition(nodes[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

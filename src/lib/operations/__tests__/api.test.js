@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import {
-    getOperationsBatchFinancialSummary, getOperationsBatchProgress, downloadOperationsBatchExportCsv,
+    getOperationsBatchProgress, downloadOperationsBatchExportCsv,
     previewOperationsCatdbSearches, approveOperationsCatdbSearches, listOperationsCatdbApprovals, reconcileOperationsCatdbResults,
 } from "../api";
 import { axiosInstance, CatalyticApiError } from "@/lib/catalytic/http";
@@ -29,17 +29,10 @@ vi.mock("@/lib/catalytic/http", () => {
     };
 });
 
-describe("getOperationsBatchFinancialSummary", () => {
-    beforeEach(() => { axiosInstance.get.mockReset(); });
-
-    it("calls the exact financial-summary endpoint and returns the backend's response body verbatim", async () => {
-        const body = { operations_batch_id: 7, complete_recovery_total: "100.00", partial_known_components_subtotal: null };
-        axiosInstance.get.mockResolvedValue({ data: body });
-
-        const result = await getOperationsBatchFinancialSummary(7);
-
-        expect(axiosInstance.get).toHaveBeenCalledWith("/operations/batches/7/financial-summary");
-        expect(result).toBe(body);
+describe("K.60: no batch financial summary", () => {
+    it("the client no longer offers a batch financial summary call", async () => {
+        const api = await import("../api");
+        expect(api.getOperationsBatchFinancialSummary).toBeUndefined();
     });
 });
 

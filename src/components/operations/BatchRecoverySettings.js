@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 
-import RecoveryActivationCard from "./RecoveryActivationCard";
 import RecoveryPreviewDialog from "./RecoveryPreviewDialog";
 import RecoveryRulesEditor, { hasEnabledSource, pickRules, rulesEqual } from "./RecoveryRulesEditor";
 import { getBatchRecovery, listRecoveryEvents, previewBatchRecovery, saveBatchRecovery } from "@/lib/operations/api";
@@ -99,7 +98,7 @@ export default function BatchRecoverySettings({ batchId, onChanged }) {
             applyLoaded(await saveBatchRecovery(batchId, { changes: draft, expectedVersion: rules.version }));
             setPreview(null);
             setHistoryKey((key) => key + 1);
-            toast.success("Recovery Settings saved");
+            toast.success("Estimate settings saved");
             onChanged?.();
         } catch (e) {
             setSaveError(message(e, "Failed to save Recovery Settings"));
@@ -111,7 +110,7 @@ export default function BatchRecoverySettings({ batchId, onChanged }) {
     };
 
     return (
-        <section aria-label="Recovery settings" className="rounded-2xl border border-white/10 bg-white/[0.02]">
+        <section aria-label="Vehicle estimate settings" className="rounded-2xl border border-white/10 bg-white/[0.02]">
             <button
                 type="button"
                 aria-expanded={open}
@@ -119,12 +118,7 @@ export default function BatchRecoverySettings({ batchId, onChanged }) {
                 className="flex min-h-11 w-full items-center gap-2 px-4 text-left text-sm font-bold text-white/80"
             >
                 {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                Recovery Settings
-                {rules && (
-                    <span className={`text-xs font-normal ${rules.rules_active ? "text-emerald-300" : "text-white/45"}`}>
-                        {rules.rules_active ? "Rules active" : "Rules not active"}
-                    </span>
-                )}
+                Vehicle Estimate Settings
             </button>
             {open && (
                 <div className="space-y-4 px-4 pb-4">
@@ -139,18 +133,8 @@ export default function BatchRecoverySettings({ batchId, onChanged }) {
                         </div>
                     ) : (
                         <>
-                            <RecoveryActivationCard
-                                batchId={batchId}
-                                settings={rules}
-                                disabledReason={changed ? "Save or cancel your changes first." : null}
-                                onChanged={(updated) => {
-                                    applyLoaded(updated);
-                                    setHistoryKey((key) => key + 1);
-                                    onChanged?.();
-                                }}
-                            />
                             <p className="text-[11px] text-white/40">
-                                These rules apply to this batch only, and only once activated. They choose among prices already stored; searching happens in Catalytic Processing.
+                                How each vehicle&apos;s estimate is built in this batch: Scrap + Engine + Transmission + one catalytic price. These settings choose among prices already stored; searching happens in Catalytic Processing.
                             </p>
                             <RecoveryRulesEditor
                                 value={draft}
@@ -186,7 +170,6 @@ export default function BatchRecoverySettings({ batchId, onChanged }) {
                 <RecoveryPreviewDialog
                     title={`Preview changes to Batch #${batchId}`}
                     preview={preview}
-                    note={rules.rules_active ? null : "This batch's rules are not active, so saving changes no total yet. These figures are what activating this batch would show."}
                     applyLabel="Save Rules"
                     busy={saving}
                     error={saveError}

@@ -12,8 +12,8 @@ import usePageSize from "@/hooks/usePageSize";
 import usePagedRows from "@/hooks/usePagedRows";
 import { isAll, showingLabel } from "@/lib/pagination";
 import StatusPill from "@/components/catalytic/StatusPill";
-import { CATS_SOURCE_LABEL, OVERALL_STATUS, OVERALL_STATUS_LABEL, OVERALL_STATUS_TONE, LEG_STATUS_TONE, VEHICLE_SORT_FIELDS, PARTS_CONFIDENCE_LABEL } from "@/lib/operations/constants";
-import { formatMoney, completenessMeta, deriveWeightStatus } from "@/lib/operations/format";
+import { CATALYTIC_LABEL, CATALYTIC_LABEL_TONE, CATS_SOURCE_LABEL, OVERALL_STATUS, OVERALL_STATUS_LABEL, OVERALL_STATUS_TONE, LEG_STATUS_TONE, VEHICLE_SORT_FIELDS, PARTS_CONFIDENCE_LABEL } from "@/lib/operations/constants";
+import { formatMoney, completenessMeta, componentLabel, deriveWeightStatus } from "@/lib/operations/format";
 import CellStatus, { LatestAttempt, legState } from "./CellStatus";
 import CatalyticSourceCell from "./CatalyticSourceCell";
 import ColumnsMenu from "@/components/ui/ColumnsMenu";
@@ -37,8 +37,7 @@ const td = "px-3 py-2 border-b border-white/5";
 
 // Phase K.49 — every column, in table order; the Columns menu shows or hides each.
 // The four catalytic sources each have their own column and read only that source's
-// saved result. "Catalytic (in totals)" is the one value the totals use (CatDB VIN or
-// Our Database, or the Recovery Rules' choice when active), so it stays available.
+// saved result. "Catalytic (selected)" is the ONE price the vehicle's estimate uses (K.60).
 const COLUMNS = [
     { id: "lot", label: "Lot #", required: true, cell: (v) => <td key="lot" className={`${td} text-white/70 whitespace-nowrap`}>{v.lot_number || "—"}</td> },
     { id: "vin", label: "VIN", cell: (v) => <td key="vin" className={`${td} text-white/35 font-mono whitespace-nowrap`}>{v.full_vin || "—"}</td> },
@@ -51,28 +50,14 @@ const COLUMNS = [
         id, label, source,
         cell: (v) => <td key={id} className={`${td} text-white/70 whitespace-nowrap`}><CatalyticSourceCell source={source} vehicle={v} /></td>,
     })),
-    { id: "cats_value", label: "Catalytic (in totals)", defaultVisible: false, cell: (v, fin) => <td key="cats_value" className={`${td} text-white/70 whitespace-nowrap`}><ComponentPrice fin={fin} name="catalytic" value={fin.cats_value} /></td> },
+    { id: "cats_value", label: "Catalytic (selected)", cell: (v, fin) => <td key="cats_value" className={`${td} text-white/70 whitespace-nowrap`}><ComponentPrice fin={fin} name="catalytic" value={fin.cats_value} /></td> },
     { id: "scrap_value", label: "Scrap", cell: (v, fin) => <td key="scrap_value" className={`${td} text-white/70 whitespace-nowrap`}><ComponentPrice fin={fin} name="scrap" value={fin.scrap_value} status={v.scrap_status} /></td> },
-    // Two distinct, separately-sortable columns — never one combined
-    // "Total / Known" column: total_expected_recovery is only set for
-    // COMPLETE/COMPLETE_WITH_ESTIMATES vehicles, known_components_subtotal
-    // is the partial figure for everyone else, and each sorts by the value
-    // it displays (app.operations.finance.FINANCIAL_SORT_FIELDS).
-    { id: "total_expected_recovery", label: "Complete Recovery", cell: (v, fin) => (
-        <td key="total_expected_recovery" className={`${td} whitespace-nowrap`}>
-            <span className={fin.total_expected_recovery != null ? "text-emerald-300 font-bold" : "text-white/30"}>{formatMoney(fin.total_expected_recovery)}</span>
-        </td>
-    ) },
-    { id: "known_components_subtotal", label: "Known Subtotal", cell: (v, fin) => (
-        <td key="known_components_subtotal" className={`${td} whitespace-nowrap`}>
-            <span className={fin.known_components_subtotal != null ? "text-amber-300/90" : "text-white/30"}>{formatMoney(fin.known_components_subtotal)}</span>
-        </td>
+    // K.60 — one estimate per vehicle: Scrap + Engine + Transmission + one catalytic price.
+    // Sorted by the same figure it shows (known_components_subtotal is the estimate).
+    { id: "known_components_subtotal", label: "Estimate", required: true, cell: (v, fin) => (
+        <td key="known_components_subtotal" className={`${td} whitespace-nowrap`}><VehicleEstimate fin={fin} /></td>
     ) },
     { id: "overall_status", label: "Status", cell: (v) => <td key="overall_status" className={td}><StatusPill label={OVERALL_STATUS_LABEL[v.overall_status] || v.overall_status} tone={OVERALL_STATUS_TONE[v.overall_status] || "neutral"} /></td> },
-    { id: "completeness", label: "Estimate", cell: (v, fin) => {
-        const cm = completenessMeta(fin.completeness_status);
-        return <td key="completeness" className={td}><StatusPill label={cm.label} tone={cm.tone} /></td>;
-    } },
     { id: "parts_status", label: "Parts", cell: (v) => <td key="parts_status" className={td}><StatusPill label={v.parts_status} tone={LEG_STATUS_TONE[v.parts_status] || "neutral"} /></td> },
     { id: "ourdb_status", label: "OurDB status", defaultVisible: false, cell: (v) => <td key="ourdb_status" className={td}><StatusPill label={v.ourdb_status} tone={LEG_STATUS_TONE[v.ourdb_status] || "neutral"} /></td> },
     { id: "weight", label: "Weight", cell: (v) => {
@@ -125,11 +110,34 @@ function ComponentPrice({ fin, name, value, status, doneWithoutValue = "NO_DATA"
             {recovery?.manual_components?.includes(name) && <div className="text-[10px] font-bold text-sky-300/80">Manual</div>}
             {excluded && <div className="text-[10px] text-white/35">Excluded</div>}
             {name === "catalytic" && recovery && !excluded && fin.cats_source && fin.cats_source !== "MANUAL" && (
-                <div className={`text-[10px] ${recovery.estimated ? "font-bold text-amber-300/80" : "text-white/35"}`}>
-                    {CATS_SOURCE_LABEL[fin.cats_source] || fin.cats_source} {recovery.valuation_mode}{recovery.estimated ? " · Estimated" : ""}
+                <div className="text-[10px] text-white/45">
+                    {CATS_SOURCE_LABEL[fin.cats_source] || fin.cats_source}
+                    {recovery.catalytic_label && (
+                        <span className={`ml-1 font-bold ${CATALYTIC_LABEL_TONE[recovery.catalytic_label] || ""}`}>{CATALYTIC_LABEL[recovery.catalytic_label]}</span>
+                    )}
                 </div>
             )}
+            {name === "catalytic" && recovery?.partial_price && !excluded && (
+                <div className="text-[10px] font-bold text-amber-300" title="Only some converters have a CatDB price">Partial price, check</div>
+            )}
         </>
+    );
+}
+
+// K.60 — the vehicle's one estimate. A partial estimate always says so and what's missing.
+export function VehicleEstimate({ fin }) {
+    const cm = completenessMeta(fin.completeness_status);
+    const missing = fin.missing_components || [];
+    const partial = fin.completeness_status !== "COMPLETE" && fin.completeness_status !== "COMPLETE_WITH_ESTIMATES";
+    return (
+        <div>
+            <span className={fin.known_components_subtotal == null ? "text-white/30" : partial ? "font-bold text-amber-300/90" : "font-bold text-emerald-300"}>
+                {formatMoney(fin.known_components_subtotal)}
+            </span>
+            <div className="mt-0.5"><StatusPill label={cm.label} tone={cm.tone} /></div>
+            {missing.length > 0 && <div className="text-[10px] text-white/40">Missing: {missing.map(componentLabel).join(", ")}</div>}
+            {fin.recovery?.partial_price && <div className="text-[10px] text-amber-300/80">Catalytic price is partial</div>}
+        </div>
     );
 }
 
@@ -307,7 +315,6 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey, selec
                     <div className="lg:hidden space-y-2">
                         {rows.map((v) => {
                             const fin = v.financials || {};
-                            const cm = completenessMeta(fin.completeness_status);
                             return (
                                 <div key={v.id} className="flex items-start gap-2">
                                     {selectable && <div className="flex h-11 w-7 shrink-0 items-center justify-center">{selectCheckbox(v)}</div>}
@@ -349,19 +356,17 @@ export default function VehicleTable({ batchId, onOpenVehicle, refreshKey, selec
                                         ))}
                                         {columns.isVisible(COLUMN_BY_ID.cats_value) && (
                                             <div>
-                                                <div className="text-[10px] text-white/35">Catalytic (in totals)</div>
+                                                <div className="text-[10px] text-white/35">Catalytic (selected)</div>
                                                 <ComponentPrice fin={fin} name="catalytic" value={fin.cats_value} />
                                             </div>
                                         )}
                                     </div>
-                                    {fin.total_expected_recovery != null ? (
-                                        <div className="text-sm font-bold text-emerald-300">
-                                            {formatMoney(fin.total_expected_recovery)} <span className="text-[10px] font-normal text-white/30">{fin.recovery ? "recovery total" : "complete recovery"}</span>
-                                        </div>
-                                    ) : (
-                                        <div className="text-sm font-bold text-amber-300/90">
-                                            {formatMoney(fin.known_components_subtotal)} <span className="text-[10px] font-normal text-white/30">known subtotal (partial)</span>
-                                        </div>
+                                    <div className="text-sm">
+                                        <span className="text-[10px] font-normal text-white/30">Estimate </span>
+                                        <VehicleEstimate fin={fin} />
+                                    </div>
+                                    {columns.isVisible(COLUMN_BY_ID.scrap_value) && (
+                                        <div className="text-xs text-white/70"><span className="text-[10px] text-white/35">Scrap </span><ComponentPrice fin={fin} name="scrap" value={fin.scrap_value} status={v.scrap_status} /></div>
                                     )}
                                 </button>
                                     </div>

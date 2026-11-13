@@ -18,15 +18,15 @@ const BATCH = {
     rules_active: false, activated_at: null, version: 2, updated_at: null,
 };
 const PREVIEW = {
-    operations_batch_id: 20, rules_active: false, vehicles_evaluated: 44, vehicles_affected: 18, current_total: "42000.00", new_total: "44850.00",
-    difference: "2850.00", catalytic_sources: { CATDB_VIN: 19, MISSING: 25 }, missing_values: 30, approximate_included: 1, uncertain_excluded: 2,
+    operations_batch_id: 20, rules_active: true, vehicles_evaluated: 44, vehicles_affected: 18,
+    catalytic_sources: { CATDB_VIN: 19, MISSING: 25 }, missing_values: 30, approximate_included: 1, partial_prices_included: 2,
     completeness: { PARTIAL: 40, COMPLETE: 4 },
 };
 
 const open = async (batchId = 20) => {
     const onChanged = vi.fn();
     render(<BatchRecoverySettings batchId={batchId} onChanged={onChanged} />);
-    fireEvent.click(screen.getByRole("button", { name: /Recovery Settings/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Vehicle Estimate Settings/ }));
     await screen.findByRole("checkbox", { name: "Engine" });
     return onChanged;
 };
@@ -59,12 +59,11 @@ describe("BatchRecoverySettings", () => {
         const dialog = await screen.findByRole("dialog", { name: "Preview changes to Batch #20" });
         expect(api.previewBatchRecovery.mock.calls[0][0]).toBe(20);
         expect(api.saveBatchRecovery).not.toHaveBeenCalled();
-        expect(within(dialog).getByText("$42,000.00")).toBeInTheDocument();
-        expect(within(dialog).getByText("$44,850.00")).toBeInTheDocument();
-        expect(within(dialog).getByText("+$2,850.00")).toBeInTheDocument();
+        // K.60 — per-vehicle counts only, never a batch total.
         expect(within(dialog).getByText("18 of 44")).toBeInTheDocument();
-        expect(within(dialog).queryByText("Batches affected")).not.toBeInTheDocument();
-        expect(within(dialog).getByText(/saving changes no total yet/)).toBeInTheDocument();
+        expect(within(dialog).getByText("Estimates that change")).toBeInTheDocument();
+        expect(within(dialog).queryByText(/Current total|New total|Difference/)).not.toBeInTheDocument();
+        expect(within(dialog).queryByText(/\$/)).not.toBeInTheDocument();
         fireEvent.click(within(dialog).getByRole("button", { name: "Save Rules" }));
         await waitFor(() => expect(api.saveBatchRecovery).toHaveBeenCalledTimes(1));
         const [batchId, sent] = api.saveBatchRecovery.mock.calls[0];
@@ -82,22 +81,35 @@ describe("BatchRecoverySettings", () => {
     });
 
     it("shows the saved rules of the batch, not defaults", async () => {
-        api.getBatchRecovery.mockResolvedValue({ ...BATCH, include_scrap: false, valuation_mode: "HIGH", allow_approximate: true });
+        api.getBatchRecovery.mockResolvedValue({ ...BATCH, include_scrap: false, valuation_mode: "HIGH",
+            priority: PRIORITY.map((e) => (e.source === "CATDB_VIN" ? { ...e, enabled: false } : e)) });
         await open();
         expect(screen.getByRole("checkbox", { name: "Scrap" })).not.toBeChecked();
         expect(screen.getByRole("radio", { name: "HIGH" })).toBeChecked();
-        expect(screen.getByRole("checkbox", { name: /Allow approximate/ })).toBeChecked();
+        // Batch 21 style: a source switched off stays off.
+        expect(screen.getByRole("checkbox", { name: "CatDB VIN Search" })).not.toBeChecked();
+        // K.60 — approximate prices always count (labelled): no switch for it.
+        expect(screen.queryByRole("checkbox", { name: /Allow approximate/ })).not.toBeInTheDocument();
     });
 
-    it("Cancel restores the saved order; Reset to Default restores the default one", async () => {
-        api.getBatchRecovery.mockResolvedValue({ ...BATCH, priority: [...PRIORITY].reverse() });
+    it("shows the fixed order whatever order was saved (Batch 22 style), with no way to reorder", async () => {
+        api.getBatchRecovery.mockResolvedValue({ ...BATCH, priority: [PRIORITY[0], PRIORITY[2], PRIORITY[3], PRIORITY[1]] });
         await open();
-        const first = () => screen.getAllByRole("listitem")[0];
-        expect(first()).toHaveTextContent("EcoTrade Local");
-        fireEvent.click(screen.getByRole("button", { name: "Reset to Default" }));
-        expect(first()).toHaveTextContent("Our Database");
+        const items = screen.getAllByRole("listitem").map((li) => li.textContent);
+        expect(items).toEqual(["1Our Database", "2CatDB VIN Search", "3CatDB Local", "4EcoTrade Local"]);
+        expect(screen.queryByRole("button", { name: /Move .* up|Reorder/ })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Reset to Default" })).not.toBeInTheDocument();
+    });
+
+    it("Turn all on switches every source back on; Cancel restores the saved switches", async () => {
+        api.getBatchRecovery.mockResolvedValue({ ...BATCH, priority: PRIORITY.map((e) => (e.source === "CATDB_VIN" ? { ...e, enabled: false } : e)) });
+        await open();
+        const vin = () => screen.getByRole("checkbox", { name: "CatDB VIN Search" });
+        expect(vin()).not.toBeChecked();
+        fireEvent.click(screen.getByRole("button", { name: "Turn all on" }));
+        expect(vin()).toBeChecked();
         fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-        expect(first()).toHaveTextContent("EcoTrade Local");
+        expect(vin()).not.toBeChecked();
     });
 
     it("can't preview with every source off", async () => {
@@ -125,55 +137,13 @@ describe("BatchRecoverySettings", () => {
     });
 });
 
-describe("activation", () => {
-    it("the collapsed header says whether this batch is active", async () => {
-        api.getBatchRecovery.mockResolvedValue({ ...BATCH, rules_active: true, activated_at: "2026-11-01T10:00:00" });
+describe("K.60: no activation", () => {
+    it("has no activation switch and no Rules active / not active label: the rules always apply", async () => {
         render(<BatchRecoverySettings batchId={20} />);
-        expect(await screen.findByText("Rules active")).toBeInTheDocument();
-    });
-
-    it("shows this batch's dry run first, then activates only this batch", async () => {
-        api.setBatchRecoveryActivation.mockResolvedValue({ ...BATCH, rules_active: true, activated_at: "2026-11-01T10:00:00", version: 3 });
-        const onChanged = await open();
-        fireEvent.click(screen.getByRole("button", { name: "Review and Activate" }));
-        const dialog = await screen.findByRole("dialog", { name: "Activate the rules for Batch #20?" });
-        expect(api.getBatchRecoveryDryRun).toHaveBeenCalledWith(20);
-        expect(api.setBatchRecoveryActivation).not.toHaveBeenCalled();
-        expect(within(dialog).getByText(/No other batch is affected, no search runs and no stored price changes/)).toBeInTheDocument();
-        fireEvent.click(within(dialog).getByRole("button", { name: "Activate for This Batch" }));
-        await waitFor(() => expect(api.setBatchRecoveryActivation).toHaveBeenCalledWith(20, { active: true, expectedVersion: 2 }));
-        expect(await screen.findByText(/Batch #20 rules active/)).toBeInTheDocument();
-        await waitFor(() => expect(onChanged).toHaveBeenCalled());
-    });
-
-    it("turning off asks first and needs no dry run", async () => {
-        api.getBatchRecovery.mockResolvedValue({ ...BATCH, rules_active: true, activated_at: "2026-11-01T10:00:00" });
-        api.setBatchRecoveryActivation.mockResolvedValue(BATCH);
-        await open();
-        fireEvent.click(screen.getByRole("button", { name: "Turn Off Rules" }));
-        expect(api.getBatchRecoveryDryRun).not.toHaveBeenCalled();
-        expect(screen.getByText("Turn off the rules for Batch #20?")).toBeInTheDocument();
-        fireEvent.click(screen.getByRole("button", { name: "Turn Off" }));
-        await waitFor(() => expect(api.setBatchRecoveryActivation).toHaveBeenCalledWith(20, { active: false, expectedVersion: 2 }));
-    });
-
-    it("can't activate over unsaved changes, so the dry run always matches what activates", async () => {
-        await open();
-        const button = screen.getByRole("button", { name: "Review and Activate" });
-        expect(button).toBeEnabled();
-        fireEvent.click(screen.getByRole("checkbox", { name: "Engine" }));
-        expect(button).toBeDisabled();
-        expect(screen.getByText("Save or cancel your changes first.")).toBeInTheDocument();
-        fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-        expect(button).toBeEnabled();
-    });
-
-    it("a failed activation keeps the dialog open and leaves the batch inactive", async () => {
-        api.setBatchRecoveryActivation.mockRejectedValue(new CatalyticApiError("These rules were changed by someone else.", { status: 409 }));
-        await open();
-        fireEvent.click(screen.getByRole("button", { name: "Review and Activate" }));
-        fireEvent.click(await screen.findByRole("button", { name: "Activate for This Batch" }));
-        expect(await screen.findByRole("alert")).toHaveTextContent("changed by someone else");
-        expect(screen.getByText(/Batch #20 rules not active/)).toBeInTheDocument();
+        expect(await screen.findByRole("button", { name: /Vehicle Estimate Settings/ })).toBeInTheDocument();
+        expect(screen.queryByText(/Rules active|Rules not active/)).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: /Vehicle Estimate Settings/ }));
+        await screen.findByRole("checkbox", { name: "Engine" });
+        expect(screen.queryByRole("button", { name: /Review and Activate|Turn Off Rules/ })).not.toBeInTheDocument();
     });
 });

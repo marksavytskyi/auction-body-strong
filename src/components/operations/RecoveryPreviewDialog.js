@@ -6,7 +6,7 @@ import { Loader2 } from "lucide-react";
 
 import { useModalLayer } from "@/hooks/useModalLayer";
 import { RECOVERY_SOURCE_LABEL } from "@/lib/operations/constants";
-import { completenessMeta, formatMoney } from "@/lib/operations/format";
+import { completenessMeta } from "@/lib/operations/format";
 
 function Figure({ label, value, tone }) {
     return (
@@ -17,16 +17,11 @@ function Figure({ label, value, tone }) {
     );
 }
 
-function signedMoney(value) {
-    const number = Number(value);
-    return `${number > 0 ? "+" : ""}${formatMoney(value)}`;
-}
-
-// Every number here is the backend's, from the same calculation saving uses.
+// Every number here is the backend's, from the same calculation saving uses. K.60: counts
+// per vehicle only — no batch total is shown anywhere.
 export default function RecoveryPreviewDialog({ title, preview, note, applyLabel = "Apply Changes", busy, error, onApply, onCancel }) {
     const zIndex = useModalLayer(true, busy ? undefined : onCancel);
     const sources = Object.entries(preview.catalytic_sources || {}).sort((a, b) => b[1] - a[1]);
-    const difference = Number(preview.difference);
     return createPortal(
         <div
             role="dialog"
@@ -39,17 +34,10 @@ export default function RecoveryPreviewDialog({ title, preview, note, applyLabel
             <div className="max-h-[94dvh] w-full max-w-lg space-y-3 overflow-auto rounded-2xl border border-white/10 bg-[#0b0d12] p-4 sm:p-5" onClick={(e) => e.stopPropagation()}>
                 <h2 className="text-base font-bold text-white">{title}</h2>
                 <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    <Figure label="Current total" value={formatMoney(preview.current_total)} />
-                    <Figure label="New total" value={formatMoney(preview.new_total)} tone="text-emerald-300" />
-                    <Figure
-                        label="Difference"
-                        value={signedMoney(preview.difference)}
-                        tone={difference < 0 ? "text-rose-300" : difference > 0 ? "text-emerald-300" : undefined}
-                    />
-                    <Figure label="Vehicles affected" value={`${preview.vehicles_affected} of ${preview.vehicles_evaluated}`} />
+                    <Figure label="Estimates that change" value={`${preview.vehicles_affected} of ${preview.vehicles_evaluated}`} />
                     <Figure label="Missing values" value={preview.missing_values} tone={preview.missing_values ? "text-amber-300" : undefined} />
-                    <Figure label="Approximate included" value={preview.approximate_included} />
-                    <Figure label="Flagged, excluded" value={preview.uncertain_excluded} />
+                    <Figure label="Estimated catalytic" value={preview.approximate_included} />
+                    <Figure label="Partial CatDB prices" value={preview.partial_prices_included ?? 0} tone={preview.partial_prices_included ? "text-amber-300" : undefined} />
                 </dl>
                 <div className="text-xs">
                     <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-white/40">Catalytic value by source</div>

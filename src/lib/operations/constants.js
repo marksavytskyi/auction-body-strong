@@ -358,14 +358,30 @@ export const RECOVERY_MATCH_LABEL = {
     YEAR_MAKE_MODEL_ENGINE: "Year, model, engine",
     YEAR_MAKE_MODEL: "Year and model",
     MAKE_MODEL_ANY_YEAR: "Model only",
+    CONFIGURATION_MATCH: "Same configuration",
 };
 
 export const RECOVERY_SKIP_LABEL = {
-    DISABLED: "turned off in the priority",
+    DISABLED: "turned off for this batch",
+    SOURCE_NOT_RUN_FOR_BATCH: "this batch doesn't run it",
     NO_RESULT: "no result",
+    ANY_YEAR_MATCH: "matched by model only (any year), never used automatically",
     UNCERTAIN: "price needs review",
     APPROXIMATE: "approximate match, not allowed",
     NO_VALUE_FOR_MODE: "no price for this mode",
+};
+
+// K.60 — how the selected catalytic price was matched.
+export const CATALYTIC_LABEL = {
+    EXACT: "Exact",
+    INFERRED: "Inferred",
+    ESTIMATE: "Estimate",
+};
+
+export const CATALYTIC_LABEL_TONE = {
+    EXACT: "text-emerald-300/80",
+    INFERRED: "text-sky-300/80",
+    ESTIMATE: "text-amber-300/80",
 };
 
 export const RECOVERY_ORIGIN_LABEL = { BATCH: "Batch", VEHICLE: "This vehicle" };

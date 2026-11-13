@@ -137,20 +137,31 @@ describe("RecoveryPriceBuilder", () => {
         await waitFor(() => expect(previewVehicleRecovery).toHaveBeenCalledWith(1, 2, { catalytic_source: "CATDB_VIN" }));
     });
 
-    it("labels a flagged price and explains why it was passed over", async () => {
+    it("labels a partial CatDB price: used, and the estimate says Partial (K.60)", async () => {
         const base = view();
         getVehicleRecovery.mockResolvedValue(view({
-            completeness: "PARTIAL", recovery_total: "3010.00", missing_components: ["catalytic"],
+            completeness: "PARTIAL", recovery_total: "3010.00", missing_components: [],
             catalytic: {
-                ...base.catalytic, effective_source: "MISSING", reason: "No eligible catalytic source",
-                skipped: [{ source: "CATDB_VIN", reason: "UNCERTAIN" }],
-                options: [option("OUR_DATABASE"), option("CATDB_VIN", { available: true, status: "DONE", exact: true, uncertain: "UNRECOGNIZED_PRICE_FORMAT", value: "225.00" }), option("CATDB_LOCAL"), option("ECOTRADE_LOCAL")],
+                ...base.catalytic, effective_source: "CATDB_VIN", uncertain: true, partial_price: true, label: "EXACT",
+                options: [option("OUR_DATABASE"), option("CATDB_VIN", { available: true, status: "DONE", exact: true, uncertain: "PRICE_PARTIAL: 1 of 2", value: "130.00" }), option("CATDB_LOCAL"), option("ECOTRADE_LOCAL")],
             },
         }));
         await setup();
-        expect(screen.getByText(/Needs review, so never used automatically: UNRECOGNIZED/)).toBeInTheDocument();
-        expect(screen.getByText("Incomplete: missing Catalytic")).toBeInTheDocument();
-        expect(screen.getByText(/price needs review/)).toBeInTheDocument();
+        expect(screen.getByText(/Partial price, check it: PRICE_PARTIAL/)).toBeInTheDocument();
+        expect(screen.getByText("Partial: the CatDB price covers only some converters")).toBeInTheDocument();
+        expect(screen.getByText(/only some converters are priced, so this estimate is Partial/)).toBeInTheDocument();
+        expect(screen.getByText("Vehicle Estimate")).toBeInTheDocument();
+    });
+
+    it("labels an inferred CatDB Local match", async () => {
+        const base = view();
+        getVehicleRecovery.mockResolvedValue(view({
+            catalytic: { ...base.catalytic, effective_source: "CATDB_LOCAL", approximate: true, label: "INFERRED",
+                options: [option("CATDB_LOCAL", { available: true, status: "COMPLETED", match_type: "CONFIGURATION_MATCH", label: "INFERRED", value: "120.00" })] },
+        }));
+        await setup();
+        expect(screen.getByText(/Inferred: another vehicle's paid CatDB result/)).toBeInTheDocument();
+        expect(screen.getByText(/Same configuration/)).toBeInTheDocument();
     });
 
     it("labels an approximate match as estimated, and offers one converter from a catalog", async () => {
@@ -172,10 +183,11 @@ describe("RecoveryPriceBuilder", () => {
         await waitFor(() => expect(previewVehicleRecovery).toHaveBeenCalledWith(1, 2, { catalytic_candidate_code: "B2" }));
     });
 
-    it("says when the rules are not active yet", async () => {
+    it("never says the rules are inactive and offers no approximate switch (K.60)", async () => {
         getVehicleRecovery.mockResolvedValue(view({ rules_active: false }));
         await setup();
-        expect(screen.getByText(/rules for this batch are not active yet/)).toBeInTheDocument();
+        expect(screen.queryByText(/not active yet/)).not.toBeInTheDocument();
+        expect(screen.queryByRole("checkbox", { name: /Allow approximate/ })).not.toBeInTheDocument();
     });
 
     it("Reset to Batch Rules asks first", async () => {

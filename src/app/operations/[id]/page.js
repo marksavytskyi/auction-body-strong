@@ -11,7 +11,6 @@ import { BATCH_STATUS_TONE, PROGRESS_LEG_LABEL } from "@/lib/operations/constant
 import { formatDate, isLegActive } from "@/lib/operations/format";
 import StatusPill from "@/components/catalytic/StatusPill";
 import ProcessingControls from "@/components/operations/ProcessingControls";
-import FinancialSummaryCards from "@/components/operations/FinancialSummaryCards";
 import ProcessingProgress from "@/components/operations/ProcessingProgress";
 import ExportCsvButton from "@/components/operations/ExportCsvButton";
 import BatchRecoverySettings from "@/components/operations/BatchRecoverySettings";
@@ -202,7 +201,6 @@ export default function OperationsBatchDetailPage() {
 
             {/* Phase K.53 order: what's happening first, then how to run it, then the rules. All closed by default. */}
             <div className="space-y-2">
-                <FinancialSummaryCards batchId={batch.id} refreshKey={refreshKey} />
                 <ProcessingProgress batchId={batch.id} refreshKey={refreshKey} />
                 <CatalyticProcessingCard
                     batchId={batch.id}

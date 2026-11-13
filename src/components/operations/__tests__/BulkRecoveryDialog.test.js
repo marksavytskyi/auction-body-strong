@@ -43,7 +43,9 @@ describe("BulkRecoveryDialog", () => {
             reset_fields: ["catalytic_source"], restore_batch_defaults: false,
         };
         await waitFor(() => expect(previewBulkRecovery).toHaveBeenCalledWith(1, body));
-        expect(await screen.findByText("-$50.00")).toBeInTheDocument();
+        // K.60 — per-vehicle counts, never a batch total.
+        expect(await screen.findByText("2 of 2")).toBeInTheDocument();
+        expect(screen.queryByText(/\$/)).not.toBeInTheDocument();
         expect(applyBulkRecovery).not.toHaveBeenCalled();
         fireEvent.click(screen.getByRole("button", { name: "Apply Changes" }));
         await waitFor(() => expect(applyBulkRecovery).toHaveBeenCalledWith(1, body));
