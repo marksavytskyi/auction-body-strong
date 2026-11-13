@@ -31,7 +31,11 @@ describe("CatDB VIN cell (K.56)", () => {
             catdb_price_warning: "PRICE_PARTIAL: 1 of 3 converter row(s) have a CatDB price; the total covers only those" });
         render(<CatalyticSourceCell source="CATDB_VIN" vehicle={partial} />);
         expect(screen.getByText("Partial price")).toBeInTheDocument();
-        expect(describeSource("CATDB_VIN", partial).title).toContain("not used automatically");
+        // K.60 — the priced part now counts and the estimate is Partial (was: not used automatically).
+        const title = describeSource("CATDB_VIN", partial).title;
+        expect(title).toContain("its priced part counts, and the vehicle estimate is marked Partial");
+        expect(title).toContain("Converters: 3");
+        expect(title).toContain("PRICE_PARTIAL: 1 of 3 converter row(s)");
     });
 
     it("a recovered complete result shows the range and its converter count with no flag", () => {

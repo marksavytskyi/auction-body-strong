@@ -88,7 +88,7 @@ function catdbVin(v) {
             "Match: Exact VIN",
             reused && `Stored result reused: an earlier paid search for this VIN${v.catdb_job_id ? ` (job #${v.catdb_job_id})` : ""}; no new search`,
             v.catdb_catalyst_quantity != null && `Converters: ${v.catdb_catalyst_quantity}`,
-            partial && "Price covers only some converters: not used automatically in the estimate",
+            partial && "Price covers only some converters: its priced part counts, and the vehicle estimate is marked Partial",
             warning && `Warning: ${warning}`,
         ];
         return {
@@ -205,6 +205,7 @@ function local(result, name) {
             <>
                 <span>{formatMoney(result.price_expected)}</span>
                 {inferred && <div className="text-[10px] font-bold text-sky-300/80">Inferred</div>}
+                {result.price_warning && <div className="text-[10px] font-bold text-amber-300/80">Check price</div>}
                 {result.confidence === "LOW" && <div className="text-[10px] font-bold text-amber-300/80">Low confidence</div>}
             </>
         ),

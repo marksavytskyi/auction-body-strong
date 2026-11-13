@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import CatalyticSourceCell from "../CatalyticSourceCell";
+import CatalyticSourceCell, { describeSource } from "../CatalyticSourceCell";
 import PaidRunDialog, { cacheHitVins, paidExclusions } from "../PaidRunDialog";
 
 // Phase K.58 — CatDB Local is the cache of paid CatDB results: an inferred configuration
@@ -102,3 +102,15 @@ describe("paid searches leave out CatDB Local cache hits (K.58)", () => {
         expect(screen.getByRole("button", { name: /Approve 0 searches/ })).toBeDisabled();
     });
 });
+
+describe("K.60: a warned local result is flagged in the cell", () => {
+    it("a CatDB Local exact row with a price warning says Check price, and the tooltip carries the warning", () => {
+        const warned = { catalytic_local: [{ source: "CATDB_LOCAL", status: "COMPLETED", match_type: "VIN_EXACT",
+            price_low: "67.00", price_expected: "72.50", price_high: "78.00", price_warning: 'Colorado: UNRECOGNIZED_PRICE_FORMAT: "Canyon, $40-$136"' }] };
+        const { container } = render(<CatalyticSourceCell source="CATDB_LOCAL" vehicle={warned} />);
+        expect(container.textContent).toContain("$72.50");
+        expect(container.textContent).toContain("Check price");
+        expect(describeSource("CATDB_LOCAL", warned).title).toContain("Warning: Colorado: UNRECOGNIZED_PRICE_FORMAT");
+    });
+});
+
