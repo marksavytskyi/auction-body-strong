@@ -119,3 +119,30 @@ describe("revisions", () => {
         expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument();
     });
 });
+
+describe("submitter identity (K.62)", () => {
+    it("shows the submitter's email and timestamp, and names review-log actors", async () => {
+        getCaptureDetail.mockResolvedValue(detail({
+            submitted_by_user_id: 12,
+            submitter: { user_id: 12, email: "test2@gmail.com", display_name: null, account_status: "ACTIVE" },
+        }));
+        getReviewLog.mockResolvedValue([
+            { id: 1, action: "SUBMIT", actor_user_id: 12, reason: "", created_at: "2026-11-01T10:00:00",
+              actor: { user_id: 12, email: "test2@gmail.com", display_name: null, account_status: "ACTIVE" } },
+        ]);
+        render(<ModerationDetailPage />);
+        const line = await screen.findByTestId("submitter-identity");
+        expect(line).toHaveTextContent("Submitted by: test2@gmail.com");
+        expect(line).toHaveTextContent("user #12");
+        expect(line).toHaveTextContent(new Date("2026-11-01T10:00:00").toLocaleString());
+        fireEvent.click(screen.getByRole("button", { name: /review log/i }));
+        expect(await screen.findByText("SUBMIT by test2@gmail.com")).toBeInTheDocument();
+    });
+
+    it("shows only the user number when the server sends no identity", async () => {
+        render(<ModerationDetailPage />);
+        const line = await screen.findByTestId("submitter-identity");
+        expect(line).toHaveTextContent("Submitted by: user #1");
+    });
+});
+

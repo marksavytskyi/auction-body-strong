@@ -8,6 +8,13 @@ import { listQueue } from "@/lib/catalytic/moderation";
 import { CatalyticApiError } from "@/lib/catalytic/api";
 import { Input } from "@/components/ui/input";
 import CaptureStatusBadge from "@/components/catalytic/CaptureStatusBadge";
+import SubmitterIdentity from "@/components/catalytic/SubmitterIdentity";
+
+function fmtDate(s) {
+    if (!s) return "";
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? s : d.toLocaleString();
+}
 
 export default function ModerationQueuePage() {
     const router = useRouter();
@@ -70,10 +77,10 @@ export default function ModerationQueuePage() {
                                 <div className="text-sm font-bold text-white/90 truncate">
                                     {[c.year, c.make, c.model].filter(Boolean).join(" ") || c.vin || `Capture #${c.id}`}
                                 </div>
-                                <div className="text-[11px] text-white/40 flex items-center gap-2 mt-0.5">
+                                <div className="text-[11px] text-white/40 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
                                     {c.vin && <span className="font-mono">{c.vin}</span>}
                                     <span>{c.catalysts?.length || 0} catalyst{c.catalysts?.length === 1 ? "" : "s"}</span>
-                                    <span>submitted by user #{c.submitted_by_user_id}</span>
+                                    <SubmitterIdentity identity={c.submitter} userId={c.submitted_by_user_id} submittedAt={c.submitted_at || c.created_at} fmtDate={fmtDate} />
                                     {c.revision > 1 && <span className="font-bold text-sky-300">Updated · revision {c.revision}</span>}
                                 </div>
                             </div>

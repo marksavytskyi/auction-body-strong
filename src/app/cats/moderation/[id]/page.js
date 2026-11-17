@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import CaptureStatusBadge from "@/components/catalytic/CaptureStatusBadge";
+import SubmitterIdentity, { identityLabel } from "@/components/catalytic/SubmitterIdentity";
 
 function fmtDate(s) {
     if (!s) return "—";
@@ -289,7 +290,7 @@ export default function ModerationDetailPage() {
                 <div className="text-xs text-white/45 mt-1 flex items-center gap-3 flex-wrap">
                     {detail.engine && <span>{detail.engine}</span>}
                     {detail.vin && <span className="font-mono">{detail.vin}</span>}
-                    <span>submitted {fmtDate(detail.submitted_at)} by user #{detail.submitted_by_user_id}</span>
+                    <SubmitterIdentity identity={detail.submitter} userId={detail.submitted_by_user_id} submittedAt={detail.submitted_at || detail.created_at} fmtDate={fmtDate} />
                 </div>
                 {detail.notes && <p className="text-xs text-white/35 italic mt-2">{detail.notes}</p>}
             </div>
@@ -359,7 +360,7 @@ export default function ModerationDetailPage() {
                         ) : (
                             reviewLog.map((r) => (
                                 <div key={r.id} className="text-xs text-white/60 flex items-center justify-between">
-                                    <span>{r.action} by user #{r.actor_user_id}{r.reason ? ` — ${r.reason}` : ""}</span>
+                                    <span>{r.action} by {identityLabel(r.actor, r.actor_user_id)}{r.reason ? ` — ${r.reason}` : ""}</span>
                                     <span className="text-white/35">{fmtDate(r.created_at)}</span>
                                 </div>
                             ))

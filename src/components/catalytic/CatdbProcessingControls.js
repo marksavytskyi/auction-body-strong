@@ -57,7 +57,7 @@ function fmtDate(value) {
 }
 
 // children and confirmDisabled let a caller ask for more than one click, such as typing an email.
-export function ConfirmDialog({ action, busy, onConfirm, onClose, children = null, confirmDisabled = false }) {
+export function ConfirmDialog({ action, busy, onConfirm, onClose, children = null, confirmDisabled = false, cancelLabel = "Go back" }) {
     const zIndex = useModalLayer(true, busy ? undefined : onClose);
     return createPortal(
         <div
@@ -74,7 +74,7 @@ export function ConfirmDialog({ action, busy, onConfirm, onClose, children = nul
                 {children}
                 <div className="flex justify-end gap-2 pt-1">
                     <button type="button" disabled={busy} onClick={onClose} className="h-10 rounded-xl border border-white/15 px-4 text-sm font-bold text-white/80 disabled:opacity-40">
-                        Go back
+                        {cancelLabel}
                     </button>
                     <button type="button" disabled={busy || confirmDisabled} onClick={onConfirm} className="inline-flex h-10 items-center gap-2 rounded-xl bg-rose-500 px-4 text-sm font-bold text-white disabled:opacity-60">
                         {busy && <Loader2 className="h-4 w-4 animate-spin" />}

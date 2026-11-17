@@ -60,6 +60,11 @@ export function getStats() {
     return request(() => axiosInstance.get(`${BASE}/stats`), "Failed to load CatDB stats");
 }
 
+// K.62: hides the errors now in Recent Errors. Jobs, results, quota and devices are untouched.
+export function clearErrorHistory() {
+    return request(() => axiosInstance.post(`${BASE}/errors/clear`), "Failed to clear CatDB error history");
+}
+
 export function listMachines() {
     return request(() => axiosInstance.get(`${BASE}/workers`), "Failed to load CatDB machines");
 }

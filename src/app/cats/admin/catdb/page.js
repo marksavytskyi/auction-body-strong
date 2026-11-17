@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import CatdbJobsPanel from "@/components/catalytic/CatdbJobsPanel";
 import CatdbDevicesSubscriptions from "@/components/catalytic/CatdbDevicesSubscriptions";
+import CatdbRecentErrors from "@/components/catalytic/CatdbRecentErrors";
 import { ConfirmDialog } from "@/components/catalytic/CatdbProcessingControls";
 
 const MACHINE_STATUS_TONE = {
@@ -168,9 +169,7 @@ export default function CatdbAdminPage() {
     const [enqueuing, setEnqueuing] = useState(false);
     const [paused, setPaused] = useState(null);
 
-    const loadStats = useCallback(() => {
-        getStats().then(setStats).catch(() => setStats(null));
-    }, []);
+    const loadStats = useCallback(() => getStats().then(setStats).catch(() => setStats(null)), []);
 
     const loadMachines = useCallback(() => {
         listMachines().then((d) => {
@@ -239,20 +238,7 @@ export default function CatdbAdminPage() {
                     </div>
                 ))}
             </div>
-            {stats?.recent_errors?.length > 0 && (
-                <div className="rounded-2xl border border-rose-500/20 bg-rose-500/[0.04] p-4">
-                    <div className="text-xs font-bold uppercase tracking-wider text-rose-300 mb-2">Recent Errors</div>
-                    <div className="space-y-1.5">
-                        {stats.recent_errors.map((e, i) => (
-                            <div key={i} className="text-xs text-white/60 flex items-center justify-between gap-2">
-                                <span className="font-mono">{e.vin}</span>
-                                <span className="text-white/40">{e.error_code}</span>
-                                <span className="text-rose-300/80 truncate max-w-[40%]">{e.error_message}</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
+            {stats && <CatdbRecentErrors errors={stats.recent_errors} onCleared={loadStats} />}
 
             <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6 space-y-4">
                 <div className="flex items-center justify-between">
